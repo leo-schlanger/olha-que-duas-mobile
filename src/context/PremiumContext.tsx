@@ -47,6 +47,10 @@ export function PremiumProvider({ children }: PremiumProviderProps) {
 
       // Then, verify with stores (only if native modules available)
       if (purchaseService && environment.features.purchases) {
+        // Initialize the purchase service connection
+        await purchaseService.initialize();
+
+        // Check if user has valid purchase
         const hasValidPurchase = await purchaseService.checkPurchaseStatus();
         if (hasValidPurchase) {
           setIsPremium(true);

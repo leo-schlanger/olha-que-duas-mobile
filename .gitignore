@@ -68,3 +68,6 @@ eas-credentials/
 *.apk
 *.aab
 *.ipa
+
+# Claude Code local settings
+.claude/

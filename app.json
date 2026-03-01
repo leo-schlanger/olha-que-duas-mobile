@@ -19,18 +19,12 @@
         "UIBackgroundModes": [
           "audio"
         ],
-        "NSMicrophoneUsageDescription": "Not required.",
-        "SKAdNetworkItems": [
-          {
-            "SKAdNetworkIdentifier": "cstr6suwn9.skadnetwork"
-          }
-        ],
-        "GADApplicationIdentifier": "ca-app-pub-7365386697613870~4390180141"
+        "NSMicrophoneUsageDescription": "Not required."
       }
     },
     "android": {
       "package": "com.olhaqueduas.app",
-      "versionCode": 1,
+      "versionCode": 4,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#b4292b"
@@ -41,9 +35,8 @@
         "android.permission.WAKE_LOCK",
         "android.permission.INTERNET",
         "android.permission.ACCESS_NETWORK_STATE",
-        "com.android.vending.BILLING",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
+        "com.google.android.gms.permission.AD_ID",
+        "com.android.vending.BILLING"
       ]
     },
     "web": {
@@ -56,6 +49,7 @@
           "microphonePermission": "Not required."
         }
       ],
+      "react-native-iap",
       [
         "react-native-google-mobile-ads",
         {

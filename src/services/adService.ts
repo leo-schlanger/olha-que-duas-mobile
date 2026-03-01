@@ -1,33 +1,27 @@
-import mobileAds, { MaxAdContentRating, BannerAdSize } from 'react-native-google-mobile-ads';
+/**
+ * Ad Service - Google AdMob Integration
+ *
+ * Handles ad initialization and configuration
+ */
+
+import mobileAds, { MaxAdContentRating } from 'react-native-google-mobile-ads';
 import { Platform } from 'react-native';
 
-// Google AdMob test IDs (use in development)
-// In production, replace with real IDs from AdMob Console
+// Google AdMob Ad Unit IDs
+const AD_UNITS = {
+  BANNER: Platform.select({
+    ios: 'ca-app-pub-7365386697613870/8868122415',
+    android: 'ca-app-pub-7365386697613870/8868122415',
+  }) as string,
+};
+
+// Test Ad Unit IDs (for development)
 const TEST_AD_UNITS = {
   BANNER: Platform.select({
     ios: 'ca-app-pub-3940256099942544/2934735716',
     android: 'ca-app-pub-3940256099942544/6300978111',
   }) as string,
-  INTERSTITIAL: Platform.select({
-    ios: 'ca-app-pub-3940256099942544/4411468910',
-    android: 'ca-app-pub-3940256099942544/1033173712',
-  }) as string,
 };
-
-// Production IDs - Olha que Duas AdMob
-const PRODUCTION_AD_UNITS = {
-  BANNER: Platform.select({
-    ios: 'ca-app-pub-7365386697613870/8868122415', // TODO: Create iOS ad unit when needed
-    android: 'ca-app-pub-7365386697613870/8868122415',
-  }) as string,
-  INTERSTITIAL: Platform.select({
-    ios: 'ca-app-pub-7365386697613870/8868122415', // TODO: Create interstitial ad unit
-    android: 'ca-app-pub-7365386697613870/8868122415', // TODO: Create interstitial ad unit
-  }) as string,
-};
-
-// Use test IDs in development
-const IS_DEVELOPMENT = __DEV__;
 
 class AdService {
   private isInitialized = false;
@@ -36,15 +30,18 @@ class AdService {
    * Initialize the Google Mobile Ads SDK
    */
   async initialize(): Promise<void> {
-    if (this.isInitialized) return;
+    if (this.isInitialized) {
+      return;
+    }
 
     try {
       // Configure the SDK
       await mobileAds().setRequestConfiguration({
-        // Set maximum ad content rating
+        // Maximum ad content rating
         maxAdContentRating: MaxAdContentRating.PG,
-        // Set child-directed treatment (GDPR)
+        // Tag for child-directed treatment
         tagForChildDirectedTreatment: false,
+        // Tag for users under age of consent
         tagForUnderAgeOfConsent: false,
       });
 
@@ -60,30 +57,20 @@ class AdService {
 
   /**
    * Get the banner ad unit ID
+   * Uses test IDs in development, production IDs in release
    */
   getBannerAdUnitId(): string {
-    return IS_DEVELOPMENT ? TEST_AD_UNITS.BANNER : PRODUCTION_AD_UNITS.BANNER;
+    if (__DEV__) {
+      return TEST_AD_UNITS.BANNER;
+    }
+    return AD_UNITS.BANNER;
   }
 
   /**
-   * Get the interstitial ad unit ID
+   * Check if ads are initialized
    */
-  getInterstitialAdUnitId(): string {
-    return IS_DEVELOPMENT ? TEST_AD_UNITS.INTERSTITIAL : PRODUCTION_AD_UNITS.INTERSTITIAL;
-  }
-
-  /**
-   * Get available banner sizes
-   */
-  getBannerSizes() {
-    return {
-      BANNER: BannerAdSize.BANNER, // 320x50
-      LARGE_BANNER: BannerAdSize.LARGE_BANNER, // 320x100
-      MEDIUM_RECTANGLE: BannerAdSize.MEDIUM_RECTANGLE, // 300x250
-      FULL_BANNER: BannerAdSize.FULL_BANNER, // 468x60
-      LEADERBOARD: BannerAdSize.LEADERBOARD, // 728x90
-      ANCHORED_ADAPTIVE_BANNER: BannerAdSize.ANCHORED_ADAPTIVE_BANNER,
-    };
+  isReady(): boolean {
+    return this.isInitialized;
   }
 }
 
