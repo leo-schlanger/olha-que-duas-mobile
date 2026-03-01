@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cmd /c \"if exist node_modules rmdir /s /q node_modules\")",
+      "Bash(npx tsc:*)",
+      "Bash(npx expo start --no-dev-client)",
+      "Bash(npm start)",
+      "Bash(npx expo:*)",
+      "Bash(npx expo-doctor:*)",
+      "Bash(npm install:*)",
+      "Bash(npm view:*)"
+    ]
+  }
+}

@@ -1,0 +1,70 @@
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# Dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native build folders
+/ios
+/android
+.kotlin/
+*.orig.*
+
+# Signing keys and certificates
+*.jks
+*.keystore
+*.p8
+*.p12
+*.key
+*.pem
+*.mobileprovision
+*.cer
+
+# Google Services (sensitive)
+google-services.json
+GoogleService-Info.plist
+
+# Metro
+.metro-health-check*
+
+# Debug logs
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.log
+
+# macOS
+.DS_Store
+
+# Environment files (sensitive)
+.env
+.env.*
+!.env.example
+
+# TypeScript
+*.tsbuildinfo
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+nul
+*.tmp
+*.temp
+
+# EAS secrets (never commit)
+credentials.json
+eas-credentials/
+
+# Build artifacts
+*.apk
+*.aab
+*.ipa
