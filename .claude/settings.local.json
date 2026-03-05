@@ -8,7 +8,11 @@
       "Bash(npx expo:*)",
       "Bash(npx expo-doctor:*)",
       "Bash(npm install:*)",
-      "Bash(npm view:*)"
+      "Bash(npm view:*)",
+      "Bash(npx eas:*)",
+      "Bash($env:EAS_NO_VCS=1)",
+      "Bash(set EAS_NO_VCS=1:*)",
+      "WebFetch(domain:expo.dev)"
     ]
   }
 }

@@ -24,7 +24,7 @@ export function useRadio() {
     init();
 
     return () => {
-      radioService.cleanup();
+      radioService.setStatusCallback(() => { });
     };
   }, []);
 

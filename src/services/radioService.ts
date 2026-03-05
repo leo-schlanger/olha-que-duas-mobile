@@ -10,6 +10,28 @@ class RadioService {
   private isPlaying: boolean = false;
   private volume: number = 1.0;
   private onStatusChange: ((status: RadioStatus) => void) | null = null;
+  private isIntentionallyStopped: boolean = true;
+  private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  private clearReconnectTimeout() {
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+  }
+
+  private async destroySound() {
+    if (this.sound) {
+      try {
+        const soundToDestroy = this.sound;
+        this.sound = null;
+        await soundToDestroy.stopAsync();
+        await soundToDestroy.unloadAsync();
+      } catch (e) {
+        console.error('Error destroying sound:', e);
+      }
+    }
+  }
 
   /**
    * Initialize audio mode for background playback
@@ -53,6 +75,9 @@ class RadioService {
    */
   async play(): Promise<boolean> {
     try {
+      this.isIntentionallyStopped = false;
+      this.clearReconnectTimeout();
+
       if (this.sound) {
         await this.sound.playAsync();
         this.isPlaying = true;
@@ -77,8 +102,10 @@ class RadioService {
       return true;
     } catch (error) {
       console.error('Error playing radio:', error);
-      this.isPlaying = false;
-      this.emitStatus();
+      // Let reconnect handle errors if it's not intentionally stopped
+      if (!this.isIntentionallyStopped) {
+        this.reconnect();
+      }
       return false;
     }
   }
@@ -87,34 +114,18 @@ class RadioService {
    * Pause audio playback (Acts as Stop for Live streams)
    */
   async pause(): Promise<void> {
-    try {
-      if (this.sound) {
-        await this.sound.stopAsync();
-        await this.sound.unloadAsync();
-        this.sound = null;
-        this.isPlaying = false;
-        this.emitStatus();
-      }
-    } catch (error) {
-      console.error('Error pausing radio:', error);
-    }
+    this.isIntentionallyStopped = true;
+    this.clearReconnectTimeout();
+    this.isPlaying = false;
+    this.emitStatus();
+    await this.destroySound();
   }
 
   /**
    * Stop and unload audio
    */
   async stop(): Promise<void> {
-    try {
-      if (this.sound) {
-        await this.sound.stopAsync();
-        await this.sound.unloadAsync();
-        this.sound = null;
-        this.isPlaying = false;
-        this.emitStatus();
-      }
-    } catch (error) {
-      console.error('Error stopping radio:', error);
-    }
+    await this.pause();
   }
 
   /**
@@ -160,14 +171,14 @@ class RadioService {
    */
   private onPlaybackStatusUpdate(status: any) {
     if (status.isLoaded) {
-      this.isPlaying = status.isPlaying;
-
-      // Reconnect if stream unexpectedly ends
-      if (status.didJustFinish && this.isPlaying) {
+      // In a live stream, didJustFinish means it unexpectedly dropped
+      if (status.didJustFinish && !this.isIntentionallyStopped) {
         console.log('Stream ended, attempting to reconnect...');
         this.reconnect();
+      } else {
+        this.isPlaying = status.isPlaying;
       }
-    } else if (status.error) {
+    } else if (status.error && !this.isIntentionallyStopped) {
       console.error('Playback error:', status.error);
       this.reconnect();
     }
@@ -178,12 +189,19 @@ class RadioService {
   /**
    * Attempt to reconnect to stream after error or disconnect
    */
-  private async reconnect() {
+  private reconnect() {
+    if (this.isIntentionallyStopped) return;
+
     console.log('Reconnecting to stream...');
-    await this.stop();
-    setTimeout(() => {
-      this.play();
-    }, 2000);
+    this.clearReconnectTimeout();
+
+    this.destroySound().then(() => {
+      this.reconnectTimeout = setTimeout(() => {
+        if (!this.isIntentionallyStopped) {
+          this.play();
+        }
+      }, 5000);
+    });
   }
 
   /**
