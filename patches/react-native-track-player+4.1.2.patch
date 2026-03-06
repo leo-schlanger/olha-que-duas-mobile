@@ -1,5 +1,5 @@
 diff --git a/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/module/MusicModule.kt b/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/module/MusicModule.kt
-index 513ed4b..e997f6c 100644
+index b2409a0..2ff60e1 100644
 --- a/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/module/MusicModule.kt
 +++ b/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/module/MusicModule.kt
 @@ -545,7 +545,13 @@ class MusicModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaM
@@ -17,7 +17,7 @@ index 513ed4b..e997f6c 100644
          } else {
              callback.resolve(null)
          }
-@@ -583,9 +589,15 @@ class MusicModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaM
+@@ -584,9 +590,15 @@ class MusicModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaM
          if (verifyServiceBoundOrReject(callback)) return@launch
          callback.resolve(
              if (musicService.tracks.isEmpty()) null
@@ -35,3 +35,4 @@ index 513ed4b..e997f6c 100644
 +            }
          )
      }
+ 
