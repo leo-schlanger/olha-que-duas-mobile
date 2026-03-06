@@ -4,15 +4,16 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppNavigator } from "./src/navigation/AppNavigator";
 import { PremiumProvider } from "./src/context/PremiumContext";
 import { GDPRConsent } from "./src/components/GDPRConsent";
-import { radioService } from "./src/services/radioService";
 import { environment } from "./src/config/environment";
 
-// Lazy load native services
+// Lazy load all native services (not available in Expo Go)
+let radioService: any = null;
 let adService: any = null;
 let purchaseService: any = null;
 
 if (environment.canUseNativeModules) {
   try {
+    radioService = require("./src/services/radioService").radioService;
     adService = require("./src/services/adService").adService;
     purchaseService = require("./src/services/purchaseService").purchaseService;
   } catch (error) {
@@ -25,7 +26,7 @@ export default function App() {
 
   useEffect(() => {
     // Initialize audio service for background playback
-    radioService.initialize();
+    radioService?.initialize();
 
     // Initialize native services only when available
     if (environment.canUseNativeModules) {
@@ -34,7 +35,7 @@ export default function App() {
 
     return () => {
       // Cleanup when app is closed
-      radioService.stop();
+      radioService?.stop();
       purchaseService?.disconnect();
     };
   }, []);
@@ -42,7 +43,7 @@ export default function App() {
   // Initialize ads after consent is given
   useEffect(() => {
     if (adsConsent !== null && environment.canUseNativeModules && adService) {
-      adService.initialize();
+      adService.initialize(adsConsent);
     }
   }, [adsConsent]);
 
@@ -54,7 +55,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <PremiumProvider>
-        <StatusBar style="light" />
+        <StatusBar style="dark" />
         <AppNavigator />
         <GDPRConsent onConsentGiven={handleGDPRConsent} />
       </PremiumProvider>

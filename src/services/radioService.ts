@@ -1,17 +1,24 @@
-import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
+import TrackPlayer, {
+  Capability,
+  State,
+  Event,
+  AppKilledPlaybackBehavior,
+} from 'react-native-track-player';
 import { siteConfig } from '../config/site';
 
 /**
  * Radio streaming service with background audio support
- * Handles audio playback, volume control, and automatic reconnection
+ * Uses react-native-track-player for proper foreground service on Android
  */
 class RadioService {
-  private sound: Audio.Sound | null = null;
+  private isInitialized: boolean = false;
   private isPlaying: boolean = false;
   private volume: number = 1.0;
   private onStatusChange: ((status: RadioStatus) => void) | null = null;
   private isIntentionallyStopped: boolean = true;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+  private reconnectAttempts: number = 0;
+  private readonly MAX_RECONNECT_DELAY: number = 30000;
 
   private clearReconnectTimeout() {
     if (this.reconnectTimeout) {
@@ -20,36 +27,99 @@ class RadioService {
     }
   }
 
-  private async destroySound() {
-    if (this.sound) {
-      try {
-        const soundToDestroy = this.sound;
-        this.sound = null;
-        await soundToDestroy.stopAsync();
-        await soundToDestroy.unloadAsync();
-      } catch (e) {
-        console.error('Error destroying sound:', e);
-      }
+  /**
+   * Initialize TrackPlayer for background playback
+   * Sets up the player with proper notification and capabilities
+   */
+  async initialize() {
+    if (this.isInitialized) {
+      return;
+    }
+
+    try {
+      await TrackPlayer.setupPlayer({
+        autoHandleInterruptions: true,
+      });
+
+      await TrackPlayer.updateOptions({
+        capabilities: [
+          Capability.Play,
+          Capability.Pause,
+          Capability.Stop,
+        ],
+        compactCapabilities: [
+          Capability.Play,
+          Capability.Pause,
+        ],
+        notificationCapabilities: [
+          Capability.Play,
+          Capability.Pause,
+        ],
+        android: {
+          appKilledPlaybackBehavior: AppKilledPlaybackBehavior.ContinuePlayback,
+        },
+      });
+
+      // Listen to playback state changes
+      TrackPlayer.addEventListener(Event.PlaybackState, (event) => {
+        this.handlePlaybackState(event.state);
+      });
+
+      // Listen for playback errors
+      TrackPlayer.addEventListener(Event.PlaybackError, (event) => {
+        console.error('Playback error:', event);
+        if (!this.isIntentionallyStopped) {
+          this.reconnect();
+        }
+      });
+
+      // Listen for track ending (shouldn't happen with live stream, but handle it)
+      TrackPlayer.addEventListener(Event.PlaybackQueueEnded, () => {
+        if (!this.isIntentionallyStopped && this.isPlaying) {
+          console.log('Stream ended unexpectedly, reconnecting...');
+          this.reconnect();
+        }
+      });
+
+      this.isInitialized = true;
+      console.log('RadioService initialized with TrackPlayer');
+    } catch (error) {
+      console.error('Error initializing TrackPlayer:', error);
+      // Player might already be initialized
+      this.isInitialized = true;
     }
   }
 
   /**
-   * Initialize audio mode for background playback
-   * This is critical for audio to continue when device is locked
+   * Handle playback state changes from TrackPlayer
    */
-  async initialize() {
-    try {
-      await Audio.setAudioModeAsync({
-        staysActiveInBackground: true,
-        playsInSilentModeIOS: true,
-        interruptionModeIOS: InterruptionModeIOS.DoNotMix,
-        interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
-        shouldDuckAndroid: false,
-        playThroughEarpieceAndroid: false,
-      });
-      console.log('RadioService initialized');
-    } catch (error) {
-      console.error('Error initializing audio mode:', error);
+  private handlePlaybackState(state: State) {
+    const wasPlaying = this.isPlaying;
+
+    switch (state) {
+      case State.Playing:
+        this.isPlaying = true;
+        this.reconnectAttempts = 0; // Reset reconnect counter on successful play
+        break;
+      case State.Paused:
+      case State.Stopped:
+      case State.None:
+        this.isPlaying = false;
+        break;
+      case State.Buffering:
+      case State.Loading:
+        // Keep current state while loading
+        break;
+      case State.Error:
+        this.isPlaying = false;
+        if (!this.isIntentionallyStopped) {
+          this.reconnect();
+        }
+        break;
+    }
+
+    if (wasPlaying !== this.isPlaying) {
+      this.emitStatus();
     }
   }
 
@@ -78,31 +148,38 @@ class RadioService {
       this.isIntentionallyStopped = false;
       this.clearReconnectTimeout();
 
-      if (this.sound) {
-        await this.sound.playAsync();
-        this.isPlaying = true;
-        this.emitStatus();
-        return true;
+      // Ensure player is initialized
+      if (!this.isInitialized) {
+        await this.initialize();
       }
 
-      // Create new sound instance with stream URL
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: siteConfig.radio.streamUrl },
-        {
-          shouldPlay: true,
-          volume: this.volume,
-          isLooping: false,
-        },
-        this.onPlaybackStatusUpdate.bind(this)
-      );
+      const currentTrack = await TrackPlayer.getActiveTrack();
 
-      this.sound = sound;
+      if (currentTrack) {
+        // Track already loaded, just play
+        await TrackPlayer.play();
+      } else {
+        console.log('Adding radio track to player:', siteConfig.radio.streamUrl);
+        await TrackPlayer.reset();
+        await TrackPlayer.add({
+          id: 'radio-stream',
+          url: siteConfig.radio.streamUrl,
+          title: siteConfig.radio.name,
+          artist: siteConfig.radio.tagline,
+          isLiveStream: true,
+        });
+        console.log('Track added successfully, calling play()');
+        await TrackPlayer.play();
+      }
+
+      // Apply volume
+      await TrackPlayer.setVolume(this.volume);
+
       this.isPlaying = true;
       this.emitStatus();
       return true;
     } catch (error) {
       console.error('Error playing radio:', error);
-      // Let reconnect handle errors if it's not intentionally stopped
       if (!this.isIntentionallyStopped) {
         this.reconnect();
       }
@@ -111,21 +188,38 @@ class RadioService {
   }
 
   /**
-   * Pause audio playback (Acts as Stop for Live streams)
+   * Pause audio playback
    */
   async pause(): Promise<void> {
     this.isIntentionallyStopped = true;
     this.clearReconnectTimeout();
+    this.reconnectAttempts = 0;
     this.isPlaying = false;
     this.emitStatus();
-    await this.destroySound();
+
+    try {
+      await TrackPlayer.pause();
+    } catch (error) {
+      console.error('Error pausing:', error);
+    }
   }
 
   /**
-   * Stop and unload audio
+   * Stop and reset the player
    */
   async stop(): Promise<void> {
-    await this.pause();
+    this.isIntentionallyStopped = true;
+    this.clearReconnectTimeout();
+    this.reconnectAttempts = 0;
+    this.isPlaying = false;
+    this.emitStatus();
+
+    try {
+      await TrackPlayer.stop();
+      await TrackPlayer.reset();
+    } catch (error) {
+      console.error('Error stopping:', error);
+    }
   }
 
   /**
@@ -134,9 +228,7 @@ class RadioService {
   async setVolume(value: number): Promise<void> {
     this.volume = Math.max(0, Math.min(1, value));
     try {
-      if (this.sound) {
-        await this.sound.setVolumeAsync(this.volume);
-      }
+      await TrackPlayer.setVolume(this.volume);
       this.emitStatus();
     } catch (error) {
       console.error('Error setting volume:', error);
@@ -167,41 +259,35 @@ class RadioService {
   }
 
   /**
-   * Handle playback status updates from expo-av
-   */
-  private onPlaybackStatusUpdate(status: any) {
-    if (status.isLoaded) {
-      // In a live stream, didJustFinish means it unexpectedly dropped
-      if (status.didJustFinish && !this.isIntentionallyStopped) {
-        console.log('Stream ended, attempting to reconnect...');
-        this.reconnect();
-      } else {
-        this.isPlaying = status.isPlaying;
-      }
-    } else if (status.error && !this.isIntentionallyStopped) {
-      console.error('Playback error:', status.error);
-      this.reconnect();
-    }
-
-    this.emitStatus();
-  }
-
-  /**
    * Attempt to reconnect to stream after error or disconnect
+   * Uses exponential backoff: 1s, 2s, 4s, 8s, ... up to 30s
    */
   private reconnect() {
     if (this.isIntentionallyStopped) return;
 
-    console.log('Reconnecting to stream...');
     this.clearReconnectTimeout();
 
-    this.destroySound().then(() => {
-      this.reconnectTimeout = setTimeout(() => {
-        if (!this.isIntentionallyStopped) {
-          this.play();
+    // Calculate delay with exponential backoff
+    const baseDelay = 1000;
+    const delay = Math.min(
+      baseDelay * Math.pow(2, this.reconnectAttempts),
+      this.MAX_RECONNECT_DELAY
+    );
+    this.reconnectAttempts++;
+
+    console.log(`Reconnecting to stream in ${delay}ms (attempt ${this.reconnectAttempts})...`);
+
+    this.reconnectTimeout = setTimeout(async () => {
+      if (!this.isIntentionallyStopped) {
+        try {
+          await TrackPlayer.reset();
+          await this.play();
+        } catch (error) {
+          console.error('Reconnect failed:', error);
+          // Will trigger another reconnect via error handler
         }
-      }, 5000);
-    });
+      }
+    }, delay);
   }
 
   /**

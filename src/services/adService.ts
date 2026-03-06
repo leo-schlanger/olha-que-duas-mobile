@@ -1,7 +1,7 @@
 /**
  * Ad Service - Google AdMob Integration
  *
- * Handles ad initialization and configuration
+ * Handles ad initialization and configuration with GDPR consent support
  */
 
 import mobileAds, { MaxAdContentRating } from 'react-native-google-mobile-ads';
@@ -25,17 +25,33 @@ const TEST_AD_UNITS = {
 
 class AdService {
   private isInitialized = false;
+  private initializationPromise: Promise<void> | null = null;
+  private personalizedAds = false;
 
   /**
    * Initialize the Google Mobile Ads SDK
+   * @param personalizedAds - Whether user consented to personalized ads
    */
-  async initialize(): Promise<void> {
+  async initialize(personalizedAds: boolean = false): Promise<void> {
+    // If already initialized, return immediately
     if (this.isInitialized) {
       return;
     }
 
+    // If initialization is in progress, wait for it
+    if (this.initializationPromise) {
+      return this.initializationPromise;
+    }
+
+    this.personalizedAds = personalizedAds;
+
+    this.initializationPromise = this.doInitialize();
+    return this.initializationPromise;
+  }
+
+  private async doInitialize(): Promise<void> {
     try {
-      // Configure the SDK
+      // Configure the SDK with GDPR consent
       await mobileAds().setRequestConfiguration({
         // Maximum ad content rating
         maxAdContentRating: MaxAdContentRating.PG,
@@ -49,10 +65,33 @@ class AdService {
       await mobileAds().initialize();
 
       this.isInitialized = true;
-      console.log('AdService: SDK initialized successfully');
+      console.log('AdService: SDK initialized successfully (personalized:', this.personalizedAds, ')');
     } catch (error) {
       console.error('AdService: Initialization error:', error);
+      // Reset promise so it can be retried
+      this.initializationPromise = null;
+      throw error;
     }
+  }
+
+  /**
+   * Wait for SDK to be ready
+   */
+  async waitForInitialization(): Promise<boolean> {
+    if (this.isInitialized) {
+      return true;
+    }
+
+    if (this.initializationPromise) {
+      try {
+        await this.initializationPromise;
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    return false;
   }
 
   /**
@@ -71,6 +110,13 @@ class AdService {
    */
   isReady(): boolean {
     return this.isInitialized;
+  }
+
+  /**
+   * Get whether personalized ads are enabled
+   */
+  isPersonalizedAdsEnabled(): boolean {
+    return this.personalizedAds;
   }
 }
 

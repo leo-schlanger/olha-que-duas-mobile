@@ -5,12 +5,12 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "scheme": "olhaqueduas",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#1a1a1a"
+      "backgroundColor": "#f7f4ed"
     },
     "ios": {
       "supportsTablet": true,
@@ -24,10 +24,10 @@
     },
     "android": {
       "package": "com.olhaqueduas.app",
-      "versionCode": 5,
+      "versionCode": 6,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#b4292b"
+        "backgroundColor": "#f7f4ed"
       },
       "permissions": [
         "android.permission.FOREGROUND_SERVICE",
@@ -43,12 +43,6 @@
       "favicon": "./assets/icon.png"
     },
     "plugins": [
-      [
-        "expo-av",
-        {
-          "microphonePermission": "Not required."
-        }
-      ],
       "react-native-iap",
       [
         "react-native-google-mobile-ads",

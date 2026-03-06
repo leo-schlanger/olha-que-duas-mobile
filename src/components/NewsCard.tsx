@@ -96,11 +96,13 @@ export function NewsCard({ post, onPress }: NewsCardProps) {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: colors.card,
+    backgroundColor: colors.backgroundCard,
     borderRadius: 16,
     overflow: 'hidden',
     marginBottom: 16,
     width: CARD_WIDTH,
+    borderWidth: 1,
+    borderColor: colors.muted,
   },
   imageContainer: {
     width: '100%',
@@ -114,7 +116,7 @@ const styles = StyleSheet.create({
   imagePlaceholder: {
     width: '100%',
     height: '100%',
-    backgroundColor: colors.background,
+    backgroundColor: colors.muted + '20',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -129,7 +131,7 @@ const styles = StyleSheet.create({
   categoryText: {
     color: colors.text,
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
   content: {
     padding: 16,

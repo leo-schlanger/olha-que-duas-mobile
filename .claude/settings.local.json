@@ -12,7 +12,13 @@
       "Bash(npx eas:*)",
       "Bash($env:EAS_NO_VCS=1)",
       "Bash(set EAS_NO_VCS=1:*)",
-      "WebFetch(domain:expo.dev)"
+      "WebFetch(domain:expo.dev)",
+      "WebSearch",
+      "Bash(tree:*)",
+      "WebFetch(domain:rntp.dev)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.npmjs.com)",
+      "Bash(npm uninstall:*)"
     ]
   }
 }

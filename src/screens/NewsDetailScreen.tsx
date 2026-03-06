@@ -69,9 +69,9 @@ export function NewsDetailScreen() {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <StatusBar barStyle="light-content" backgroundColor={colors.background} />
+        <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.secondary} />
+          <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>A carregar...</Text>
         </View>
       </SafeAreaView>
@@ -81,7 +81,7 @@ export function NewsDetailScreen() {
   if (error || !post) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <StatusBar barStyle="light-content" backgroundColor={colors.background} />
+        <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle-outline" size={60} color={colors.textSecondary} />
           <Text style={styles.errorText}>
@@ -105,7 +105,7 @@ export function NewsDetailScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
 
       {/* Header */}
       <View style={styles.header}>
@@ -196,7 +196,7 @@ export function NewsDetailScreen() {
             style={styles.sourceButton}
             onPress={handleOpenSource}
           >
-            <Ionicons name="open-outline" size={18} color={colors.secondary} />
+            <Ionicons name="open-outline" size={18} color={colors.primary} />
             <Text style={styles.sourceButtonText}>Ver fonte original</Text>
           </TouchableOpacity>
         </View>
@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: colors.card,
+    borderBottomColor: colors.muted,
   },
   headerButton: {
     padding: 8,
@@ -250,8 +250,10 @@ const styles = StyleSheet.create({
     marginTop: 20,
     paddingHorizontal: 24,
     paddingVertical: 12,
-    backgroundColor: colors.card,
+    backgroundColor: colors.backgroundCard,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.muted,
   },
   backButtonText: {
     color: colors.text,
@@ -268,7 +270,7 @@ const styles = StyleSheet.create({
   imagePlaceholder: {
     width: '100%',
     height: '100%',
-    backgroundColor: colors.card,
+    backgroundColor: colors.backgroundCard,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -288,15 +290,17 @@ const styles = StyleSheet.create({
   categoryText: {
     color: colors.text,
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
   regionBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.card,
+    backgroundColor: colors.backgroundCard,
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.muted,
   },
   regionText: {
     color: colors.text,
@@ -331,7 +335,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    backgroundColor: colors.card,
+    backgroundColor: colors.muted,
     marginVertical: 20,
   },
   body: {},
@@ -354,12 +358,14 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   tag: {
-    backgroundColor: colors.card,
+    backgroundColor: colors.backgroundCard,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
     marginRight: 8,
     marginBottom: 8,
+    borderWidth: 1,
+    borderColor: colors.muted,
   },
   tagText: {
     color: colors.text,
@@ -369,14 +375,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.card,
+    backgroundColor: colors.backgroundCard,
     paddingVertical: 14,
     borderRadius: 12,
     marginTop: 24,
     marginBottom: 40,
+    borderWidth: 1,
+    borderColor: colors.muted,
   },
   sourceButtonText: {
-    color: colors.secondary,
+    color: colors.primary,
     fontSize: 14,
     fontWeight: '600',
     marginLeft: 8,

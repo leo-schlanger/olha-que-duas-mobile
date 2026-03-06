@@ -18,6 +18,14 @@ export const siteConfig = {
     isLive: true,
     tagline: "A sua voz, 24 horas por dia",
     quality: "192kbps",
+    schedule: [
+      { day: "Segunda", show: "Nutrição", times: ["12:00", "19:00"], icon: "nutrition" },
+      { day: "Terça", show: "Motivar", times: ["12:00", "19:00"], icon: "bulb" },
+      { day: "Quarta", show: "Prazer Feminino", times: ["21:00", "00:00"], icon: "heart" },
+      { day: "Quinta", show: "Companheiros de Caminhada", times: ["12:00", "19:00"], icon: "walk" },
+      { day: "Sexta", show: "Dizem que...", times: ["12:00", "19:00"], icon: "chatbubbles" },
+      { day: "Sábado", show: "Olha que Duas!", times: ["11:00", "19:00", "00:00"], icon: "people" },
+    ],
   },
   supabase: {
     url: process.env.EXPO_PUBLIC_SUPABASE_URL || "",
@@ -25,19 +33,26 @@ export const siteConfig = {
   },
 };
 
-// App color palette
+// App color palette - Updated to match website (Light Theme)
 export const colors = {
-  primary: "#b4292b",
-  secondary: "#FFD700",
-  background: "#1a1a1a",
-  backgroundLight: "#FFFDF5",
-  card: "#2a2a2a",
-  text: "#ffffff",
-  textSecondary: "#a0a0a0",
+  primary: "#d6402e", // Vermelho
+  secondary: "#f0c042", // Amarelo/Gold
+  background: "#f7f4ed", // Beige Light
+  backgroundCard: "#faf8f2", // Cream
+  card: "#faf8f2", // Cream
+  text: "#6e5a4a", // Charcoal / Foreground
+  textSecondary: "#8b7e74", // Softer Charcoal
   success: "#22c55e",
   error: "#ef4444",
-  charcoal: "#2d2d2d",
-  beige: "#F5F0E6",
+  charcoal: "#6e5a4a",
+  amarelo: "#f0c042",
+  amareloSoft: "#f7d98d",
+  vermelho: "#d6402e",
+  vermelhoSoft: "#e47163",
+  beige: "#f7f4ed",
+  beigeDark: "#6e5a4a",
   white: "#FFFFFF",
   black: "#000000",
+  muted: "#e0d1bc",
 };
+

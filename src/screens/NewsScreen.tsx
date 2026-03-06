@@ -51,7 +51,7 @@ export function NewsScreen() {
     if (!hasMore) return null;
     return (
       <View style={styles.footer}>
-        <ActivityIndicator size="small" color={colors.secondary} />
+        <ActivityIndicator size="small" color={colors.primary} />
       </View>
     );
   };
@@ -69,7 +69,7 @@ export function NewsScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
 
       {/* Header */}
       <View style={styles.header}>
@@ -80,7 +80,7 @@ export function NewsScreen() {
       {/* Loading State */}
       {isLoading && posts.length === 0 ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.secondary} />
+          <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>A carregar notícias...</Text>
         </View>
       ) : (
@@ -98,8 +98,8 @@ export function NewsScreen() {
             <RefreshControl
               refreshing={isRefreshing}
               onRefresh={refresh}
-              tintColor={colors.secondary}
-              colors={[colors.secondary]}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
             />
           }
         />
@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 20,
     borderBottomWidth: 1,
-    borderBottomColor: colors.card,
+    borderBottomColor: colors.muted,
   },
   headerTitle: {
     color: colors.text,

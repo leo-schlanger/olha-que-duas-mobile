@@ -11,7 +11,7 @@ import { colors } from '../config/site';
 export function RadioScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
       <View style={styles.content}>
         <RadioPlayer />
       </View>
