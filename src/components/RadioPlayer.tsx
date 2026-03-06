@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -6,29 +6,103 @@ import {
   StyleSheet,
   ActivityIndicator,
   ScrollView,
+  Animated,
 } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
 import { useRadio } from '../hooks/useRadio';
-import { colors, siteConfig } from '../config/site';
+import { useTheme } from '../context/ThemeContext';
+import { siteConfig } from '../config/site';
 
 /**
  * Radio player component with play/pause controls, volume slider, and weekly schedule
+ * Supports background playback and reconnection status
  */
 export function RadioPlayer() {
+  const { colors, isDark } = useTheme();
   const {
     isPlaying,
     isLoading,
+    isReconnecting,
+    reconnectAttempt,
     volume,
     radioName,
     radioTagline,
     togglePlayPause,
     setVolume,
+    forceReconnect,
     isInitialized,
   } = useRadio();
 
+  // Animated values for visualizer
+  const [visualizerHeights] = useState(() =>
+    [...Array(12)].map(() => new Animated.Value(5))
+  );
+
+  // Animate visualizer when playing
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+
+    if (isPlaying) {
+      interval = setInterval(() => {
+        visualizerHeights.forEach((height) => {
+          Animated.timing(height, {
+            toValue: Math.random() * 20 + 5,
+            duration: 150,
+            useNativeDriver: false,
+          }).start();
+        });
+      }, 150);
+    } else {
+      visualizerHeights.forEach((height) => {
+        Animated.timing(height, {
+          toValue: 5,
+          duration: 300,
+          useNativeDriver: false,
+        }).start();
+      });
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isPlaying, visualizerHeights]);
+
   // If we are in Expo Go, we show a friendly message as radio won't play
   const isExpoGo = !isInitialized && !isLoading;
+
+  // Determine the status text and color
+  const getStatusInfo = () => {
+    if (isReconnecting) {
+      return {
+        text: `A reconectar... (${reconnectAttempt}/10)`,
+        color: colors.secondary,
+        dotColor: colors.secondary,
+      };
+    }
+    if (isLoading) {
+      return {
+        text: 'A carregar...',
+        color: colors.textSecondary,
+        dotColor: colors.secondary,
+      };
+    }
+    if (isPlaying) {
+      return {
+        text: 'No Ar',
+        color: colors.success,
+        dotColor: colors.success,
+      };
+    }
+    return {
+      text: 'Offline',
+      color: colors.textSecondary,
+      dotColor: colors.textSecondary,
+    };
+  };
+
+  const statusInfo = getStatusInfo();
+  const styles = createStyles(colors, isDark);
 
   return (
     <ScrollView
@@ -39,9 +113,9 @@ export function RadioPlayer() {
       <View style={styles.container}>
         {/* Status Badge */}
         <View style={styles.statusBadge}>
-          <View style={[styles.statusDot, isPlaying && styles.statusDotActive]} />
-          <Text style={styles.statusText}>
-            {isPlaying ? 'No Ar' : 'Offline'}
+          <View style={[styles.statusDot, { backgroundColor: statusInfo.dotColor }]} />
+          <Text style={[styles.statusText, { color: statusInfo.color }]}>
+            {statusInfo.text}
           </Text>
         </View>
 
@@ -56,7 +130,7 @@ export function RadioPlayer() {
           disabled={isLoading || isExpoGo}
           activeOpacity={0.8}
         >
-          {isLoading ? (
+          {isLoading || isReconnecting ? (
             <ActivityIndicator size="large" color={colors.background} />
           ) : (
             <Ionicons
@@ -66,6 +140,18 @@ export function RadioPlayer() {
             />
           )}
         </TouchableOpacity>
+
+        {/* Reconnect Button (shown when reconnecting fails) */}
+        {isReconnecting && reconnectAttempt && reconnectAttempt >= 5 && (
+          <TouchableOpacity
+            style={styles.reconnectButton}
+            onPress={forceReconnect}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="refresh" size={16} color={colors.white} />
+            <Text style={styles.reconnectButtonText}>Tentar Novamente</Text>
+          </TouchableOpacity>
+        )}
 
         {isExpoGo && (
           <View style={styles.expoGoWarning}>
@@ -101,20 +187,21 @@ export function RadioPlayer() {
           />
         </View>
 
-        {/* Audio Visualizer (decorative) */}
-        {isPlaying && (
-          <View style={styles.visualizer}>
-            {[...Array(12)].map((_, i) => (
-              <View
-                key={i}
-                style={[
-                  styles.visualizerBar,
-                  { height: Math.random() * 20 + 5 },
-                ]}
-              />
-            ))}
-          </View>
-        )}
+        {/* Audio Visualizer (animated) */}
+        <View style={styles.visualizer}>
+          {visualizerHeights.map((height, i) => (
+            <Animated.View
+              key={i}
+              style={[
+                styles.visualizerBar,
+                {
+                  height,
+                  backgroundColor: isPlaying ? colors.secondary : colors.muted,
+                },
+              ]}
+            />
+          ))}
+        </View>
 
         {/* Info Cards */}
         <View style={styles.infoCards}>
@@ -139,7 +226,7 @@ export function RadioPlayer() {
         <View style={styles.scheduleSection}>
           <View style={styles.scheduleHeader}>
             <Ionicons name="calendar" size={20} color={colors.secondary} />
-            <Text style={styles.scheduleTitle}>Programação Semanal</Text>
+            <Text style={styles.scheduleTitle}>Programacao Semanal</Text>
           </View>
 
           <View style={styles.scheduleGrid}>
@@ -174,226 +261,236 @@ export function RadioPlayer() {
   );
 }
 
-const styles = StyleSheet.create({
-  outerContainer: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  scrollContent: {
-    paddingBottom: 40,
-  },
-  container: {
-    alignItems: 'center',
-    padding: 20,
-    backgroundColor: colors.background,
-  },
-  statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.backgroundCard,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: colors.muted,
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.textSecondary,
-    marginRight: 8,
-  },
-  statusDotActive: {
-    backgroundColor: colors.success,
-  },
-  statusText: {
-    color: colors.text,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  radioName: {
-    color: colors.text,
-    fontSize: 28,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  tagline: {
-    color: colors.textSecondary,
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 30,
-  },
-  playButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: colors.secondary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-    shadowColor: colors.secondary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 8,
-  },
-  playButtonActive: {
-    backgroundColor: colors.primary,
-  },
-  expoGoWarning: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.vermelho + '10',
-    padding: 10,
-    borderRadius: 10,
-    marginBottom: 20,
-    gap: 8,
-  },
-  expoGoText: {
-    color: colors.vermelho,
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  volumeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
-    paddingHorizontal: 20,
-    marginBottom: 30,
-  },
-  volumeSlider: {
-    flex: 1,
-    marginHorizontal: 10,
-  },
-  visualizer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    height: 30,
-    marginBottom: 30,
-  },
-  visualizerBar: {
-    width: 4,
-    backgroundColor: colors.secondary,
-    marginHorizontal: 2,
-    borderRadius: 2,
-  },
-  infoCards: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
-    marginBottom: 40,
-  },
-  infoCard: {
-    backgroundColor: colors.backgroundCard,
-    padding: 15,
-    borderRadius: 12,
-    alignItems: 'center',
-    flex: 1,
-    marginHorizontal: 5,
-    borderWidth: 1,
-    borderColor: colors.muted,
-  },
-  infoCardTitle: {
-    color: colors.text,
-    fontSize: 12,
-    fontWeight: '600',
-    marginTop: 8,
-  },
-  infoCardText: {
-    color: colors.textSecondary,
-    fontSize: 11,
-    marginTop: 2,
-  },
-  scheduleSection: {
-    width: '100%',
-    backgroundColor: colors.backgroundCard,
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.muted,
-    marginTop: 10,
-  },
-  scheduleHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 15,
-    backgroundColor: colors.muted + '30',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.muted,
-    gap: 10,
-  },
-  scheduleTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: colors.text,
-  },
-  scheduleGrid: {
-    padding: 0,
-  },
-  scheduleItem: {
-    flexDirection: 'row',
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.muted,
-    alignItems: 'center',
-  },
-  scheduleItemLast: {
-    borderBottomWidth: 0,
-  },
-  scheduleIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    backgroundColor: colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-    borderWidth: 1,
-    borderColor: colors.muted,
-  },
-  scheduleInfo: {
-    flex: 1,
-  },
-  scheduleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  scheduleShowName: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: colors.text,
-    flex: 1,
-  },
-  scheduleDay: {
-    fontSize: 10,
-    color: colors.textSecondary,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-  },
-  scheduleTimes: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  timeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.background,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: colors.muted,
-    gap: 4,
-  },
-  timeText: {
-    fontSize: 10,
-    color: colors.text,
-    fontFamily: 'monospace',
-  },
-});
-
+function createStyles(colors: any, isDark: boolean) {
+  return StyleSheet.create({
+    outerContainer: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    scrollContent: {
+      paddingBottom: 40,
+    },
+    container: {
+      alignItems: 'center',
+      padding: 20,
+      backgroundColor: colors.background,
+    },
+    statusBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.backgroundCard,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 20,
+      marginBottom: 20,
+      borderWidth: 1,
+      borderColor: colors.muted,
+    },
+    statusDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      marginRight: 8,
+    },
+    statusText: {
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    radioName: {
+      color: colors.text,
+      fontSize: 28,
+      fontWeight: 'bold',
+      textAlign: 'center',
+      marginBottom: 8,
+    },
+    tagline: {
+      color: colors.textSecondary,
+      fontSize: 16,
+      textAlign: 'center',
+      marginBottom: 30,
+    },
+    playButton: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      backgroundColor: colors.secondary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 20,
+      shadowColor: isDark ? colors.secondary : '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: isDark ? 0.5 : 0.3,
+      shadowRadius: 10,
+      elevation: 8,
+    },
+    playButtonActive: {
+      backgroundColor: colors.primary,
+    },
+    reconnectButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.vermelho,
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 20,
+      marginBottom: 15,
+      gap: 6,
+    },
+    reconnectButtonText: {
+      color: colors.white,
+      fontSize: 13,
+      fontWeight: '600',
+    },
+    expoGoWarning: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.vermelho + '15',
+      padding: 10,
+      borderRadius: 10,
+      marginBottom: 20,
+      gap: 8,
+    },
+    expoGoText: {
+      color: colors.vermelho,
+      fontSize: 12,
+      fontWeight: '500',
+    },
+    volumeContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      width: '100%',
+      paddingHorizontal: 20,
+      marginBottom: 30,
+    },
+    volumeSlider: {
+      flex: 1,
+      marginHorizontal: 10,
+    },
+    visualizer: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      height: 30,
+      marginBottom: 30,
+    },
+    visualizerBar: {
+      width: 4,
+      marginHorizontal: 2,
+      borderRadius: 2,
+    },
+    infoCards: {
+      flexDirection: 'row',
+      justifyContent: 'space-around',
+      width: '100%',
+      marginBottom: 40,
+    },
+    infoCard: {
+      backgroundColor: colors.backgroundCard,
+      padding: 15,
+      borderRadius: 12,
+      alignItems: 'center',
+      flex: 1,
+      marginHorizontal: 5,
+      borderWidth: 1,
+      borderColor: colors.muted,
+    },
+    infoCardTitle: {
+      color: colors.text,
+      fontSize: 12,
+      fontWeight: '600',
+      marginTop: 8,
+    },
+    infoCardText: {
+      color: colors.textSecondary,
+      fontSize: 11,
+      marginTop: 2,
+    },
+    scheduleSection: {
+      width: '100%',
+      backgroundColor: colors.backgroundCard,
+      borderRadius: 16,
+      overflow: 'hidden',
+      borderWidth: 1,
+      borderColor: colors.muted,
+      marginTop: 10,
+    },
+    scheduleHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: 15,
+      backgroundColor: isDark ? colors.muted + '30' : colors.muted + '50',
+      borderBottomWidth: 1,
+      borderBottomColor: colors.muted,
+      gap: 10,
+    },
+    scheduleTitle: {
+      fontSize: 16,
+      fontWeight: 'bold',
+      color: colors.text,
+    },
+    scheduleGrid: {
+      padding: 0,
+    },
+    scheduleItem: {
+      flexDirection: 'row',
+      padding: 15,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.muted,
+      alignItems: 'center',
+    },
+    scheduleItemLast: {
+      borderBottomWidth: 0,
+    },
+    scheduleIconContainer: {
+      width: 36,
+      height: 36,
+      borderRadius: 8,
+      backgroundColor: colors.background,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 12,
+      borderWidth: 1,
+      borderColor: colors.muted,
+    },
+    scheduleInfo: {
+      flex: 1,
+    },
+    scheduleRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 4,
+    },
+    scheduleShowName: {
+      fontSize: 14,
+      fontWeight: 'bold',
+      color: colors.text,
+      flex: 1,
+    },
+    scheduleDay: {
+      fontSize: 10,
+      color: colors.textSecondary,
+      fontWeight: '600',
+      textTransform: 'uppercase',
+    },
+    scheduleTimes: {
+      flexDirection: 'row',
+      gap: 6,
+    },
+    timeBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.background,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
+      borderWidth: 1,
+      borderColor: colors.muted,
+      gap: 4,
+    },
+    timeText: {
+      fontSize: 10,
+      color: colors.text,
+      fontFamily: 'monospace',
+    },
+  });
+}

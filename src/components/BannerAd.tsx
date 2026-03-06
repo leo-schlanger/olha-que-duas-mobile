@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { View, StyleSheet, Text, ActivityIndicator } from 'react-native';
 import { usePremium } from '../context/PremiumContext';
+import { useTheme } from '../context/ThemeContext';
 import { environment } from '../config/environment';
-import { colors } from '../config/site';
 
 // Lazy load native ad modules (not available in Expo Go)
 let GoogleBannerAd: any = null;
@@ -25,6 +25,8 @@ interface BannerAdProps {
 }
 
 export function BannerAd({ size = BannerAdSize.ANCHORED_ADAPTIVE_BANNER }: BannerAdProps) {
+  const { colors } = useTheme();
+
   // Not available in Expo Go
   if (!environment.canUseNativeModules || !adService || !GoogleBannerAd) {
     return null;
@@ -88,7 +90,7 @@ export function BannerAd({ size = BannerAdSize.ANCHORED_ADAPTIVE_BANNER }: Banne
   // Show loading indicator while SDK initializes
   if (!sdkReady && !adError) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="small" color={colors.textSecondary} />
         </View>
@@ -99,9 +101,9 @@ export function BannerAd({ size = BannerAdSize.ANCHORED_ADAPTIVE_BANNER }: Banne
   // Show placeholder on error
   if (adError) {
     return (
-      <View style={styles.container}>
-        <View style={styles.placeholder}>
-          <Text style={styles.placeholderText}>Publicidade</Text>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.placeholder, { backgroundColor: colors.card, borderTopColor: colors.background }]}>
+          <Text style={[styles.placeholderText, { color: colors.textSecondary }]}>Publicidade</Text>
         </View>
       </View>
     );
@@ -111,7 +113,7 @@ export function BannerAd({ size = BannerAdSize.ANCHORED_ADAPTIVE_BANNER }: Banne
   const nonPersonalizedAds = !adService.isPersonalizedAdsEnabled();
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {isLoading && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="small" color={colors.textSecondary} />
@@ -144,7 +146,6 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.background,
     minHeight: 50,
   },
   loadingContainer: {
@@ -166,14 +167,11 @@ const styles = StyleSheet.create({
   placeholder: {
     height: 50,
     width: '100%',
-    backgroundColor: colors.card,
     alignItems: 'center',
     justifyContent: 'center',
     borderTopWidth: 1,
-    borderTopColor: colors.background,
   },
   placeholderText: {
-    color: colors.textSecondary,
     fontSize: 12,
   },
 });

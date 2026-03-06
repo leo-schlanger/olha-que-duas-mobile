@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { environment } from '../config/environment';
+import { siteConfig } from '../config/site';
 
 // Lazy load radio service (not available in Expo Go)
 let radioService: any = null;
@@ -10,17 +11,26 @@ if (environment.canUseNativeModules) {
     console.log('Radio service not available');
   }
 }
-import { siteConfig } from '../config/site';
+
+interface RadioStatus {
+  isPlaying: boolean;
+  volume: number;
+  isLoading: boolean;
+  isReconnecting?: boolean;
+  reconnectAttempt?: number;
+}
 
 /**
  * Hook for managing radio playback state and controls
  * Handles initialization, play/pause, volume, and cleanup
  */
 export function useRadio() {
-  const [status, setStatus] = useState({
+  const [status, setStatus] = useState<RadioStatus>({
     isPlaying: false,
     volume: 1.0,
     isLoading: false,
+    isReconnecting: false,
+    reconnectAttempt: 0,
   });
   const [isInitialized, setIsInitialized] = useState(false);
 
@@ -37,20 +47,20 @@ export function useRadio() {
 
     return () => {
       if (radioService) {
-        radioService.setStatusCallback(() => { });
+        radioService.setStatusCallback(() => {});
       }
     };
   }, []);
 
   const togglePlayPause = useCallback(async () => {
     if (!radioService) return;
-    setStatus(prev => ({ ...prev, isLoading: true }));
+    setStatus((prev) => ({ ...prev, isLoading: true }));
     await radioService.togglePlayPause();
   }, []);
 
   const play = useCallback(async () => {
     if (!radioService) return;
-    setStatus(prev => ({ ...prev, isLoading: true }));
+    setStatus((prev) => ({ ...prev, isLoading: true }));
     await radioService.play();
   }, []);
 
@@ -69,6 +79,12 @@ export function useRadio() {
     await radioService.setVolume(value);
   }, []);
 
+  const forceReconnect = useCallback(async () => {
+    if (!radioService) return false;
+    setStatus((prev) => ({ ...prev, isLoading: true }));
+    return await radioService.forceReconnect();
+  }, []);
+
   return {
     ...status,
     isInitialized,
@@ -79,5 +95,6 @@ export function useRadio() {
     pause,
     stop,
     setVolume,
+    forceReconnect,
   };
 }

@@ -17,14 +17,19 @@
       "bundleIdentifier": "com.olhaqueduas.app",
       "infoPlist": {
         "UIBackgroundModes": [
-          "audio"
+          "audio",
+          "fetch",
+          "remote-notification"
         ],
-        "NSMicrophoneUsageDescription": "Not required."
+        "NSMicrophoneUsageDescription": "Not required.",
+        "BGTaskSchedulerPermittedIdentifiers": [
+          "com.olhaqueduas.app.background"
+        ]
       }
     },
     "android": {
       "package": "com.olhaqueduas.app",
-      "versionCode": 6,
+      "versionCode": 8,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#f7f4ed"
@@ -35,6 +40,7 @@
         "android.permission.WAKE_LOCK",
         "android.permission.INTERNET",
         "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
         "com.google.android.gms.permission.AD_ID",
         "com.android.vending.BILLING"
       ]

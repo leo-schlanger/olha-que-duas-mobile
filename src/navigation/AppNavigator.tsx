@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,7 +9,7 @@ import { NewsScreen } from '../screens/NewsScreen';
 import { NewsDetailScreen } from '../screens/NewsDetailScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors } from '../config/site';
+import { useTheme } from '../context/ThemeContext';
 
 export type RootStackParamList = {
   MainTabs: undefined;
@@ -30,13 +30,14 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
  */
 function MainTabs() {
   const insets = useSafeAreaInsets();
+  const { colors, isDark } = useTheme();
 
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: colors.backgroundCard,
+          backgroundColor: colors.tabBar,
           borderTopColor: colors.muted,
           borderTopWidth: 1,
           height: 60 + insets.bottom,
@@ -46,7 +47,7 @@ function MainTabs() {
           shadowOpacity: 0,
         },
         tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textSecondary,
+        tabBarInactiveTintColor: colors.tabBarInactive,
         tabBarLabelStyle: {
           fontSize: 12,
           fontWeight: '600',
@@ -57,7 +58,7 @@ function MainTabs() {
         name="Radio"
         component={RadioScreen}
         options={{
-          tabBarLabel: 'Rádio',
+          tabBarLabel: 'Radio',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="radio" size={size} color={color} />
           ),
@@ -67,7 +68,7 @@ function MainTabs() {
         name="News"
         component={NewsScreen}
         options={{
-          tabBarLabel: 'Notícias',
+          tabBarLabel: 'Noticias',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="newspaper" size={size} color={color} />
           ),
@@ -77,7 +78,7 @@ function MainTabs() {
         name="Settings"
         component={SettingsScreen}
         options={{
-          tabBarLabel: 'Definições',
+          tabBarLabel: 'Definicoes',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="settings" size={size} color={color} />
           ),
@@ -91,8 +92,37 @@ function MainTabs() {
  * Root navigator with tab bar and detail screens
  */
 export function AppNavigator() {
+  const { colors, isDark } = useTheme();
+
+  // Create custom navigation theme
+  const navigationTheme = isDark
+    ? {
+        ...DarkTheme,
+        colors: {
+          ...DarkTheme.colors,
+          primary: colors.primary,
+          background: colors.background,
+          card: colors.card,
+          text: colors.text,
+          border: colors.border,
+          notification: colors.notification,
+        },
+      }
+    : {
+        ...DefaultTheme,
+        colors: {
+          ...DefaultTheme.colors,
+          primary: colors.primary,
+          background: colors.background,
+          card: colors.card,
+          text: colors.text,
+          border: colors.border,
+          notification: colors.notification,
+        },
+      };
+
   return (
-    <NavigationContainer>
+    <NavigationContainer theme={navigationTheme}>
       <Stack.Navigator
         screenOptions={{
           headerShown: false,

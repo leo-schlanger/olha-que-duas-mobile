@@ -9,7 +9,7 @@ import {
   ScrollView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { colors } from '../config/site';
+import { useTheme } from '../context/ThemeContext';
 
 const GDPR_CONSENT_KEY = '@olhaqueduas:gdpr_consent';
 const PRIVACY_POLICY_URL = 'https://olhaqueduas.com/privacidade';
@@ -19,6 +19,7 @@ interface GDPRConsentProps {
 }
 
 export function GDPRConsent({ onConsentGiven }: GDPRConsentProps) {
+  const { colors, isDark } = useTheme();
   const [visible, setVisible] = useState(false);
   const [hasChecked, setHasChecked] = useState(false);
 
@@ -80,29 +81,33 @@ export function GDPRConsent({ onConsentGiven }: GDPRConsentProps) {
       onRequestClose={() => {}}
     >
       <View style={styles.overlay}>
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: colors.card }]}>
           <ScrollView showsVerticalScrollIndicator={false}>
             {/* Header */}
-            <Text style={styles.title}>A sua privacidade</Text>
+            <Text style={[styles.title, { color: colors.text }]}>A sua privacidade</Text>
 
             {/* Content */}
-            <Text style={styles.description}>
+            <Text style={[styles.description, { color: colors.textSecondary }]}>
               Utilizamos cookies e tecnologias semelhantes para exibir anúncios.
               Pode escolher como pretende que os seus dados sejam utilizados:
             </Text>
 
             {/* Options explanation */}
-            <View style={styles.optionBox}>
-              <Text style={styles.optionTitle}>Anúncios personalizados</Text>
-              <Text style={styles.optionDescription}>
+            <View style={[styles.optionBox, { backgroundColor: colors.background }]}>
+              <Text style={[styles.optionTitle, { color: colors.text }]}>
+                Anúncios personalizados
+              </Text>
+              <Text style={[styles.optionDescription, { color: colors.textSecondary }]}>
                 Anúncios baseados nos seus interesses e histórico de navegação.
                 Os dados são processados pelo Google AdMob.
               </Text>
             </View>
 
-            <View style={styles.optionBox}>
-              <Text style={styles.optionTitle}>Anúncios não personalizados</Text>
-              <Text style={styles.optionDescription}>
+            <View style={[styles.optionBox, { backgroundColor: colors.background }]}>
+              <Text style={[styles.optionTitle, { color: colors.text }]}>
+                Anúncios não personalizados
+              </Text>
+              <Text style={[styles.optionDescription, { color: colors.textSecondary }]}>
                 Anúncios genéricos que não utilizam os seus dados pessoais
                 para personalização.
               </Text>
@@ -110,7 +115,7 @@ export function GDPRConsent({ onConsentGiven }: GDPRConsentProps) {
 
             {/* Privacy Policy Link */}
             <TouchableOpacity onPress={openPrivacyPolicy}>
-              <Text style={styles.privacyLink}>
+              <Text style={[styles.privacyLink, { color: colors.secondary }]}>
                 Ler Política de Privacidade completa
               </Text>
             </TouchableOpacity>
@@ -119,17 +124,17 @@ export function GDPRConsent({ onConsentGiven }: GDPRConsentProps) {
           {/* Buttons */}
           <View style={styles.buttonsContainer}>
             <TouchableOpacity
-              style={styles.acceptAllButton}
+              style={[styles.acceptAllButton, { backgroundColor: colors.primary }]}
               onPress={handleAcceptAll}
             >
-              <Text style={styles.acceptAllText}>Aceitar todos</Text>
+              <Text style={[styles.acceptAllText, { color: colors.white }]}>Aceitar todos</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.nonPersonalizedButton}
+              style={[styles.nonPersonalizedButton, { borderColor: colors.textSecondary }]}
               onPress={handleAcceptNonPersonalized}
             >
-              <Text style={styles.nonPersonalizedText}>
+              <Text style={[styles.nonPersonalizedText, { color: colors.textSecondary }]}>
                 Apenas anúncios não personalizados
               </Text>
             </TouchableOpacity>
@@ -162,7 +167,6 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   container: {
-    backgroundColor: colors.card,
     borderRadius: 16,
     padding: 24,
     maxHeight: '80%',
@@ -172,18 +176,15 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: colors.text,
     marginBottom: 16,
     textAlign: 'center',
   },
   description: {
     fontSize: 14,
-    color: colors.textSecondary,
     lineHeight: 22,
     marginBottom: 20,
   },
   optionBox: {
-    backgroundColor: colors.background,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
@@ -191,16 +192,13 @@ const styles = StyleSheet.create({
   optionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.text,
     marginBottom: 4,
   },
   optionDescription: {
     fontSize: 13,
-    color: colors.textSecondary,
     lineHeight: 18,
   },
   privacyLink: {
-    color: colors.secondary,
     fontSize: 14,
     textDecorationLine: 'underline',
     textAlign: 'center',
@@ -210,14 +208,12 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   acceptAllButton: {
-    backgroundColor: colors.primary,
     paddingVertical: 14,
     borderRadius: 30,
     alignItems: 'center',
     marginBottom: 12,
   },
   acceptAllText: {
-    color: colors.text,
     fontSize: 16,
     fontWeight: 'bold',
   },
@@ -227,10 +223,8 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.textSecondary,
   },
   nonPersonalizedText: {
-    color: colors.textSecondary,
     fontSize: 14,
   },
 });

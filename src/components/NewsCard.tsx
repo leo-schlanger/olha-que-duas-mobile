@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlogPost, categoryColors, categoryLabels } from '../types/blog';
-import { colors } from '../config/site';
+import { useTheme } from '../context/ThemeContext';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = width - 32;
@@ -24,6 +24,8 @@ interface NewsCardProps {
  * Shows image, title, summary, category badge, and meta info
  */
 export function NewsCard({ post, onPress }: NewsCardProps) {
+  const { colors, isDark } = useTheme();
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('pt-PT', {
@@ -38,7 +40,13 @@ export function NewsCard({ post, onPress }: NewsCardProps) {
 
   return (
     <TouchableOpacity
-      style={styles.container}
+      style={[
+        styles.container,
+        {
+          backgroundColor: colors.backgroundCard,
+          borderColor: colors.muted,
+        },
+      ]}
       onPress={onPress}
       activeOpacity={0.8}
     >
@@ -51,24 +59,26 @@ export function NewsCard({ post, onPress }: NewsCardProps) {
             resizeMode="cover"
           />
         ) : (
-          <View style={styles.imagePlaceholder}>
+          <View style={[styles.imagePlaceholder, { backgroundColor: colors.muted + '30' }]}>
             <Ionicons name="newspaper-outline" size={40} color={colors.textSecondary} />
           </View>
         )}
 
         {/* Category Badge */}
         <View style={[styles.categoryBadge, { backgroundColor: categoryColor }]}>
-          <Text style={styles.categoryText}>{categoryLabel}</Text>
+          <Text style={[styles.categoryText, { color: isDark ? colors.black : colors.text }]}>
+            {categoryLabel}
+          </Text>
         </View>
       </View>
 
       {/* Content */}
       <View style={styles.content}>
-        <Text style={styles.title} numberOfLines={2}>
+        <Text style={[styles.title, { color: colors.text }]} numberOfLines={2}>
           {post.title}
         </Text>
 
-        <Text style={styles.summary} numberOfLines={3}>
+        <Text style={[styles.summary, { color: colors.textSecondary }]} numberOfLines={3}>
           {post.summary}
         </Text>
 
@@ -76,17 +86,19 @@ export function NewsCard({ post, onPress }: NewsCardProps) {
         <View style={styles.meta}>
           <View style={styles.metaItem}>
             <Ionicons name="location-outline" size={14} color={colors.textSecondary} />
-            <Text style={styles.metaText}>{post.region}</Text>
+            <Text style={[styles.metaText, { color: colors.textSecondary }]}>{post.region}</Text>
           </View>
 
           <View style={styles.metaItem}>
             <Ionicons name="calendar-outline" size={14} color={colors.textSecondary} />
-            <Text style={styles.metaText}>{formatDate(post.published_at)}</Text>
+            <Text style={[styles.metaText, { color: colors.textSecondary }]}>
+              {formatDate(post.published_at)}
+            </Text>
           </View>
         </View>
 
         {/* Source */}
-        <Text style={styles.source}>
+        <Text style={[styles.source, { color: colors.textSecondary }]}>
           Fonte: {post.source_name}
         </Text>
       </View>
@@ -96,13 +108,11 @@ export function NewsCard({ post, onPress }: NewsCardProps) {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: colors.backgroundCard,
     borderRadius: 16,
     overflow: 'hidden',
     marginBottom: 16,
     width: CARD_WIDTH,
     borderWidth: 1,
-    borderColor: colors.muted,
   },
   imageContainer: {
     width: '100%',
@@ -116,7 +126,6 @@ const styles = StyleSheet.create({
   imagePlaceholder: {
     width: '100%',
     height: '100%',
-    backgroundColor: colors.muted + '20',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -129,7 +138,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   categoryText: {
-    color: colors.text,
     fontSize: 11,
     fontWeight: 'bold',
   },
@@ -137,14 +145,12 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   title: {
-    color: colors.text,
     fontSize: 18,
     fontWeight: 'bold',
     lineHeight: 24,
     marginBottom: 8,
   },
   summary: {
-    color: colors.textSecondary,
     fontSize: 14,
     lineHeight: 20,
     marginBottom: 12,
@@ -159,12 +165,10 @@ const styles = StyleSheet.create({
     marginRight: 16,
   },
   metaText: {
-    color: colors.textSecondary,
     fontSize: 12,
     marginLeft: 4,
   },
   source: {
-    color: colors.textSecondary,
     fontSize: 11,
     fontStyle: 'italic',
   },

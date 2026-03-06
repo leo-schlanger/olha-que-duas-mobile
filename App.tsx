@@ -3,17 +3,20 @@ import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppNavigator } from "./src/navigation/AppNavigator";
 import { PremiumProvider } from "./src/context/PremiumContext";
+import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 import { GDPRConsent } from "./src/components/GDPRConsent";
 import { environment } from "./src/config/environment";
 
 // Lazy load all native services (not available in Expo Go)
 let radioService: any = null;
+let radioSettingsService: any = null;
 let adService: any = null;
 let purchaseService: any = null;
 
 if (environment.canUseNativeModules) {
   try {
     radioService = require("./src/services/radioService").radioService;
+    radioSettingsService = require("./src/services/radioSettingsService").radioSettingsService;
     adService = require("./src/services/adService").adService;
     purchaseService = require("./src/services/purchaseService").purchaseService;
   } catch (error) {
@@ -21,21 +24,44 @@ if (environment.canUseNativeModules) {
   }
 }
 
-export default function App() {
+function AppContent() {
+  const { isDark } = useTheme();
   const [adsConsent, setAdsConsent] = useState<boolean | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
-    // Initialize audio service for background playback
-    radioService?.initialize();
+    async function initializeServices() {
+      try {
+        // Load radio settings first
+        if (radioSettingsService) {
+          await radioSettingsService.load();
+          console.log("Radio settings loaded");
+        }
 
-    // Initialize native services only when available
-    if (environment.canUseNativeModules) {
-      purchaseService?.initialize();
+        // Initialize audio service for background playback
+        if (radioService) {
+          await radioService.initialize();
+          console.log("Radio service initialized");
+        }
+
+        // Initialize native services only when available
+        if (environment.canUseNativeModules && purchaseService) {
+          await purchaseService.initialize();
+          console.log("Purchase service initialized");
+        }
+
+        setIsInitialized(true);
+      } catch (error) {
+        console.error("Error initializing services:", error);
+        setIsInitialized(true); // Continue anyway
+      }
     }
+
+    initializeServices();
 
     return () => {
       // Cleanup when app is closed
-      radioService?.stop();
+      radioService?.cleanup();
       purchaseService?.disconnect();
     };
   }, []);
@@ -53,12 +79,22 @@ export default function App() {
   }
 
   return (
+    <>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+      <AppNavigator />
+      <GDPRConsent onConsentGiven={handleGDPRConsent} />
+    </>
+  );
+}
+
+export default function App() {
+  return (
     <SafeAreaProvider>
-      <PremiumProvider>
-        <StatusBar style="dark" />
-        <AppNavigator />
-        <GDPRConsent onConsentGiven={handleGDPRConsent} />
-      </PremiumProvider>
+      <ThemeProvider>
+        <PremiumProvider>
+          <AppContent />
+        </PremiumProvider>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }

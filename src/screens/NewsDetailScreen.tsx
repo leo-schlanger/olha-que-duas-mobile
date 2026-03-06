@@ -17,7 +17,7 @@ import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNewsDetail } from '../hooks/useNews';
 import { categoryColors, categoryLabels } from '../types/blog';
-import { colors } from '../config/site';
+import { useTheme } from '../context/ThemeContext';
 
 const { width } = Dimensions.get('window');
 
@@ -32,6 +32,7 @@ type NewsDetailRouteProp = RouteProp<RootStackParamList, 'NewsDetail'>;
  * Supports sharing and opening original source
  */
 export function NewsDetailScreen() {
+  const { colors, isDark } = useTheme();
   const route = useRoute<NewsDetailRouteProp>();
   const navigation = useNavigation();
   const { slug } = route.params;
@@ -68,11 +69,14 @@ export function NewsDetailScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+        <StatusBar
+          barStyle={isDark ? 'light-content' : 'dark-content'}
+          backgroundColor={colors.background}
+        />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>A carregar...</Text>
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>A carregar...</Text>
         </View>
       </SafeAreaView>
     );
@@ -80,18 +84,24 @@ export function NewsDetailScreen() {
 
   if (error || !post) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+        <StatusBar
+          barStyle={isDark ? 'light-content' : 'dark-content'}
+          backgroundColor={colors.background}
+        />
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle-outline" size={60} color={colors.textSecondary} />
-          <Text style={styles.errorText}>
-            {error || 'Notícia não encontrada'}
+          <Text style={[styles.errorText, { color: colors.textSecondary }]}>
+            {error || 'Noticia nao encontrada'}
           </Text>
           <TouchableOpacity
-            style={styles.backButton}
+            style={[
+              styles.backButton,
+              { backgroundColor: colors.backgroundCard, borderColor: colors.muted },
+            ]}
             onPress={() => navigation.goBack()}
           >
-            <Text style={styles.backButtonText}>Voltar</Text>
+            <Text style={[styles.backButtonText, { color: colors.text }]}>Voltar</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -104,11 +114,14 @@ export function NewsDetailScreen() {
   const tags = post.tags ? JSON.parse(post.tags) : [];
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      <StatusBar
+        barStyle={isDark ? 'light-content' : 'dark-content'}
+        backgroundColor={colors.background}
+      />
 
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { borderBottomColor: colors.muted }]}>
         <TouchableOpacity
           style={styles.headerButton}
           onPress={() => navigation.goBack()}
@@ -134,7 +147,7 @@ export function NewsDetailScreen() {
               resizeMode="cover"
             />
           ) : (
-            <View style={styles.imagePlaceholder}>
+            <View style={[styles.imagePlaceholder, { backgroundColor: colors.backgroundCard }]}>
               <Ionicons name="newspaper-outline" size={60} color={colors.textSecondary} />
             </View>
           )}
@@ -145,33 +158,44 @@ export function NewsDetailScreen() {
           {/* Badges */}
           <View style={styles.badges}>
             <View style={[styles.categoryBadge, { backgroundColor: categoryColor }]}>
-              <Text style={styles.categoryText}>{categoryLabel}</Text>
+              <Text style={[styles.categoryText, { color: isDark ? colors.black : colors.text }]}>
+                {categoryLabel}
+              </Text>
             </View>
-            <View style={styles.regionBadge}>
+            <View
+              style={[
+                styles.regionBadge,
+                { backgroundColor: colors.backgroundCard, borderColor: colors.muted },
+              ]}
+            >
               <Ionicons name="location" size={12} color={colors.text} />
-              <Text style={styles.regionText}>{post.region}</Text>
+              <Text style={[styles.regionText, { color: colors.text }]}>{post.region}</Text>
             </View>
           </View>
 
           {/* Title */}
-          <Text style={styles.title}>{post.title}</Text>
+          <Text style={[styles.title, { color: colors.text }]}>{post.title}</Text>
 
           {/* Meta */}
           <View style={styles.meta}>
-            <Text style={styles.date}>{formatDate(post.published_at)}</Text>
-            <Text style={styles.source}>Fonte: {post.source_name}</Text>
+            <Text style={[styles.date, { color: colors.textSecondary }]}>
+              {formatDate(post.published_at)}
+            </Text>
+            <Text style={[styles.source, { color: colors.textSecondary }]}>
+              Fonte: {post.source_name}
+            </Text>
           </View>
 
           {/* Summary */}
-          <Text style={styles.summary}>{post.summary}</Text>
+          <Text style={[styles.summary, { color: colors.text }]}>{post.summary}</Text>
 
           {/* Divider */}
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: colors.muted }]} />
 
           {/* Body */}
           <View style={styles.body}>
             {paragraphs.map((paragraph, index) => (
-              <Text key={index} style={styles.paragraph}>
+              <Text key={index} style={[styles.paragraph, { color: colors.textSecondary }]}>
                 {paragraph}
               </Text>
             ))}
@@ -180,11 +204,17 @@ export function NewsDetailScreen() {
           {/* Tags */}
           {tags.length > 0 && (
             <View style={styles.tagsContainer}>
-              <Text style={styles.tagsLabel}>Tags:</Text>
+              <Text style={[styles.tagsLabel, { color: colors.textSecondary }]}>Tags:</Text>
               <View style={styles.tags}>
                 {tags.map((tag: string, index: number) => (
-                  <View key={index} style={styles.tag}>
-                    <Text style={styles.tagText}>{tag}</Text>
+                  <View
+                    key={index}
+                    style={[
+                      styles.tag,
+                      { backgroundColor: colors.backgroundCard, borderColor: colors.muted },
+                    ]}
+                  >
+                    <Text style={[styles.tagText, { color: colors.text }]}>{tag}</Text>
                   </View>
                 ))}
               </View>
@@ -193,11 +223,16 @@ export function NewsDetailScreen() {
 
           {/* Source Link */}
           <TouchableOpacity
-            style={styles.sourceButton}
+            style={[
+              styles.sourceButton,
+              { backgroundColor: colors.backgroundCard, borderColor: colors.muted },
+            ]}
             onPress={handleOpenSource}
           >
             <Ionicons name="open-outline" size={18} color={colors.primary} />
-            <Text style={styles.sourceButtonText}>Ver fonte original</Text>
+            <Text style={[styles.sourceButtonText, { color: colors.primary }]}>
+              Ver fonte original
+            </Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -208,7 +243,6 @@ export function NewsDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -217,7 +251,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: colors.muted,
   },
   headerButton: {
     padding: 8,
@@ -231,7 +264,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   loadingText: {
-    color: colors.textSecondary,
     marginTop: 12,
   },
   errorContainer: {
@@ -241,7 +273,6 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   errorText: {
-    color: colors.textSecondary,
     fontSize: 16,
     textAlign: 'center',
     marginTop: 16,
@@ -250,13 +281,10 @@ const styles = StyleSheet.create({
     marginTop: 20,
     paddingHorizontal: 24,
     paddingVertical: 12,
-    backgroundColor: colors.backgroundCard,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.muted,
   },
   backButtonText: {
-    color: colors.text,
     fontWeight: '600',
   },
   imageContainer: {
@@ -270,7 +298,6 @@ const styles = StyleSheet.create({
   imagePlaceholder: {
     width: '100%',
     height: '100%',
-    backgroundColor: colors.backgroundCard,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -288,27 +315,22 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   categoryText: {
-    color: colors.text,
     fontSize: 12,
     fontWeight: 'bold',
   },
   regionBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.backgroundCard,
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: colors.muted,
   },
   regionText: {
-    color: colors.text,
     fontSize: 12,
     marginLeft: 4,
   },
   title: {
-    color: colors.text,
     fontSize: 24,
     fontWeight: 'bold',
     lineHeight: 32,
@@ -318,29 +340,24 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   date: {
-    color: colors.textSecondary,
     fontSize: 13,
   },
   source: {
-    color: colors.textSecondary,
     fontSize: 13,
     marginTop: 2,
     fontStyle: 'italic',
   },
   summary: {
-    color: colors.text,
     fontSize: 16,
     lineHeight: 24,
     fontWeight: '500',
   },
   divider: {
     height: 1,
-    backgroundColor: colors.muted,
     marginVertical: 20,
   },
   body: {},
   paragraph: {
-    color: colors.textSecondary,
     fontSize: 16,
     lineHeight: 26,
     marginBottom: 16,
@@ -349,7 +366,6 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   tagsLabel: {
-    color: colors.textSecondary,
     fontSize: 14,
     marginBottom: 8,
   },
@@ -358,33 +374,27 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   tag: {
-    backgroundColor: colors.backgroundCard,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
     marginRight: 8,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: colors.muted,
   },
   tagText: {
-    color: colors.text,
     fontSize: 12,
   },
   sourceButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.backgroundCard,
     paddingVertical: 14,
     borderRadius: 12,
     marginTop: 24,
     marginBottom: 40,
     borderWidth: 1,
-    borderColor: colors.muted,
   },
   sourceButtonText: {
-    color: colors.primary,
     fontSize: 14,
     fontWeight: '600',
     marginLeft: 8,
