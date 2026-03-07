@@ -23,6 +23,7 @@ class RadioService {
   private readonly MAX_RECONNECT_ATTEMPTS: number = 10;
   private settings: RadioSettings | null = null;
   private settingsUnsubscribe: (() => void) | null = null;
+  private isBuffering: boolean = false;
 
   private clearReconnectTimeout() {
     if (this.reconnectTimeout) {
@@ -84,10 +85,13 @@ class RadioService {
 
   private emitStatus(isLoading: boolean = false) {
     if (this.onStatusChange) {
+      // Se não foi parado intencionalmente e não está a tocar, está a carregar/conectar
+      const actualLoading = isLoading || (!this.isIntentionallyStopped && !this.isPlaying);
+
       this.onStatusChange({
         isPlaying: this.isPlaying,
         volume: this.volume,
-        isLoading,
+        isLoading: actualLoading,
         isReconnecting: this.reconnectAttempts > 0,
         reconnectAttempt: this.reconnectAttempts,
       });
@@ -139,7 +143,7 @@ class RadioService {
     } catch (error) {
       console.error('Error playing radio:', error);
       this.isPlaying = false;
-      this.emitStatus();
+      this.emitStatus(false);
 
       if (!this.isIntentionallyStopped && this.settings?.autoReconnect) {
         this.reconnect();
@@ -161,10 +165,16 @@ class RadioService {
     }
 
     const wasPlaying = this.isPlaying;
-    this.isPlaying = status.isPlaying ?? false;
+    const wasBuffering = this.isBuffering;
 
-    if (wasPlaying !== this.isPlaying || status.isBuffering) {
-      this.emitStatus(status.isBuffering);
+    this.isPlaying = status.isPlaying ?? false;
+    this.isBuffering = status.isBuffering ?? false;
+
+    // Se está a tocar ou parou de fazer buffering, o carregamento terminou
+    const isLoadingFinished = this.isPlaying || !this.isBuffering;
+
+    if (wasPlaying !== this.isPlaying || wasBuffering !== this.isBuffering) {
+      this.emitStatus(!isLoadingFinished);
     }
   }
 

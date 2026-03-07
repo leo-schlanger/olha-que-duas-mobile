@@ -77,7 +77,7 @@ export function NewsScreen() {
 
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.muted }]}>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Noticias</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Noticias 📰</Text>
         <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
           As ultimas noticias para si
         </Text>
@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
   headerSubtitle: {
     fontSize: 14,

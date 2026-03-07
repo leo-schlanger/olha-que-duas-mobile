@@ -139,14 +139,14 @@ const styles = StyleSheet.create({
   },
   categoryText: {
     fontSize: 11,
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
   content: {
     padding: 16,
   },
   title: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '700',
     lineHeight: 24,
     marginBottom: 8,
   },

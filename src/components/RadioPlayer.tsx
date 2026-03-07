@@ -227,7 +227,7 @@ export function RadioPlayer() {
         <View style={styles.scheduleSection}>
           <View style={styles.scheduleHeader}>
             <Ionicons name="calendar" size={20} color={colors.secondary} />
-            <Text style={styles.scheduleTitle}>Programacao Semanal</Text>
+            <Text style={styles.scheduleTitle}>Programação Semanal 📅</Text>
           </View>
 
           <View style={styles.scheduleGrid}>
@@ -300,7 +300,7 @@ function createStyles(colors: any, isDark: boolean) {
     radioName: {
       color: colors.text,
       fontSize: 28,
-      fontWeight: 'bold',
+      fontWeight: '700',
       textAlign: 'center',
       marginBottom: 8,
     },
@@ -425,7 +425,7 @@ function createStyles(colors: any, isDark: boolean) {
     },
     scheduleTitle: {
       fontSize: 16,
-      fontWeight: 'bold',
+      fontWeight: '700',
       color: colors.text,
     },
     scheduleGrid: {
@@ -463,7 +463,7 @@ function createStyles(colors: any, isDark: boolean) {
     },
     scheduleShowName: {
       fontSize: 14,
-      fontWeight: 'bold',
+      fontWeight: '700',
       color: colors.text,
       flex: 1,
     },
