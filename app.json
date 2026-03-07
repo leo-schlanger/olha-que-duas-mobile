@@ -29,7 +29,7 @@
     },
     "android": {
       "package": "com.olhaqueduas.app",
-      "versionCode": 8,
+      "versionCode": 9,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#f7f4ed"
@@ -41,6 +41,7 @@
         "android.permission.INTERNET",
         "android.permission.ACCESS_NETWORK_STATE",
         "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.POST_NOTIFICATIONS",
         "com.google.android.gms.permission.AD_ID",
         "com.android.vending.BILLING"
       ]
@@ -56,7 +57,8 @@
           "androidAppId": "ca-app-pub-7365386697613870~4390180141",
           "iosAppId": "ca-app-pub-7365386697613870~4390180141"
         }
-      ]
+      ],
+      "./plugins/withTrackPlayerService"
     ],
     "extra": {
       "eas": {

@@ -3,7 +3,11 @@ import TrackPlayer, {
   State,
   Event,
   AppKilledPlaybackBehavior,
+  IOSCategory,
+  IOSCategoryMode,
+  IOSCategoryOptions,
 } from 'react-native-track-player';
+import { Platform } from 'react-native';
 import { siteConfig } from '../config/site';
 import { radioSettingsService, RadioSettings } from './radioSettingsService';
 
@@ -56,14 +60,42 @@ class RadioService {
         ? AppKilledPlaybackBehavior.ContinuePlayback
         : AppKilledPlaybackBehavior.StopPlaybackAndRemoveNotification;
 
-      await TrackPlayer.setupPlayer({
-        autoHandleInterruptions: true,
-        // Buffer configuration for stable streaming
-        minBuffer: 15, // Minimum buffer in seconds
-        maxBuffer: 50, // Maximum buffer in seconds
-        playBuffer: 2.5, // Buffer before playback starts
-        backBuffer: 0, // No back buffer needed for live stream
-      });
+      // Check if player is already set up (can happen on app restart)
+      let playerAlreadySetup = false;
+      try {
+        await TrackPlayer.getPlaybackState();
+        playerAlreadySetup = true;
+        console.log('TrackPlayer already initialized');
+      } catch {
+        // Player not initialized, will set it up
+        playerAlreadySetup = false;
+      }
+
+      if (!playerAlreadySetup) {
+        // Configure player with platform-specific options for background playback
+        const playerOptions: any = {
+          autoHandleInterruptions: true,
+          // Buffer configuration for stable streaming
+          minBuffer: 15, // Minimum buffer in seconds
+          maxBuffer: 50, // Maximum buffer in seconds
+          playBuffer: 2.5, // Buffer before playback starts
+          backBuffer: 0, // No back buffer needed for live stream
+        };
+
+        // iOS-specific configuration for background audio
+        if (Platform.OS === 'ios') {
+          playerOptions.iosCategory = IOSCategory.Playback;
+          playerOptions.iosCategoryMode = IOSCategoryMode.Default;
+          playerOptions.iosCategoryOptions = [
+            IOSCategoryOptions.AllowBluetooth,
+            IOSCategoryOptions.AllowBluetoothA2DP,
+            IOSCategoryOptions.AllowAirPlay,
+          ];
+        }
+
+        await TrackPlayer.setupPlayer(playerOptions);
+        console.log('TrackPlayer setup completed');
+      }
 
       await TrackPlayer.updateOptions({
         capabilities: [
@@ -80,13 +112,17 @@ class RadioService {
           Capability.Pause,
           Capability.Stop,
         ],
-        // Android specific options
+        // Android specific options for background playback
         android: {
           appKilledPlaybackBehavior: appKilledBehavior,
+          alwaysPauseOnInterruption: false,
+          // Keep foreground service for 5 seconds after pause
+          stopForegroundGracePeriod: 5,
         },
         // Progress update for notification
         progressUpdateEventInterval: 2,
       });
+      console.log('TrackPlayer options updated');
 
       // Listen to playback state changes
       TrackPlayer.addEventListener(Event.PlaybackState, (event) => {
@@ -268,7 +304,8 @@ class RadioService {
           url: streamUrl,
           title: siteConfig.radio.name,
           artist: siteConfig.radio.tagline,
-          // artwork: undefined, // Can be added later if radio has album art
+          // Use artwork from config for notification display
+          artwork: siteConfig.radio.artworkUrl,
           isLiveStream: true,
           // Additional metadata for better notification display
           duration: 0, // Live stream has no duration
