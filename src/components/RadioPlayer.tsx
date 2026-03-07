@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRadio } from '../hooks/useRadio';
 import { useTheme } from '../context/ThemeContext';
 import { siteConfig } from '../config/site';
+import { environment } from '../config/environment';
 
 /**
  * Radio player component with play/pause controls, volume slider, and weekly schedule
@@ -68,8 +69,8 @@ export function RadioPlayer() {
     };
   }, [isPlaying, visualizerHeights]);
 
-  // If we are in Expo Go, we show a friendly message as radio won't play
-  const isExpoGo = !isInitialized && !isLoading;
+  // Only show Expo Go warning if actually in Expo Go
+  const showExpoGoWarning = environment.isExpoGo;
 
   // Determine the status text and color
   const getStatusInfo = () => {
@@ -127,7 +128,7 @@ export function RadioPlayer() {
         <TouchableOpacity
           style={[styles.playButton, isPlaying && styles.playButtonActive]}
           onPress={togglePlayPause}
-          disabled={isLoading || isExpoGo}
+          disabled={isLoading || showExpoGoWarning}
           activeOpacity={0.8}
         >
           {isLoading || isReconnecting ? (
@@ -153,7 +154,7 @@ export function RadioPlayer() {
           </TouchableOpacity>
         )}
 
-        {isExpoGo && (
+        {showExpoGoWarning && (
           <View style={styles.expoGoWarning}>
             <Ionicons name="information-circle-outline" size={20} color={colors.vermelho} />
             <Text style={styles.expoGoText}>
@@ -178,7 +179,7 @@ export function RadioPlayer() {
             minimumTrackTintColor={colors.secondary}
             maximumTrackTintColor={colors.muted}
             thumbTintColor={colors.secondary}
-            disabled={isExpoGo}
+            disabled={showExpoGoWarning}
           />
           <Ionicons
             name="volume-high"
