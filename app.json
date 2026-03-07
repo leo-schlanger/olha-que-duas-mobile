@@ -29,7 +29,7 @@
     },
     "android": {
       "package": "com.olhaqueduas.app",
-      "versionCode": 10,
+      "versionCode": 11,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#f7f4ed"
@@ -58,7 +58,12 @@
           "iosAppId": "ca-app-pub-7365386697613870~4390180141"
         }
       ],
-      "./plugins/withTrackPlayerService"
+      [
+        "expo-audio",
+        {
+          "enableBackgroundPlayback": true
+        }
+      ]
     ],
     "extra": {
       "eas": {

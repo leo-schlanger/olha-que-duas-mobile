@@ -7,16 +7,16 @@ import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 import { GDPRConsent } from "./src/components/GDPRConsent";
 import { environment } from "./src/config/environment";
 
-// Lazy load all native services (not available in Expo Go)
-let radioService: any = null;
-let radioSettingsService: any = null;
+// Services - expo-av works everywhere
+import { radioService } from "./src/services/radioService";
+import { radioSettingsService } from "./src/services/radioSettingsService";
+
+// Lazy load native-only services
 let adService: any = null;
 let purchaseService: any = null;
 
 if (environment.canUseNativeModules) {
   try {
-    radioService = require("./src/services/radioService").radioService;
-    radioSettingsService = require("./src/services/radioSettingsService").radioSettingsService;
     adService = require("./src/services/adService").adService;
     purchaseService = require("./src/services/purchaseService").purchaseService;
   } catch (error) {
@@ -32,41 +32,29 @@ function AppContent() {
   useEffect(() => {
     async function initializeServices() {
       try {
-        // Load radio settings first
-        if (radioSettingsService) {
-          await radioSettingsService.load();
-          console.log("Radio settings loaded");
-        }
+        await radioSettingsService.load();
+        await radioService.initialize();
+        console.log("Radio service initialized");
 
-        // Initialize audio service for background playback
-        if (radioService) {
-          await radioService.initialize();
-          console.log("Radio service initialized");
-        }
-
-        // Initialize native services only when available
         if (environment.canUseNativeModules && purchaseService) {
           await purchaseService.initialize();
-          console.log("Purchase service initialized");
         }
 
         setIsInitialized(true);
       } catch (error) {
         console.error("Error initializing services:", error);
-        setIsInitialized(true); // Continue anyway
+        setIsInitialized(true);
       }
     }
 
     initializeServices();
 
     return () => {
-      // Cleanup when app is closed
-      radioService?.cleanup();
+      radioService.cleanup();
       purchaseService?.disconnect();
     };
   }, []);
 
-  // Initialize ads after consent is given
   useEffect(() => {
     if (adsConsent !== null && environment.canUseNativeModules && adService) {
       adService.initialize(adsConsent);
@@ -75,7 +63,6 @@ function AppContent() {
 
   function handleGDPRConsent(personalizedAds: boolean) {
     setAdsConsent(personalizedAds);
-    console.log('GDPR Consent:', personalizedAds ? 'Personalized' : 'Non-personalized');
   }
 
   return (
