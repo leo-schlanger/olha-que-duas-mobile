@@ -29,8 +29,14 @@ export const siteConfig = {
     ],
   },
   supabase: {
-    url: process.env.EXPO_PUBLIC_SUPABASE_URL || "",
-    anonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "",
+    url: process.env.EXPO_PUBLIC_SUPABASE_URL || (() => {
+      console.warn('EXPO_PUBLIC_SUPABASE_URL is not set!');
+      return '';
+    })(),
+    anonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || (() => {
+      console.warn('EXPO_PUBLIC_SUPABASE_ANON_KEY is not set!');
+      return '';
+    })(),
   },
 };
 

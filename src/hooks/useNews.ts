@@ -58,7 +58,7 @@ export function useNews(initialFilters: BlogFilters = {}) {
 
   useEffect(() => {
     loadNews(1);
-  }, [filters]);
+  }, [filters, loadNews]);
 
   return {
     posts,

@@ -111,7 +111,16 @@ export function NewsDetailScreen() {
   const categoryColor = categoryColors[post.category] || '#6b7280';
   const categoryLabel = categoryLabels[post.category] || post.category;
   const paragraphs = post.content.split('\n\n').filter(Boolean);
-  const tags = post.tags ? JSON.parse(post.tags) : [];
+
+  let tags: string[] = [];
+  if (post.tags) {
+    try {
+      tags = JSON.parse(post.tags);
+    } catch (e) {
+      console.warn('Failed to parse tags:', e);
+      tags = [];
+    }
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>

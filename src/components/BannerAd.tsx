@@ -26,12 +26,12 @@ interface BannerAdProps {
 
 export function BannerAd({ size = BannerAdSize.ANCHORED_ADAPTIVE_BANNER }: BannerAdProps) {
   const { colors } = useTheme();
+  const { isPremium } = usePremium();
 
   // Not available in Expo Go
   if (!environment.canUseNativeModules || !adService || !GoogleBannerAd) {
     return null;
   }
-  const { isPremium } = usePremium();
   const [adError, setAdError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [sdkReady, setSdkReady] = useState(false);

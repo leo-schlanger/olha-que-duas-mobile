@@ -163,9 +163,19 @@ class PurchaseService {
     }
 
     return new Promise(async (resolve) => {
+      // Timeout after 2 minutes to prevent infinite loading
+      const timeoutId = setTimeout(() => {
+        console.log('PurchaseService: Purchase timeout');
+        this.onPurchaseComplete = null;
+        resolve(false);
+      }, 120000);
+
       try {
         // Set callback for when purchase completes
-        this.onPurchaseComplete = resolve;
+        this.onPurchaseComplete = (success: boolean) => {
+          clearTimeout(timeoutId);
+          resolve(success);
+        };
 
         // Request the purchase
         await requestPurchase({
@@ -176,6 +186,7 @@ class PurchaseService {
         // If requestPurchase throws, we resolve false
       } catch (error) {
         console.error('PurchaseService: Error requesting purchase:', error);
+        clearTimeout(timeoutId);
         this.onPurchaseComplete = null;
         resolve(false);
       }

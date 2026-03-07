@@ -18,7 +18,15 @@
       "WebFetch(domain:rntp.dev)",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:www.npmjs.com)",
-      "Bash(npm uninstall:*)"
+      "Bash(npm uninstall:*)",
+      "Bash(java:*)",
+      "Bash(where:*)",
+      "Bash(gradle --version:*)",
+      "Bash(dir:*)",
+      "Bash(echo:*)",
+      "Bash(winget:*)",
+      "Bash(\"C:\\\\Program Files\\\\Microsoft\\\\jdk-17.0.18.8-hotspot\\\\bin\\\\java.exe\" --version)",
+      "Bash(npx eas-cli:*)"
     ]
   }
 }

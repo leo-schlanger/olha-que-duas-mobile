@@ -1,5 +1,4 @@
 import {
-  useAudioPlayer,
   setAudioModeAsync,
   AudioPlayer,
   createAudioPlayer,
@@ -13,6 +12,7 @@ import { radioSettingsService, RadioSettings } from './radioSettingsService';
  */
 class RadioService {
   private player: AudioPlayer | null = null;
+  private playerSubscription: { remove: () => void } | null = null;
   private isInitialized: boolean = false;
   private isPlaying: boolean = false;
   private volume: number = 1.0;
@@ -29,6 +29,13 @@ class RadioService {
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
+    }
+  }
+
+  private removePlayerListener() {
+    if (this.playerSubscription) {
+      this.playerSubscription.remove();
+      this.playerSubscription = null;
     }
   }
 
@@ -50,7 +57,7 @@ class RadioService {
       // Configure audio mode for background playback
       await setAudioModeAsync({
         playsInSilentMode: true,
-        shouldPlayInBackground: true,
+        shouldPlayInBackground: this.settings.backgroundPlayback,
         interruptionMode: 'doNotMix',
       });
 
@@ -71,10 +78,25 @@ class RadioService {
     const oldSettings = this.settings;
     this.settings = newSettings;
 
+    // Update volume in real-time
     if (oldSettings?.volume !== newSettings.volume) {
       this.volume = newSettings.volume;
       if (this.player) {
         this.player.volume = this.volume;
+      }
+    }
+
+    // Update background playback mode in real-time
+    if (oldSettings?.backgroundPlayback !== newSettings.backgroundPlayback) {
+      try {
+        await setAudioModeAsync({
+          playsInSilentMode: true,
+          shouldPlayInBackground: newSettings.backgroundPlayback,
+          interruptionMode: 'doNotMix',
+        });
+        console.log('Background playback updated:', newSettings.backgroundPlayback);
+      } catch (error) {
+        console.error('Error updating audio mode:', error);
       }
     }
   }
@@ -110,6 +132,7 @@ class RadioService {
 
       // Release previous player if exists
       if (this.player) {
+        this.removePlayerListener();
         this.player.release();
         this.player = null;
       }
@@ -121,7 +144,7 @@ class RadioService {
       this.player.volume = this.volume;
 
       // Subscribe to status updates
-      this.player.addListener('playbackStatusUpdate', (status) => {
+      this.playerSubscription = this.player.addListener('playbackStatusUpdate', (status) => {
         this.handlePlaybackStatus(status);
       });
 
@@ -220,6 +243,7 @@ class RadioService {
     this.reconnectAttempts = 0;
 
     if (this.player) {
+      this.removePlayerListener();
       this.player.release();
       this.player = null;
     }

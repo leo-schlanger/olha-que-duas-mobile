@@ -3,19 +3,19 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const STORAGE_KEY = '@olhaqueduas:radio_settings';
 
 export interface RadioSettings {
-  /** Enable background playback when screen is off */
+  /** Enable background playback when screen is off - ACTIVE */
   backgroundPlayback: boolean;
-  /** Auto-play radio when app opens */
+  /** Auto-play radio when app opens - ACTIVE */
   autoPlayOnStart: boolean;
-  /** Auto-reconnect on connection loss */
+  /** Auto-reconnect on connection loss - ACTIVE */
   autoReconnect: boolean;
-  /** Keep audio playing when app is killed (Android) */
+  /** Keep audio playing when app is killed (Android) - Managed by expo-audio natively */
   continueOnAppKill: boolean;
-  /** Volume level (0-1) */
+  /** Volume level (0-1) - ACTIVE */
   volume: number;
-  /** Show persistent notification (Android) */
+  /** Show persistent notification (Android) - Managed by expo-audio natively */
   showNotification: boolean;
-  /** Audio quality preference */
+  /** Audio quality preference - Reserved for future multi-bitrate support */
   audioQuality: 'high' | 'medium' | 'low';
 }
 

@@ -227,7 +227,7 @@ export function RadioPlayer() {
         <View style={styles.scheduleSection}>
           <View style={styles.scheduleHeader}>
             <Ionicons name="calendar" size={20} color={colors.secondary} />
-            <Text style={styles.scheduleTitle}>Programação Semanal 📅</Text>
+            <Text style={styles.scheduleTitle}>Programação Semanal</Text>
           </View>
 
           <View style={styles.scheduleGrid}>
