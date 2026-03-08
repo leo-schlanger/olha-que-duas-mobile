@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../context/ThemeContext';
+import { logger } from '../utils/logger';
 
 const GDPR_CONSENT_KEY = '@olhaqueduas:gdpr_consent';
 const PRIVACY_POLICY_URL = 'https://olhaqueduas.com/privacidade';
@@ -39,7 +40,7 @@ export function GDPRConsent({ onConsentGiven }: GDPRConsentProps) {
         onConsentGiven(personalizedAds);
       }
     } catch (error) {
-      console.error('Error checking GDPR consent:', error);
+      logger.error('Error checking GDPR consent:', error);
     } finally {
       setHasChecked(true);
     }
@@ -51,7 +52,7 @@ export function GDPRConsent({ onConsentGiven }: GDPRConsentProps) {
       setVisible(false);
       onConsentGiven(true);
     } catch (error) {
-      console.error('Error saving consent:', error);
+      logger.error('Error saving consent:', error);
     }
   }
 
@@ -61,7 +62,7 @@ export function GDPRConsent({ onConsentGiven }: GDPRConsentProps) {
       setVisible(false);
       onConsentGiven(false);
     } catch (error) {
-      console.error('Error saving consent:', error);
+      logger.error('Error saving consent:', error);
     }
   }
 

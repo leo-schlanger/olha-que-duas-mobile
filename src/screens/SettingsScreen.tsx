@@ -19,6 +19,7 @@ import { useTheme, ThemeMode } from '../context/ThemeContext';
 import { resetGDPRConsent, getGDPRConsentStatus } from '../components/GDPRConsent';
 import { useRadioSettings } from '../hooks/useRadioSettings';
 import { environment } from '../config/environment';
+import { logger } from '../utils/logger';
 
 // URLs
 const PRIVACY_POLICY_URL = 'https://olhaqueduas.com/privacidade';
@@ -30,7 +31,7 @@ if (environment.canUseNativeModules) {
   try {
     purchaseService = require('../services/purchaseService').purchaseService;
   } catch (error) {
-    console.log('Purchase service not available');
+    logger.log('Purchase service not available');
   }
 }
 

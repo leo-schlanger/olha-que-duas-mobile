@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { fetchNews, fetchNewsById, fetchCategories, fetchRegions } from '../services/newsApi';
 import { BlogPost, BlogFilters } from '../types/blog';
+import { logger } from '../utils/logger';
 
 /**
  * Hook for fetching and managing news list with pagination
@@ -34,7 +35,7 @@ export function useNews(initialFilters: BlogFilters = {}) {
       setPage(pageNum);
     } catch (err) {
       setError('Erro ao carregar notícias. Tente novamente.');
-      console.error('Error loading news:', err);
+      logger.error('Error loading news:', err);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -92,7 +93,7 @@ export function useNewsDetail(slug: string) {
         setPost(result);
       } catch (err) {
         setError('Erro ao carregar notícia.');
-        console.error('Error loading news detail:', err);
+        logger.error('Error loading news detail:', err);
       } finally {
         setIsLoading(false);
       }
@@ -119,7 +120,7 @@ export function useCategories() {
         const result = await fetchCategories();
         setCategories(result);
       } catch (err) {
-        console.error('Error loading categories:', err);
+        logger.error('Error loading categories:', err);
       } finally {
         setIsLoading(false);
       }
@@ -143,7 +144,7 @@ export function useRegions() {
         const result = await fetchRegions();
         setRegions(result);
       } catch (err) {
-        console.error('Error loading regions:', err);
+        logger.error('Error loading regions:', err);
       } finally {
         setIsLoading(false);
       }

@@ -1,21 +1,21 @@
-// @ts-nocheck
 /**
  * Purchase Service - In-App Purchases
  *
  * Handles Google Play Store purchases for removing ads
+ * Compatible with react-native-iap v14+
  */
 
 import { Platform } from 'react-native';
+import { logger } from '../utils/logger';
 import {
   initConnection,
   endConnection,
-  getProducts,
+  fetchProducts,
   requestPurchase,
   getAvailablePurchases,
   finishTransaction,
   purchaseUpdatedListener,
   purchaseErrorListener,
-  type Product,
   type Purchase,
   type PurchaseError,
 } from 'react-native-iap';
@@ -29,11 +29,29 @@ const PRODUCT_SKUS = Platform.select({
   ios: [REMOVE_ADS_SKU],
 }) as string[];
 
+// Subscription type from react-native-iap
+type PurchaseSubscription = { remove: () => void };
+
+// Generic product type for cross-platform compatibility
+type IAP_Product = {
+  productId?: string;
+  title?: string;
+  description?: string;
+  price?: string;
+  localizedPrice?: string;
+  currency?: string;
+  oneTimePurchaseOfferDetails?: {
+    formattedPrice?: string;
+    priceAmountMicros?: string;
+    priceCurrencyCode?: string;
+  };
+};
+
 class PurchaseService {
   private isConnected = false;
-  private products: Product[] = [];
-  private purchaseUpdateSubscription: any = null;
-  private purchaseErrorSubscription: any = null;
+  private products: IAP_Product[] = [];
+  private purchaseUpdateSubscription: PurchaseSubscription | null = null;
+  private purchaseErrorSubscription: PurchaseSubscription | null = null;
   private onPurchaseComplete: ((success: boolean) => void) | null = null;
 
   /**
@@ -46,7 +64,7 @@ class PurchaseService {
 
     try {
       const result = await initConnection();
-      console.log('PurchaseService: Connection result:', result);
+      logger.log('PurchaseService: Connection result:', result);
       this.isConnected = true;
 
       // Setup purchase listeners
@@ -55,9 +73,9 @@ class PurchaseService {
       // Load products
       await this.loadProducts();
 
-      console.log('PurchaseService: Initialized successfully');
+      logger.log('PurchaseService: Initialized successfully');
     } catch (error) {
-      console.error('PurchaseService: Initialization error:', error);
+      logger.error('PurchaseService: Initialization error:', error);
       this.isConnected = false;
     }
   }
@@ -69,14 +87,15 @@ class PurchaseService {
     // Listen for purchase updates
     this.purchaseUpdateSubscription = purchaseUpdatedListener(
       async (purchase: Purchase) => {
-        console.log('PurchaseService: Purchase updated:', purchase);
+        logger.log('PurchaseService: Purchase updated:', purchase);
 
-        const receipt = purchase.transactionReceipt;
-        if (receipt) {
+        // Check if purchase has a transaction ID (indicates valid purchase)
+        const transactionId = purchase.transactionId;
+        if (transactionId) {
           try {
             // Acknowledge the purchase (required for Google Play)
             await finishTransaction({ purchase, isConsumable: false });
-            console.log('PurchaseService: Transaction finished');
+            logger.log('PurchaseService: Transaction finished');
 
             // Notify success
             if (this.onPurchaseComplete) {
@@ -84,7 +103,7 @@ class PurchaseService {
               this.onPurchaseComplete = null;
             }
           } catch (error) {
-            console.error('PurchaseService: Error finishing transaction:', error);
+            logger.error('PurchaseService: Error finishing transaction:', error);
           }
         }
       }
@@ -93,7 +112,7 @@ class PurchaseService {
     // Listen for purchase errors
     this.purchaseErrorSubscription = purchaseErrorListener(
       (error: PurchaseError) => {
-        console.error('PurchaseService: Purchase error:', error);
+        logger.error('PurchaseService: Purchase error:', error);
 
         // Notify failure
         if (this.onPurchaseComplete) {
@@ -109,11 +128,11 @@ class PurchaseService {
    */
   private async loadProducts(): Promise<void> {
     try {
-      const products = await getProducts({ skus: PRODUCT_SKUS });
-      this.products = products;
-      console.log('PurchaseService: Products loaded:', products.length);
+      const products = await fetchProducts({ skus: PRODUCT_SKUS });
+      this.products = (products ?? []) as unknown as IAP_Product[];
+      logger.log('PurchaseService: Products loaded:', this.products.length);
     } catch (error) {
-      console.error('PurchaseService: Error loading products:', error);
+      logger.error('PurchaseService: Error loading products:', error);
     }
   }
 
@@ -135,7 +154,7 @@ class PurchaseService {
       try {
         await endConnection();
       } catch (error) {
-        console.error('PurchaseService: Error disconnecting:', error);
+        logger.error('PurchaseService: Error disconnecting:', error);
       }
     }
 
@@ -145,7 +164,7 @@ class PurchaseService {
   /**
    * Get remove ads product information
    */
-  async getRemoveAdsProduct(): Promise<Product | null> {
+  async getRemoveAdsProduct(): Promise<IAP_Product | null> {
     if (!this.isConnected) {
       await this.initialize();
     }
@@ -165,7 +184,7 @@ class PurchaseService {
     return new Promise(async (resolve) => {
       // Timeout after 2 minutes to prevent infinite loading
       const timeoutId = setTimeout(() => {
-        console.log('PurchaseService: Purchase timeout');
+        logger.log('PurchaseService: Purchase timeout');
         this.onPurchaseComplete = null;
         resolve(false);
       }, 120000);
@@ -177,15 +196,20 @@ class PurchaseService {
           resolve(success);
         };
 
-        // Request the purchase
+        // Request the purchase using the new API format
+        const purchaseRequest = Platform.OS === 'android'
+          ? { google: { skus: [REMOVE_ADS_SKU] } }
+          : { apple: { sku: REMOVE_ADS_SKU } };
+
         await requestPurchase({
-          skus: [REMOVE_ADS_SKU],
+          request: purchaseRequest,
+          type: 'in-app',
         });
 
         // Note: The actual result comes through the listener
         // If requestPurchase throws, we resolve false
       } catch (error) {
-        console.error('PurchaseService: Error requesting purchase:', error);
+        logger.error('PurchaseService: Error requesting purchase:', error);
         clearTimeout(timeoutId);
         this.onPurchaseComplete = null;
         resolve(false);
@@ -203,7 +227,7 @@ class PurchaseService {
 
     try {
       const purchases = await getAvailablePurchases();
-      console.log('PurchaseService: Available purchases:', purchases.length);
+      logger.log('PurchaseService: Available purchases:', purchases.length);
 
       const hasRemoveAds = purchases.some(
         (purchase) => purchase.productId === REMOVE_ADS_SKU
@@ -211,7 +235,7 @@ class PurchaseService {
 
       return hasRemoveAds;
     } catch (error) {
-      console.error('PurchaseService: Error checking purchase status:', error);
+      logger.error('PurchaseService: Error checking purchase status:', error);
       return false;
     }
   }
@@ -230,8 +254,20 @@ class PurchaseService {
     const product = await this.getRemoveAdsProduct();
 
     if (product) {
-      // @ts-ignore - RN IAP types differ between OS/versions
-      return product.localizedPrice ?? (product as any).oneTimePurchaseOfferDetails?.formattedPrice ?? '2,99 €';
+      // Try localizedPrice first (iOS)
+      if (product.localizedPrice) {
+        return product.localizedPrice;
+      }
+
+      // Try price (generic)
+      if (product.price) {
+        return product.price;
+      }
+
+      // Android oneTimePurchaseOfferDetails fallback
+      if (product.oneTimePurchaseOfferDetails?.formattedPrice) {
+        return product.oneTimePurchaseOfferDetails.formattedPrice;
+      }
     }
 
     return '2,99 €';

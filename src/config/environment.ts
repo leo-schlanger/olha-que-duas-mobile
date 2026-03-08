@@ -34,9 +34,11 @@ export const environment = {
   },
 };
 
-// Always log environment for debugging
-console.log('Environment:', {
-  executionEnvironment,
-  isExpoGo,
-  canUseNativeModules,
-});
+// Log environment only in development
+if (__DEV__) {
+  console.log('Environment:', {
+    executionEnvironment,
+    isExpoGo,
+    canUseNativeModules,
+  });
+}

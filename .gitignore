@@ -71,3 +71,13 @@ eas-credentials/
 
 # Claude Code local settings
 .claude/
+
+# Build scripts with sensitive data
+build-aab.bat
+build-apk.bat
+build-apk.ps1
+criar-keystore.bat
+
+# EAS credentials (sensitive)
+credentials.json
+credentials/

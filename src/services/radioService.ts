@@ -5,6 +5,7 @@ import {
 } from 'expo-audio';
 import { siteConfig } from '../config/site';
 import { radioSettingsService, RadioSettings } from './radioSettingsService';
+import { logger } from '../utils/logger';
 
 /**
  * Radio streaming service using expo-audio (2026)
@@ -62,14 +63,14 @@ class RadioService {
       });
 
       this.isInitialized = true;
-      console.log('RadioService initialized with expo-audio');
+      logger.log('RadioService initialized with expo-audio');
 
       // Auto-play if enabled
       if (this.settings.autoPlayOnStart) {
         setTimeout(() => this.play(), 500);
       }
     } catch (error) {
-      console.error('Error initializing RadioService:', error);
+      logger.error('Error initializing RadioService:', error);
       this.isInitialized = true;
     }
   }
@@ -94,9 +95,9 @@ class RadioService {
           shouldPlayInBackground: newSettings.backgroundPlayback,
           interruptionMode: 'doNotMix',
         });
-        console.log('Background playback updated:', newSettings.backgroundPlayback);
+        logger.log('Background playback updated:', newSettings.backgroundPlayback);
       } catch (error) {
-        console.error('Error updating audio mode:', error);
+        logger.error('Error updating audio mode:', error);
       }
     }
   }
@@ -137,7 +138,7 @@ class RadioService {
         this.player = null;
       }
 
-      console.log('Creating audio player for:', siteConfig.radio.streamUrl);
+      logger.log('Creating audio player for:', siteConfig.radio.streamUrl);
 
       // Create new player
       this.player = createAudioPlayer({ uri: siteConfig.radio.streamUrl });
@@ -161,10 +162,10 @@ class RadioService {
       this.reconnectAttempts = 0;
       this.emitStatus();
 
-      console.log('Radio stream started');
+      logger.log('Radio stream started');
       return true;
     } catch (error) {
-      console.error('Error playing radio:', error);
+      logger.error('Error playing radio:', error);
       this.isPlaying = false;
       this.emitStatus(false);
 
@@ -177,7 +178,7 @@ class RadioService {
 
   private handlePlaybackStatus(status: any) {
     if (status.error) {
-      console.error('Playback error:', status.error);
+      logger.error('Playback error:', status.error);
       this.isPlaying = false;
       this.emitStatus();
 
@@ -204,7 +205,7 @@ class RadioService {
   private reconnect() {
     if (this.isIntentionallyStopped) return;
     if (this.reconnectAttempts >= this.MAX_RECONNECT_ATTEMPTS) {
-      console.log('Max reconnect attempts reached');
+      logger.log('Max reconnect attempts reached');
       this.emitStatus();
       return;
     }
@@ -214,7 +215,7 @@ class RadioService {
     const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
     this.reconnectAttempts++;
 
-    console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
+    logger.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
     this.emitStatus(true);
 
     this.reconnectTimeout = setTimeout(() => {

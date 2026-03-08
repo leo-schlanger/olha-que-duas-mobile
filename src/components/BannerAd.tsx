@@ -3,6 +3,7 @@ import { View, StyleSheet, Text, ActivityIndicator } from 'react-native';
 import { usePremium } from '../context/PremiumContext';
 import { useTheme } from '../context/ThemeContext';
 import { environment } from '../config/environment';
+import { logger } from '../utils/logger';
 
 // Lazy load native ad modules (not available in Expo Go)
 let GoogleBannerAd: any = null;
@@ -16,7 +17,7 @@ if (environment.canUseNativeModules) {
     BannerAdSize = adsModule.BannerAdSize;
     adService = require('../services/adService').adService;
   } catch (error) {
-    console.log('Ad modules not available');
+    logger.log('Ad modules not available');
   }
 }
 
@@ -54,13 +55,13 @@ export function BannerAd({ size = BannerAdSize.ANCHORED_ADAPTIVE_BANNER }: Banne
             setSdkReady(true);
           }
         }
-      }, 100);
+      }, 500);
 
       // Timeout after 10 seconds
       timeoutId = setTimeout(() => {
         if (checkInterval) clearInterval(checkInterval);
         if (mounted && !sdkReadyRef.current) {
-          console.log('BannerAd: SDK initialization timeout');
+          logger.log('BannerAd: SDK initialization timeout');
           setAdError(true);
           setIsLoading(false);
         }
@@ -126,11 +127,11 @@ export function BannerAd({ size = BannerAdSize.ANCHORED_ADAPTIVE_BANNER }: Banne
           requestNonPersonalizedAdsOnly: nonPersonalizedAds,
         }}
         onAdLoaded={() => {
-          console.log('BannerAd: Ad loaded');
+          logger.log('BannerAd: Ad loaded');
           setIsLoading(false);
         }}
         onAdFailedToLoad={(error: unknown) => {
-          console.log('BannerAd: Failed to load', error);
+          logger.log('BannerAd: Failed to load', error);
           setAdError(true);
           setIsLoading(false);
         }}

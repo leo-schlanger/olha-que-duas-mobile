@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { siteConfig } from '../config/site';
 import { radioService, RadioStatus } from '../services/radioService';
+import { logger } from '../utils/logger';
 
 /**
  * Hook for managing radio playback state and controls
@@ -22,7 +23,7 @@ export function useRadio() {
         radioService.setStatusCallback(setStatus);
         setIsInitialized(true);
       } catch (error) {
-        console.error('Failed to initialize radio:', error);
+        logger.error('Failed to initialize radio:', error);
         setIsInitialized(true);
       }
     };

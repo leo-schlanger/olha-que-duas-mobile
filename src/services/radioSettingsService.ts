@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { logger } from '../utils/logger';
 
 const STORAGE_KEY = '@olhaqueduas:radio_settings';
 
@@ -48,7 +49,7 @@ class RadioSettingsService {
       this.isLoaded = true;
       return this.settings;
     } catch (error) {
-      console.error('Error loading radio settings:', error);
+      logger.error('Error loading radio settings:', error);
       return this.settings;
     }
   }
@@ -61,7 +62,7 @@ class RadioSettingsService {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(this.settings));
       this.notifyListeners();
     } catch (error) {
-      console.error('Error saving radio settings:', error);
+      logger.error('Error saving radio settings:', error);
     }
   }
 

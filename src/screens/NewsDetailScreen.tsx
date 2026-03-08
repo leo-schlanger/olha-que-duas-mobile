@@ -13,6 +13,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { logger } from '../utils/logger';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNewsDetail } from '../hooks/useNews';
@@ -57,7 +58,7 @@ export function NewsDetailScreen() {
         message: `${post.title}\n\n${post.summary}\n\nLeia mais em: ${post.source_url}`,
       });
     } catch (error) {
-      console.error('Error sharing:', error);
+      logger.error('Error sharing:', error);
     }
   };
 
@@ -117,7 +118,7 @@ export function NewsDetailScreen() {
     try {
       tags = JSON.parse(post.tags);
     } catch (e) {
-      console.warn('Failed to parse tags:', e);
+      logger.warn('Failed to parse tags:', e);
       tags = [];
     }
   }

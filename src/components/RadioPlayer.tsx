@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -43,29 +43,37 @@ export function RadioPlayer() {
   // Animate visualizer when playing
   useEffect(() => {
     let interval: NodeJS.Timeout;
+    const animations: Animated.CompositeAnimation[] = [];
 
     if (isPlaying) {
       interval = setInterval(() => {
         visualizerHeights.forEach((height) => {
-          Animated.timing(height, {
+          const anim = Animated.timing(height, {
             toValue: Math.random() * 20 + 5,
             duration: 150,
             useNativeDriver: false,
-          }).start();
+          });
+          animations.push(anim);
+          anim.start();
         });
       }, 150);
     } else {
       visualizerHeights.forEach((height) => {
-        Animated.timing(height, {
+        const anim = Animated.timing(height, {
           toValue: 5,
           duration: 300,
           useNativeDriver: false,
-        }).start();
+        });
+        animations.push(anim);
+        anim.start();
       });
     }
 
     return () => {
       if (interval) clearInterval(interval);
+      // Stop all running animations
+      animations.forEach((anim) => anim.stop());
+      visualizerHeights.forEach((height) => height.stopAnimation());
     };
   }, [isPlaying, visualizerHeights]);
 
@@ -103,7 +111,7 @@ export function RadioPlayer() {
   };
 
   const statusInfo = getStatusInfo();
-  const styles = createStyles(colors, isDark);
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
 
   return (
     <ScrollView

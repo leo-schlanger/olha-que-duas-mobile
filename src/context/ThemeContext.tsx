@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { logger } from '../utils/logger';
 
 const STORAGE_KEY = '@olhaqueduas:theme_preference';
 
@@ -91,7 +92,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
           setThemeModeState(saved as ThemeMode);
         }
       } catch (error) {
-        console.error('Error loading theme preference:', error);
+        logger.error('Error loading theme preference:', error);
       }
       setIsLoaded(true);
     }
@@ -104,7 +105,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     try {
       await AsyncStorage.setItem(STORAGE_KEY, mode);
     } catch (error) {
-      console.error('Error saving theme preference:', error);
+      logger.error('Error saving theme preference:', error);
     }
   };
 

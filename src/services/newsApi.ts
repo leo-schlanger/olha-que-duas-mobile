@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { BlogPost, BlogFilters } from '../types/blog';
+import { logger } from '../utils/logger';
 
 const POSTS_PER_PAGE = 10;
 
@@ -37,7 +38,7 @@ export async function fetchNews(
   const { data, count, error } = await query;
 
   if (error) {
-    console.error('Error fetching news:', error);
+    logger.error('Error fetching news:', error);
     throw error;
   }
 
@@ -58,7 +59,7 @@ export async function fetchNewsById(slug: string): Promise<BlogPost | null> {
     .single();
 
   if (error) {
-    console.error('Error fetching news by slug:', error);
+    logger.error('Error fetching news by slug:', error);
     return null;
   }
 
@@ -75,7 +76,7 @@ export async function fetchCategories(): Promise<string[]> {
     .eq('is_published', true);
 
   if (error) {
-    console.error('Error fetching categories:', error);
+    logger.error('Error fetching categories:', error);
     return [];
   }
 
@@ -93,7 +94,7 @@ export async function fetchRegions(): Promise<string[]> {
     .eq('is_published', true);
 
   if (error) {
-    console.error('Error fetching regions:', error);
+    logger.error('Error fetching regions:', error);
     return [];
   }
 

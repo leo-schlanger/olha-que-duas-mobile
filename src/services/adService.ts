@@ -5,6 +5,7 @@
  */
 
 import mobileAds, { MaxAdContentRating } from 'react-native-google-mobile-ads';
+import { logger } from '../utils/logger';
 import { Platform } from 'react-native';
 
 // Google AdMob Ad Unit IDs
@@ -65,9 +66,9 @@ class AdService {
       await mobileAds().initialize();
 
       this.isInitialized = true;
-      console.log('AdService: SDK initialized successfully (personalized:', this.personalizedAds, ')');
+      logger.log('AdService: SDK initialized successfully (personalized:', this.personalizedAds, ')');
     } catch (error) {
-      console.error('AdService: Initialization error:', error);
+      logger.error('AdService: Initialization error:', error);
       // Reset promise so it can be retried
       this.initializationPromise = null;
       throw error;

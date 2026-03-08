@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { environment } from '../config/environment';
+import { logger } from '../utils/logger';
 
 const PREMIUM_STORAGE_KEY = '@olhaqueduas:premium';
 
@@ -10,7 +11,7 @@ if (environment.canUseNativeModules) {
   try {
     purchaseService = require('../services/purchaseService').purchaseService;
   } catch (error) {
-    console.log('Purchase service not available');
+    logger.log('Purchase service not available');
   }
 }
 
@@ -32,42 +33,53 @@ export function PremiumProvider({ children }: PremiumProviderProps) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    loadPremiumStatus();
-  }, []);
+    let mounted = true;
 
-  async function loadPremiumStatus() {
-    try {
-      setIsLoading(true);
+    async function loadPremiumStatus() {
+      try {
+        // First, check local storage
+        const storedPremium = await AsyncStorage.getItem(PREMIUM_STORAGE_KEY);
+        if (!mounted) return;
 
-      // First, check local storage
-      const storedPremium = await AsyncStorage.getItem(PREMIUM_STORAGE_KEY);
-      if (storedPremium === 'true') {
-        setIsPremium(true);
-      }
-
-      // Then, verify with stores (only if native modules available)
-      if (purchaseService && environment.features.purchases) {
-        // Initialize the purchase service connection
-        await purchaseService.initialize();
-
-        // Check if user has valid purchase
-        const hasValidPurchase = await purchaseService.checkPurchaseStatus();
-        if (hasValidPurchase) {
+        if (storedPremium === 'true') {
           setIsPremium(true);
-          await AsyncStorage.setItem(PREMIUM_STORAGE_KEY, 'true');
+        }
+
+        // Then, verify with stores (only if native modules available)
+        if (purchaseService && environment.features.purchases) {
+          // Initialize the purchase service connection
+          await purchaseService.initialize();
+          if (!mounted) return;
+
+          // Check if user has valid purchase
+          const hasValidPurchase = await purchaseService.checkPurchaseStatus();
+          if (!mounted) return;
+
+          if (hasValidPurchase) {
+            setIsPremium(true);
+            await AsyncStorage.setItem(PREMIUM_STORAGE_KEY, 'true');
+          }
+        }
+      } catch (error) {
+        logger.error('Error loading premium status:', error);
+      } finally {
+        if (mounted) {
+          setIsLoading(false);
         }
       }
-    } catch (error) {
-      console.error('Error loading premium status:', error);
-    } finally {
-      setIsLoading(false);
     }
-  }
+
+    loadPremiumStatus();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   async function purchasePremium(): Promise<boolean> {
     try {
       if (!purchaseService || !environment.features.purchases) {
-        console.log('Purchases not available in this environment');
+        logger.log('Purchases not available in this environment');
         return false;
       }
 
@@ -81,7 +93,7 @@ export function PremiumProvider({ children }: PremiumProviderProps) {
 
       return success;
     } catch (error) {
-      console.error('Error purchasing premium:', error);
+      logger.error('Error purchasing premium:', error);
       return false;
     } finally {
       setIsLoading(false);
@@ -91,7 +103,7 @@ export function PremiumProvider({ children }: PremiumProviderProps) {
   async function restorePurchases(): Promise<boolean> {
     try {
       if (!purchaseService || !environment.features.purchases) {
-        console.log('Purchases not available in this environment');
+        logger.log('Purchases not available in this environment');
         return false;
       }
 
@@ -105,7 +117,7 @@ export function PremiumProvider({ children }: PremiumProviderProps) {
 
       return success;
     } catch (error) {
-      console.error('Error restoring purchases:', error);
+      logger.error('Error restoring purchases:', error);
       return false;
     } finally {
       setIsLoading(false);

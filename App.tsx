@@ -6,6 +6,7 @@ import { PremiumProvider } from "./src/context/PremiumContext";
 import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 import { GDPRConsent } from "./src/components/GDPRConsent";
 import { environment } from "./src/config/environment";
+import { logger } from "./src/utils/logger";
 
 // Services - expo-av works everywhere
 import { radioService } from "./src/services/radioService";
@@ -20,7 +21,7 @@ if (environment.canUseNativeModules) {
     adService = require("./src/services/adService").adService;
     purchaseService = require("./src/services/purchaseService").purchaseService;
   } catch (error) {
-    console.log("Native services not available");
+    logger.log("Native services not available");
   }
 }
 
@@ -34,7 +35,7 @@ function AppContent() {
       try {
         await radioSettingsService.load();
         await radioService.initialize();
-        console.log("Radio service initialized");
+        logger.log("Radio service initialized");
 
         if (environment.canUseNativeModules && purchaseService) {
           await purchaseService.initialize();
@@ -42,7 +43,7 @@ function AppContent() {
 
         setIsInitialized(true);
       } catch (error) {
-        console.error("Error initializing services:", error);
+        logger.error("Error initializing services:", error);
         setIsInitialized(true);
       }
     }
