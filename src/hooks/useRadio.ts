@@ -36,12 +36,11 @@ export function useRadio() {
   }, []);
 
   const togglePlayPause = useCallback(async () => {
-    setStatus((prev) => ({ ...prev, isLoading: true }));
+    // Don't set loading here - let the service control the state
     await radioService.togglePlayPause();
   }, []);
 
   const play = useCallback(async () => {
-    setStatus((prev) => ({ ...prev, isLoading: true }));
     await radioService.play();
   }, []);
 
@@ -58,7 +57,6 @@ export function useRadio() {
   }, []);
 
   const forceReconnect = useCallback(async () => {
-    setStatus((prev) => ({ ...prev, isLoading: true }));
     return await radioService.forceReconnect();
   }, []);
 

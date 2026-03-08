@@ -39,7 +39,7 @@ export function SettingsScreen() {
   const { colors, isDark, themeMode, setThemeMode } = useTheme();
   const { isPremium, isLoading, purchasePremium, restorePurchases } = usePremium();
   const { settings: radioSettings, updateSetting: updateRadioSetting, isLoading: radioSettingsLoading } = useRadioSettings();
-  const [price, setPrice] = useState('2,99 €');
+  const [price, setPrice] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [adsConsentStatus, setAdsConsentStatus] = useState<string | null>(null);
 
@@ -50,8 +50,15 @@ export function SettingsScreen() {
 
   async function loadPrice() {
     if (purchaseService && environment.features.purchases) {
-      const formattedPrice = await purchaseService.getFormattedPrice();
-      setPrice(formattedPrice);
+      try {
+        const formattedPrice = await purchaseService.getFormattedPrice();
+        setPrice(formattedPrice);
+      } catch (error) {
+        logger.error('Error loading price:', error);
+        setPrice('2,99 €');
+      }
+    } else {
+      setPrice('2,99 €');
     }
   }
 
@@ -375,7 +382,7 @@ export function SettingsScreen() {
 
                 <View style={styles.priceContainer}>
                   <Text style={styles.priceLabel}>Apenas</Text>
-                  <Text style={styles.price}>{price}</Text>
+                  <Text style={styles.price}>{price ?? '...'}</Text>
                   <Text style={styles.priceLabel}>pagamento único</Text>
                 </View>
 

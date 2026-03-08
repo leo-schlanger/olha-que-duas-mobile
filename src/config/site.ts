@@ -20,12 +20,12 @@ export const siteConfig = {
     tagline: "A sua voz, 24 horas por dia",
     quality: "192kbps",
     schedule: [
-      { day: "Segunda", show: "Nutrição", times: ["12:00", "19:00"], icon: "nutrition" },
-      { day: "Terça", show: "Motivar", times: ["12:00", "19:00"], icon: "bulb" },
-      { day: "Quarta", show: "Prazer Feminino", times: ["21:00", "00:00"], icon: "heart" },
-      { day: "Quinta", show: "Companheiros de Caminhada", times: ["12:00", "19:00"], icon: "walk" },
-      { day: "Sexta", show: "Dizem que...", times: ["12:00", "19:00"], icon: "chatbubbles" },
-      { day: "Sábado", show: "Olha que Duas!", times: ["11:00", "19:00", "00:00"], icon: "people" },
+      { day: "Segunda", show: "Nutrição", times: ["12:00", "19:00"], icon: "leaf-outline" },
+      { day: "Terça", show: "Motivar", times: ["12:00", "19:00"], icon: "bulb-outline" },
+      { day: "Quarta", show: "Prazer Feminino", times: ["21:00", "00:00"], icon: "heart-outline" },
+      { day: "Quinta", show: "Companheiros de Caminhada", times: ["12:00", "19:00"], icon: "walk-outline" },
+      { day: "Sexta", show: "Dizem que...", times: ["12:00", "19:00"], icon: "chatbubbles-outline" },
+      { day: "Sábado", show: "Olha que Duas!", times: ["11:00", "19:00", "00:00"], icon: "people-outline" },
     ],
   },
   supabase: {

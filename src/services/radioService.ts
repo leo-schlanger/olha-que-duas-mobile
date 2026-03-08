@@ -108,13 +108,10 @@ class RadioService {
 
   private emitStatus(isLoading: boolean = false) {
     if (this.onStatusChange) {
-      // Se não foi parado intencionalmente e não está a tocar, está a carregar/conectar
-      const actualLoading = isLoading || (!this.isIntentionallyStopped && !this.isPlaying);
-
       this.onStatusChange({
         isPlaying: this.isPlaying,
         volume: this.volume,
-        isLoading: actualLoading,
+        isLoading: isLoading,
         isReconnecting: this.reconnectAttempts > 0,
         reconnectAttempt: this.reconnectAttempts,
       });
@@ -158,11 +155,12 @@ class RadioService {
       // Start playback
       this.player.play();
 
-      this.isPlaying = true;
+      // Don't set isPlaying = true here - wait for playbackStatusUpdate callback
+      // to confirm playback has actually started
       this.reconnectAttempts = 0;
-      this.emitStatus();
+      this.emitStatus(true); // Keep showing loading until confirmed
 
-      logger.log('Radio stream started');
+      logger.log('Radio stream starting...');
       return true;
     } catch (error) {
       logger.error('Error playing radio:', error);
@@ -180,7 +178,8 @@ class RadioService {
     if (status.error) {
       logger.error('Playback error:', status.error);
       this.isPlaying = false;
-      this.emitStatus();
+      this.isBuffering = false;
+      this.emitStatus(false);
 
       if (!this.isIntentionallyStopped && this.settings?.autoReconnect) {
         this.reconnect();
@@ -191,14 +190,17 @@ class RadioService {
     const wasPlaying = this.isPlaying;
     const wasBuffering = this.isBuffering;
 
-    this.isPlaying = status.isPlaying ?? false;
-    this.isBuffering = status.isBuffering ?? false;
+    // expo-audio reports playing status
+    this.isPlaying = status.isPlaying ?? status.playing ?? false;
+    this.isBuffering = status.isBuffering ?? status.buffering ?? false;
 
-    // Se está a tocar ou parou de fazer buffering, o carregamento terminou
-    const isLoadingFinished = this.isPlaying || !this.isBuffering;
+    // Loading is finished when playback has started
+    // We consider it playing if isPlaying is true, regardless of buffering
+    const isLoading = !this.isPlaying && !this.isIntentionallyStopped;
 
     if (wasPlaying !== this.isPlaying || wasBuffering !== this.isBuffering) {
-      this.emitStatus(!isLoadingFinished);
+      logger.log('Playback status changed:', { isPlaying: this.isPlaying, isBuffering: this.isBuffering });
+      this.emitStatus(isLoading);
     }
   }
 
