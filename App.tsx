@@ -12,6 +12,9 @@ import { logger } from "./src/utils/logger";
 import { radioService } from "./src/services/radioService";
 import { radioSettingsService } from "./src/services/radioSettingsService";
 
+import { useFonts } from "expo-font";
+import { Ionicons } from "@expo/vector-icons";
+
 // Lazy load native-only services
 let adService: any = null;
 let purchaseService: any = null;
@@ -75,7 +78,15 @@ function AppContent() {
   );
 }
 
-export default function App() {
+function RootProviders() {
+  const [fontsLoaded] = useFonts({
+    ...Ionicons.font,
+  });
+
+  if (!fontsLoaded) {
+    return null; // ou um splash simples
+  }
+
   return (
     <SafeAreaProvider>
       <ThemeProvider>
@@ -85,4 +96,8 @@ export default function App() {
       </ThemeProvider>
     </SafeAreaProvider>
   );
+}
+
+export default function App() {
+  return <RootProviders />;
 }
