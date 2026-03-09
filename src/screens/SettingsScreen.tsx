@@ -21,11 +21,9 @@ import { useRadioSettings } from '../hooks/useRadioSettings';
 import { environment } from '../config/environment';
 import { logger } from '../utils/logger';
 
-// URLs
 const PRIVACY_POLICY_URL = 'https://olhaqueduas.com/privacidade';
 const TERMS_URL = 'https://olhaqueduas.com/termos';
 
-// Lazy load purchase service
 let purchaseService: any = null;
 if (environment.canUseNativeModules) {
   try {
@@ -33,6 +31,51 @@ if (environment.canUseNativeModules) {
   } catch (error) {
     logger.log('Purchase service not available');
   }
+}
+
+// Theme option component
+function ThemeOption({
+  mode,
+  currentMode,
+  onSelect,
+  colors,
+  icon,
+  label
+}: {
+  mode: ThemeMode;
+  currentMode: ThemeMode;
+  onSelect: (mode: ThemeMode) => void;
+  colors: any;
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+}) {
+  const isSelected = mode === currentMode;
+
+  return (
+    <TouchableOpacity
+      style={[
+        styles.themeOption,
+        {
+          backgroundColor: isSelected ? colors.primary : colors.background,
+          borderColor: isSelected ? colors.primary : colors.muted,
+        }
+      ]}
+      onPress={() => onSelect(mode)}
+      activeOpacity={0.7}
+    >
+      <Ionicons
+        name={icon}
+        size={22}
+        color={isSelected ? colors.white : colors.text}
+      />
+      <Text style={[
+        styles.themeOptionText,
+        { color: isSelected ? colors.white : colors.text }
+      ]}>
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
 }
 
 export function SettingsScreen() {
@@ -163,250 +206,179 @@ export function SettingsScreen() {
     return 'Não definido';
   }
 
-  function getThemeModeLabel(): string {
-    switch (themeMode) {
-      case 'light': return 'Claro';
-      case 'dark': return 'Escuro';
-      case 'system': return 'Sistema';
-      default: return 'Sistema';
-    }
-  }
-
-  function cycleThemeMode() {
-    const modes: ThemeMode[] = ['system', 'light', 'dark'];
-    const currentIndex = modes.indexOf(themeMode);
-    const nextIndex = (currentIndex + 1) % modes.length;
-    setThemeMode(modes[nextIndex]);
-  }
-
-  const styles = createStyles(colors, isDark);
+  const dynamicStyles = createDynamicStyles(colors, isDark);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={dynamicStyles.container} edges={['top']}>
       <StatusBar
         barStyle={isDark ? 'light-content' : 'dark-content'}
         backgroundColor={colors.background}
       />
 
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Definições</Text>
+      <View style={dynamicStyles.header}>
+        <Text style={dynamicStyles.headerTitle}>Definições</Text>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Appearance Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Aparência</Text>
+      <ScrollView style={dynamicStyles.content} showsVerticalScrollIndicator={false}>
+        {/* Theme Section - Redesigned */}
+        <View style={dynamicStyles.section}>
+          <Text style={dynamicStyles.sectionTitle}>Aparência</Text>
 
-          <View style={styles.menuCard}>
-            <TouchableOpacity style={[styles.settingItem, styles.settingItemLast]} onPress={cycleThemeMode}>
-              <View style={styles.settingItemLeft}>
-                <View style={[styles.settingIconContainer, { backgroundColor: colors.secondary + '20' }]}>
-                  <Ionicons
-                    name={isDark ? 'moon' : 'sunny'}
-                    size={20}
-                    color={colors.secondary}
-                  />
-                </View>
-                <View style={styles.settingTextContainer}>
-                  <Text style={styles.settingItemTitle}>Tema</Text>
-                  <Text style={styles.settingItemSubtitle}>{getThemeModeLabel()}</Text>
-                </View>
-              </View>
-              <View style={styles.themeSelector}>
-                <View style={[
-                  styles.themeDot,
-                  themeMode === 'light' && styles.themeDotActive,
-                  { backgroundColor: '#f7f4ed' }
-                ]} />
-                <View style={[
-                  styles.themeDot,
-                  themeMode === 'system' && styles.themeDotActive,
-                  { backgroundColor: '#888888' }
-                ]} />
-                <View style={[
-                  styles.themeDot,
-                  themeMode === 'dark' && styles.themeDotActive,
-                  { backgroundColor: '#1a1614' }
-                ]} />
-              </View>
-            </TouchableOpacity>
+          <View style={dynamicStyles.themeCard}>
+            <View style={dynamicStyles.themeHeader}>
+              <Ionicons name="color-palette-outline" size={22} color={colors.text} />
+              <Text style={dynamicStyles.themeHeaderText}>Escolha o tema</Text>
+            </View>
+
+            <View style={dynamicStyles.themeOptions}>
+              <ThemeOption
+                mode="light"
+                currentMode={themeMode}
+                onSelect={setThemeMode}
+                colors={colors}
+                icon="sunny"
+                label="Claro"
+              />
+              <ThemeOption
+                mode="system"
+                currentMode={themeMode}
+                onSelect={setThemeMode}
+                colors={colors}
+                icon="phone-portrait-outline"
+                label="Sistema"
+              />
+              <ThemeOption
+                mode="dark"
+                currentMode={themeMode}
+                onSelect={setThemeMode}
+                colors={colors}
+                icon="moon"
+                label="Escuro"
+              />
+            </View>
           </View>
         </View>
 
         {/* Radio Settings Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Rádio</Text>
+        <View style={dynamicStyles.section}>
+          <Text style={dynamicStyles.sectionTitle}>Rádio</Text>
 
-          <View style={styles.menuCard}>
-            {/* Background Playback */}
-            <View style={styles.settingItem}>
-              <View style={styles.settingItemLeft}>
-                <View style={[styles.settingIconContainer, { backgroundColor: colors.primary + '20' }]}>
-                  <Ionicons name="moon-outline" size={20} color={colors.primary} />
-                </View>
-                <View style={styles.settingTextContainer}>
-                  <Text style={styles.settingItemTitle}>Reprodução em segundo plano</Text>
-                  <Text style={styles.settingItemSubtitle}>
-                    Continuar a tocar com o ecrã desligado
-                  </Text>
-                </View>
-              </View>
-              <Switch
-                value={radioSettings?.backgroundPlayback ?? true}
-                onValueChange={(value) => updateRadioSetting('backgroundPlayback', value)}
-                trackColor={{ false: colors.muted, true: colors.primary + '80' }}
-                thumbColor={radioSettings?.backgroundPlayback ? colors.primary : colors.textSecondary}
+          <View style={dynamicStyles.menuCard}>
+            <SettingRow
+              icon="play-circle-outline"
+              iconColor={colors.primary}
+              title="Reprodução em segundo plano"
+              subtitle="Continuar a tocar com o ecrã desligado"
+              colors={colors}
+              value={radioSettings?.backgroundPlayback ?? true}
+              onValueChange={(value) => updateRadioSetting('backgroundPlayback', value)}
+              disabled={radioSettingsLoading}
+            />
+
+            {Platform.OS === 'android' && (
+              <SettingRow
+                icon="exit-outline"
+                iconColor={colors.secondary}
+                title="Continuar após fechar"
+                subtitle="Manter a reprodução ao fechar a aplicação"
+                colors={colors}
+                value={radioSettings?.continueOnAppKill ?? true}
+                onValueChange={(value) => updateRadioSetting('continueOnAppKill', value)}
                 disabled={radioSettingsLoading}
               />
-            </View>
-
-            {/* Continue on App Kill (Android only) */}
-            {Platform.OS === 'android' && (
-              <View style={styles.settingItem}>
-                <View style={styles.settingItemLeft}>
-                  <View style={[styles.settingIconContainer, { backgroundColor: colors.secondary + '20' }]}>
-                    <Ionicons name="power-outline" size={20} color={colors.secondary} />
-                  </View>
-                  <View style={styles.settingTextContainer}>
-                    <Text style={styles.settingItemTitle}>Continuar após fechar</Text>
-                    <Text style={styles.settingItemSubtitle}>
-                      Manter a reprodução ao fechar a aplicação
-                    </Text>
-                  </View>
-                </View>
-                <Switch
-                  value={radioSettings?.continueOnAppKill ?? true}
-                  onValueChange={(value) => updateRadioSetting('continueOnAppKill', value)}
-                  trackColor={{ false: colors.muted, true: colors.secondary + '80' }}
-                  thumbColor={radioSettings?.continueOnAppKill ? colors.secondary : colors.textSecondary}
-                  disabled={radioSettingsLoading}
-                />
-              </View>
             )}
 
-            {/* Auto Reconnect */}
-            <View style={styles.settingItem}>
-              <View style={styles.settingItemLeft}>
-                <View style={[styles.settingIconContainer, { backgroundColor: colors.success + '20' }]}>
-                  <Ionicons name="refresh-outline" size={20} color={colors.success} />
-                </View>
-                <View style={styles.settingTextContainer}>
-                  <Text style={styles.settingItemTitle}>Reconexão automática</Text>
-                  <Text style={styles.settingItemSubtitle}>
-                    Reconectar automaticamente se a ligação for perdida
-                  </Text>
-                </View>
-              </View>
-              <Switch
-                value={radioSettings?.autoReconnect ?? true}
-                onValueChange={(value) => updateRadioSetting('autoReconnect', value)}
-                trackColor={{ false: colors.muted, true: colors.success + '80' }}
-                thumbColor={radioSettings?.autoReconnect ? colors.success : colors.textSecondary}
-                disabled={radioSettingsLoading}
-              />
-            </View>
+            <SettingRow
+              icon="refresh-outline"
+              iconColor={colors.success}
+              title="Reconexão automática"
+              subtitle="Reconectar se a ligação for perdida"
+              colors={colors}
+              value={radioSettings?.autoReconnect ?? true}
+              onValueChange={(value) => updateRadioSetting('autoReconnect', value)}
+              disabled={radioSettingsLoading}
+            />
 
-            {/* Auto Play on Start */}
-            <View style={styles.settingItem}>
-              <View style={styles.settingItemLeft}>
-                <View style={[styles.settingIconContainer, { backgroundColor: colors.charcoal + '20' }]}>
-                  <Ionicons name="play-circle-outline" size={20} color={colors.charcoal} />
-                </View>
-                <View style={styles.settingTextContainer}>
-                  <Text style={styles.settingItemTitle}>Reprodução automática</Text>
-                  <Text style={styles.settingItemSubtitle}>
-                    Iniciar a rádio automaticamente ao abrir a aplicação
-                  </Text>
-                </View>
-              </View>
-              <Switch
-                value={radioSettings?.autoPlayOnStart ?? false}
-                onValueChange={(value) => updateRadioSetting('autoPlayOnStart', value)}
-                trackColor={{ false: colors.muted, true: colors.charcoal + '80' }}
-                thumbColor={radioSettings?.autoPlayOnStart ? colors.charcoal : colors.textSecondary}
-                disabled={radioSettingsLoading}
-              />
-            </View>
+            <SettingRow
+              icon="flash-outline"
+              iconColor={colors.amarelo}
+              title="Reprodução automática"
+              subtitle="Iniciar a rádio ao abrir a aplicação"
+              colors={colors}
+              value={radioSettings?.autoPlayOnStart ?? false}
+              onValueChange={(value) => updateRadioSetting('autoPlayOnStart', value)}
+              disabled={radioSettingsLoading}
+            />
 
-            {/* Show Notification */}
-            <View style={[styles.settingItem, styles.settingItemLast]}>
-              <View style={styles.settingItemLeft}>
-                <View style={[styles.settingIconContainer, { backgroundColor: colors.vermelho + '20' }]}>
-                  <Ionicons name="notifications-outline" size={20} color={colors.vermelho} />
-                </View>
-                <View style={styles.settingTextContainer}>
-                  <Text style={styles.settingItemTitle}>Notificação de reprodução</Text>
-                  <Text style={styles.settingItemSubtitle}>
-                    Mostrar controlos de reprodução na notificação
-                  </Text>
-                </View>
-              </View>
-              <Switch
-                value={radioSettings?.showNotification ?? true}
-                onValueChange={(value) => updateRadioSetting('showNotification', value)}
-                trackColor={{ false: colors.muted, true: colors.vermelho + '80' }}
-                thumbColor={radioSettings?.showNotification ? colors.vermelho : colors.textSecondary}
-                disabled={radioSettingsLoading}
-              />
-            </View>
+            <SettingRow
+              icon="notifications-outline"
+              iconColor={colors.vermelho}
+              title="Notificação de reprodução"
+              subtitle="Mostrar controlos na notificação"
+              colors={colors}
+              value={radioSettings?.showNotification ?? true}
+              onValueChange={(value) => updateRadioSetting('showNotification', value)}
+              disabled={radioSettingsLoading}
+              isLast
+            />
           </View>
         </View>
 
         {/* Premium Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Premium</Text>
+        <View style={dynamicStyles.section}>
+          <Text style={dynamicStyles.sectionTitle}>Premium</Text>
 
-          <View style={styles.premiumCard}>
-            <View style={styles.premiumIconContainer}>
+          <View style={dynamicStyles.premiumCard}>
+            <View style={[dynamicStyles.premiumBadge, { backgroundColor: isPremium ? colors.success : colors.secondary }]}>
               <Ionicons
                 name={isPremium ? 'checkmark-circle' : 'star'}
-                size={48}
-                color={isPremium ? colors.success : colors.secondary}
+                size={28}
+                color={colors.white}
               />
             </View>
 
             {isPremium ? (
               <>
-                <Text style={styles.premiumTitle}>Você é Premium!</Text>
-                <Text style={styles.premiumDescription}>
+                <Text style={dynamicStyles.premiumTitle}>Você é Premium!</Text>
+                <Text style={dynamicStyles.premiumDescription}>
                   Obrigado por apoiar o Olha que Duas. Aproveite a experiência sem anúncios.
                 </Text>
               </>
             ) : (
               <>
-                <Text style={styles.premiumTitle}>Remover Anúncios</Text>
-                <Text style={styles.premiumDescription}>
-                  Apoie o Olha que Duas e remova todos os anúncios do aplicativo com um pagamento único.
+                <Text style={dynamicStyles.premiumTitle}>Remover Anúncios</Text>
+                <Text style={dynamicStyles.premiumDescription}>
+                  Apoie o Olha que Duas e remova todos os anúncios com um pagamento único.
                 </Text>
 
-                <View style={styles.priceContainer}>
-                  <Text style={styles.priceLabel}>Apenas</Text>
-                  <Text style={styles.price}>{price ?? '...'}</Text>
-                  <Text style={styles.priceLabel}>pagamento único</Text>
+                <View style={dynamicStyles.priceTag}>
+                  <Text style={dynamicStyles.priceText}>{price ?? '...'}</Text>
+                  <Text style={dynamicStyles.priceSubtext}>pagamento único</Text>
                 </View>
 
                 <TouchableOpacity
-                  style={styles.purchaseButton}
+                  style={[dynamicStyles.purchaseButton, { backgroundColor: colors.primary }]}
                   onPress={handlePurchase}
                   disabled={isLoading || isProcessing}
+                  activeOpacity={0.8}
                 >
                   {isProcessing ? (
                     <ActivityIndicator color={colors.white} />
                   ) : (
                     <>
                       <Ionicons name="heart" size={20} color={colors.white} />
-                      <Text style={styles.purchaseButtonText}>Remover Anúncios</Text>
+                      <Text style={dynamicStyles.purchaseButtonText}>Remover Anúncios</Text>
                     </>
                   )}
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={styles.restoreButton}
+                  style={dynamicStyles.restoreButton}
                   onPress={handleRestore}
                   disabled={isLoading || isProcessing}
                 >
-                  <Text style={styles.restoreButtonText}>Restaurar compra anterior</Text>
+                  <Text style={dynamicStyles.restoreButtonText}>Restaurar compra anterior</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -414,88 +386,272 @@ export function SettingsScreen() {
         </View>
 
         {/* Privacy Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Privacidade</Text>
+        <View style={dynamicStyles.section}>
+          <Text style={dynamicStyles.sectionTitle}>Privacidade</Text>
 
-          <View style={styles.menuCard}>
-            {/* Ads Consent */}
+          <View style={dynamicStyles.menuCard}>
             {!isPremium && (
-              <TouchableOpacity style={styles.menuItem} onPress={handleResetAdsConsent}>
-                <View style={styles.menuItemLeft}>
-                  <Ionicons name="eye-outline" size={22} color={colors.text} />
-                  <View style={styles.menuItemTextContainer}>
-                    <Text style={styles.menuItemTitle}>Preferências de anúncios</Text>
-                    <Text style={styles.menuItemSubtitle}>{getConsentLabel()}</Text>
-                  </View>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-              </TouchableOpacity>
+              <MenuItem
+                icon="eye-outline"
+                title="Preferências de anúncios"
+                subtitle={getConsentLabel()}
+                colors={colors}
+                onPress={handleResetAdsConsent}
+              />
             )}
 
-            {/* Privacy Policy */}
-            <TouchableOpacity style={styles.menuItem} onPress={openPrivacyPolicy}>
-              <View style={styles.menuItemLeft}>
-                <Ionicons name="shield-checkmark-outline" size={22} color={colors.text} />
-                <Text style={styles.menuItemTitle}>Política de Privacidade</Text>
-              </View>
-              <Ionicons name="open-outline" size={20} color={colors.textSecondary} />
-            </TouchableOpacity>
+            <MenuItem
+              icon="shield-checkmark-outline"
+              title="Política de Privacidade"
+              colors={colors}
+              onPress={openPrivacyPolicy}
+              showExternal
+            />
 
-            {/* Terms */}
-            <TouchableOpacity style={[styles.menuItem, styles.menuItemLast]} onPress={openTerms}>
-              <View style={styles.menuItemLeft}>
-                <Ionicons name="document-text-outline" size={22} color={colors.text} />
-                <Text style={styles.menuItemTitle}>Termos de Utilização</Text>
-              </View>
-              <Ionicons name="open-outline" size={20} color={colors.textSecondary} />
-            </TouchableOpacity>
+            <MenuItem
+              icon="document-text-outline"
+              title="Termos de Utilização"
+              colors={colors}
+              onPress={openTerms}
+              showExternal
+              isLast
+            />
           </View>
         </View>
 
         {/* About Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Sobre</Text>
+        <View style={dynamicStyles.section}>
+          <Text style={dynamicStyles.sectionTitle}>Sobre</Text>
 
-          <View style={styles.aboutCard}>
-            <Text style={styles.aboutText}>
-              O Olha que Duas é uma rádio e portal de notícias dedicado a trazer-lhe as últimas informações.
+          <View style={dynamicStyles.aboutCard}>
+            <Ionicons name="radio-outline" size={40} color={colors.primary} style={{ marginBottom: 12 }} />
+            <Text style={dynamicStyles.aboutTitle}>Olha que Duas</Text>
+            <Text style={dynamicStyles.aboutText}>
+              Rádio e portal de notícias dedicado a trazer-lhe as últimas informações.
             </Text>
-            <Text style={styles.versionText}>Versão 1.0.0</Text>
+            <View style={dynamicStyles.versionBadge}>
+              <Text style={dynamicStyles.versionText}>Versão 1.0.0</Text>
+            </View>
           </View>
         </View>
 
         {/* Debug info in development */}
         {environment.isDevelopment && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Debug</Text>
-            <View style={styles.aboutCard}>
-              <Text style={styles.debugText}>Expo Go: {environment.isExpoGo ? 'Sim' : 'Não'}</Text>
-              <Text style={styles.debugText}>Native Modules: {environment.canUseNativeModules ? 'Sim' : 'Não'}</Text>
-              <Text style={styles.debugText}>Ads: {environment.features.ads ? 'Activo' : 'Placeholder'}</Text>
-              <Text style={styles.debugText}>Purchases: {environment.features.purchases ? 'Activo' : 'Desactivado'}</Text>
-              <Text style={styles.debugText}>GDPR Consent: {adsConsentStatus || 'Não definido'}</Text>
-              <Text style={styles.debugText}>Theme Mode: {themeMode}</Text>
-              <Text style={styles.debugText}>Is Dark: {isDark ? 'Sim' : 'Não'}</Text>
+          <View style={dynamicStyles.section}>
+            <Text style={dynamicStyles.sectionTitle}>Debug</Text>
+            <View style={dynamicStyles.debugCard}>
+              <DebugRow label="Expo Go" value={environment.isExpoGo ? 'Sim' : 'Não'} colors={colors} />
+              <DebugRow label="Native Modules" value={environment.canUseNativeModules ? 'Sim' : 'Não'} colors={colors} />
+              <DebugRow label="Ads" value={environment.features.ads ? 'Activo' : 'Placeholder'} colors={colors} />
+              <DebugRow label="Purchases" value={environment.features.purchases ? 'Activo' : 'Desactivado'} colors={colors} />
+              <DebugRow label="Theme Mode" value={themeMode} colors={colors} />
+              <DebugRow label="Is Dark" value={isDark ? 'Sim' : 'Não'} colors={colors} />
             </View>
           </View>
         )}
 
-        {/* Bottom spacing */}
         <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function createStyles(colors: any, isDark: boolean) {
+// Helper Components
+function SettingRow({
+  icon,
+  iconColor,
+  title,
+  subtitle,
+  colors,
+  value,
+  onValueChange,
+  disabled,
+  isLast
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  iconColor: string;
+  title: string;
+  subtitle: string;
+  colors: any;
+  value: boolean;
+  onValueChange: (value: boolean) => void;
+  disabled?: boolean;
+  isLast?: boolean;
+}) {
+  return (
+    <View style={[
+      styles.settingRow,
+      { borderBottomColor: colors.background },
+      isLast && styles.settingRowLast
+    ]}>
+      <View style={[styles.settingIconBox, { backgroundColor: iconColor + '15' }]}>
+        <Ionicons name={icon} size={20} color={iconColor} />
+      </View>
+      <View style={styles.settingContent}>
+        <Text style={[styles.settingTitle, { color: colors.text }]}>{title}</Text>
+        <Text style={[styles.settingSubtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onValueChange}
+        trackColor={{ false: colors.muted, true: iconColor + '60' }}
+        thumbColor={value ? iconColor : colors.textSecondary}
+        disabled={disabled}
+      />
+    </View>
+  );
+}
+
+function MenuItem({
+  icon,
+  title,
+  subtitle,
+  colors,
+  onPress,
+  showExternal,
+  isLast
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  subtitle?: string;
+  colors: any;
+  onPress: () => void;
+  showExternal?: boolean;
+  isLast?: boolean;
+}) {
+  return (
+    <TouchableOpacity
+      style={[
+        styles.menuItem,
+        { borderBottomColor: colors.background },
+        isLast && styles.menuItemLast
+      ]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <View style={[styles.menuIconBox, { backgroundColor: colors.muted }]}>
+        <Ionicons name={icon} size={20} color={colors.text} />
+      </View>
+      <View style={styles.menuContent}>
+        <Text style={[styles.menuTitle, { color: colors.text }]}>{title}</Text>
+        {subtitle && (
+          <Text style={[styles.menuSubtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
+        )}
+      </View>
+      <Ionicons
+        name={showExternal ? "open-outline" : "chevron-forward"}
+        size={18}
+        color={colors.textSecondary}
+      />
+    </TouchableOpacity>
+  );
+}
+
+function DebugRow({ label, value, colors }: { label: string; value: string; colors: any }) {
+  return (
+    <View style={styles.debugRow}>
+      <Text style={[styles.debugLabel, { color: colors.textSecondary }]}>{label}</Text>
+      <Text style={[styles.debugValue, { color: colors.text }]}>{value}</Text>
+    </View>
+  );
+}
+
+// Static styles
+const styles = StyleSheet.create({
+  themeOption: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 2,
+    gap: 6,
+  },
+  themeOptionText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  settingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderBottomWidth: 1,
+  },
+  settingRowLast: {
+    borderBottomWidth: 0,
+  },
+  settingIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  settingContent: {
+    flex: 1,
+    marginLeft: 12,
+    marginRight: 8,
+  },
+  settingTitle: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  settingSubtitle: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderBottomWidth: 1,
+  },
+  menuItemLast: {
+    borderBottomWidth: 0,
+  },
+  menuIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  menuTitle: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  menuSubtitle: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  debugRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+  },
+  debugLabel: {
+    fontSize: 13,
+  },
+  debugValue: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+});
+
+// Dynamic styles based on theme
+function createDynamicStyles(colors: any, isDark: boolean) {
   return StyleSheet.create({
     container: {
       flex: 1,
       backgroundColor: colors.background,
     },
     header: {
-      paddingHorizontal: 16,
-      paddingVertical: 20,
+      paddingHorizontal: 20,
+      paddingVertical: 16,
       borderBottomWidth: 1,
       borderBottomColor: colors.muted,
     },
@@ -513,11 +669,37 @@ function createStyles(colors: any, isDark: boolean) {
     },
     sectionTitle: {
       color: colors.textSecondary,
-      fontSize: 14,
+      fontSize: 13,
       fontWeight: '600',
       textTransform: 'uppercase',
-      marginBottom: 12,
-      letterSpacing: 1,
+      marginBottom: 10,
+      marginLeft: 4,
+      letterSpacing: 0.5,
+    },
+    themeCard: {
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      padding: 16,
+    },
+    themeHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 14,
+      gap: 10,
+    },
+    themeHeaderText: {
+      color: colors.text,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    themeOptions: {
+      flexDirection: 'row',
+      gap: 10,
+    },
+    menuCard: {
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      overflow: 'hidden',
     },
     premiumCard: {
       backgroundColor: colors.card,
@@ -525,12 +707,17 @@ function createStyles(colors: any, isDark: boolean) {
       padding: 24,
       alignItems: 'center',
     },
-    premiumIconContainer: {
+    premiumBadge: {
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      alignItems: 'center',
+      justifyContent: 'center',
       marginBottom: 16,
     },
     premiumTitle: {
       color: colors.text,
-      fontSize: 22,
+      fontSize: 20,
       fontWeight: 'bold',
       marginBottom: 8,
       textAlign: 'center',
@@ -542,28 +729,31 @@ function createStyles(colors: any, isDark: boolean) {
       lineHeight: 20,
       marginBottom: 20,
     },
-    priceContainer: {
+    priceTag: {
+      backgroundColor: colors.secondary + '15',
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+      borderRadius: 12,
       alignItems: 'center',
       marginBottom: 20,
     },
-    priceLabel: {
+    priceText: {
+      color: colors.secondary,
+      fontSize: 28,
+      fontWeight: 'bold',
+    },
+    priceSubtext: {
       color: colors.textSecondary,
       fontSize: 12,
-    },
-    price: {
-      color: colors.secondary,
-      fontSize: 36,
-      fontWeight: 'bold',
-      marginVertical: 4,
+      marginTop: 2,
     },
     purchaseButton: {
-      backgroundColor: colors.primary,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
       paddingVertical: 14,
       paddingHorizontal: 32,
-      borderRadius: 30,
+      borderRadius: 25,
       gap: 8,
       width: '100%',
     },
@@ -581,114 +771,40 @@ function createStyles(colors: any, isDark: boolean) {
       fontSize: 14,
       textDecorationLine: 'underline',
     },
-    menuCard: {
-      backgroundColor: colors.card,
-      borderRadius: 16,
-      overflow: 'hidden',
-    },
-    menuItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      padding: 16,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.background,
-    },
-    menuItemLast: {
-      borderBottomWidth: 0,
-    },
-    menuItemLeft: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      flex: 1,
-    },
-    menuItemTextContainer: {
-      marginLeft: 12,
-    },
-    menuItemTitle: {
-      color: colors.text,
-      fontSize: 16,
-      marginLeft: 12,
-    },
-    menuItemSubtitle: {
-      color: colors.textSecondary,
-      fontSize: 12,
-      marginTop: 2,
-    },
-    // Radio Settings Styles
-    settingItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      padding: 16,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.background,
-    },
-    settingItemLast: {
-      borderBottomWidth: 0,
-    },
-    settingItemLeft: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      flex: 1,
-      marginRight: 12,
-    },
-    settingIconContainer: {
-      width: 40,
-      height: 40,
-      borderRadius: 10,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    settingTextContainer: {
-      flex: 1,
-      marginLeft: 12,
-    },
-    settingItemTitle: {
-      color: colors.text,
-      fontSize: 15,
-      fontWeight: '500',
-    },
-    settingItemSubtitle: {
-      color: colors.textSecondary,
-      fontSize: 12,
-      marginTop: 2,
-      lineHeight: 16,
-    },
-    themeSelector: {
-      flexDirection: 'row',
-      gap: 8,
-    },
-    themeDot: {
-      width: 24,
-      height: 24,
-      borderRadius: 12,
-      borderWidth: 2,
-      borderColor: colors.muted,
-    },
-    themeDotActive: {
-      borderColor: colors.primary,
-      borderWidth: 3,
-    },
     aboutCard: {
       backgroundColor: colors.card,
       borderRadius: 16,
-      padding: 20,
+      padding: 24,
+      alignItems: 'center',
+    },
+    aboutTitle: {
+      color: colors.text,
+      fontSize: 18,
+      fontWeight: 'bold',
+      marginBottom: 8,
     },
     aboutText: {
       color: colors.textSecondary,
       fontSize: 14,
+      textAlign: 'center',
       lineHeight: 20,
-      marginBottom: 12,
+      marginBottom: 16,
+    },
+    versionBadge: {
+      backgroundColor: colors.muted,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 20,
     },
     versionText: {
       color: colors.textSecondary,
       fontSize: 12,
+      fontWeight: '500',
     },
-    debugText: {
-      color: colors.textSecondary,
-      fontSize: 12,
-      marginBottom: 4,
+    debugCard: {
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      padding: 16,
     },
   });
 }

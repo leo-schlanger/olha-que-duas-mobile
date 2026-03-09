@@ -7,12 +7,13 @@ import {
   ActivityIndicator,
   ScrollView,
   Animated,
+  Image,
 } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
 import { useRadio } from '../hooks/useRadio';
 import { useTheme } from '../context/ThemeContext';
-import { siteConfig } from '../config/site';
+import { useSchedule } from '../hooks/useSchedule';
 import { environment } from '../config/environment';
 
 /**
@@ -34,6 +35,8 @@ export function RadioPlayer() {
     forceReconnect,
     isInitialized,
   } = useRadio();
+
+  const { schedule, loading: scheduleLoading } = useSchedule();
 
   // Animated values for visualizer
   const [visualizerHeights] = useState(() =>
@@ -239,30 +242,45 @@ export function RadioPlayer() {
           </View>
 
           <View style={styles.scheduleGrid}>
-            {siteConfig.radio.schedule.map((item, index) => (
-              <View key={item.day} style={[
-                styles.scheduleItem,
-                index === siteConfig.radio.schedule.length - 1 && styles.scheduleItemLast
-              ]}>
-                <View style={styles.scheduleIconContainer}>
-                  <Ionicons name={item.icon as any} size={18} color={colors.secondary} />
-                </View>
-                <View style={styles.scheduleInfo}>
-                  <View style={styles.scheduleRow}>
-                    <Text style={styles.scheduleShowName}>{item.show}</Text>
-                    <Text style={styles.scheduleDay}>{item.day}</Text>
-                  </View>
-                  <View style={styles.scheduleTimes}>
-                    {item.times.map(time => (
-                      <View key={time} style={styles.timeBadge}>
-                        <Ionicons name="time-outline" size={10} color={colors.textSecondary} />
-                        <Text style={styles.timeText}>{time}</Text>
-                      </View>
-                    ))}
-                  </View>
-                </View>
+            {scheduleLoading ? (
+              <View style={styles.scheduleLoading}>
+                <ActivityIndicator size="small" color={colors.secondary} />
+                <Text style={styles.scheduleLoadingText}>Carregando programação...</Text>
               </View>
-            ))}
+            ) : (
+              schedule.map((item, index) => (
+                <View key={`${item.day}-${item.show}`} style={[
+                  styles.scheduleItem,
+                  index === schedule.length - 1 && styles.scheduleItemLast
+                ]}>
+                  <View style={styles.scheduleIconContainer}>
+                    {item.iconUrl && !item.iconUrl.includes('placehold.co') ? (
+                      <Image
+                        source={{ uri: item.iconUrl }}
+                        style={styles.scheduleIconImage}
+                        resizeMode="contain"
+                      />
+                    ) : (
+                      <Ionicons name={item.icon as any} size={18} color={colors.secondary} />
+                    )}
+                  </View>
+                  <View style={styles.scheduleInfo}>
+                    <View style={styles.scheduleRow}>
+                      <Text style={styles.scheduleShowName}>{item.show}</Text>
+                      <Text style={styles.scheduleDay}>{item.day}</Text>
+                    </View>
+                    <View style={styles.scheduleTimes}>
+                      {item.times.map(time => (
+                        <View key={time} style={styles.timeBadge}>
+                          <Ionicons name="time-outline" size={10} color={colors.textSecondary} />
+                          <Text style={styles.timeText}>{time}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                </View>
+              ))
+            )}
           </View>
         </View>
       </View>
@@ -459,6 +477,20 @@ function createStyles(colors: any, isDark: boolean) {
       marginRight: 12,
       borderWidth: 1,
       borderColor: colors.muted,
+      overflow: 'hidden',
+    },
+    scheduleIconImage: {
+      width: 24,
+      height: 24,
+    },
+    scheduleLoading: {
+      padding: 20,
+      alignItems: 'center',
+      gap: 10,
+    },
+    scheduleLoadingText: {
+      color: colors.textSecondary,
+      fontSize: 12,
     },
     scheduleInfo: {
       flex: 1,
