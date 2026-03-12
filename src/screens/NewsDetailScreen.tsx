@@ -15,7 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { logger } from '../utils/logger';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useNewsDetail } from '../hooks/useNews';
 import { categoryColors, categoryLabels } from '../types/blog';
 import { useTheme } from '../context/ThemeContext';
@@ -28,10 +28,6 @@ type RootStackParamList = {
 
 type NewsDetailRouteProp = RouteProp<RootStackParamList, 'NewsDetail'>;
 
-/**
- * News detail screen with full article content
- * Supports sharing and opening original source
- */
 export function NewsDetailScreen() {
   const { colors, isDark } = useTheme();
   const route = useRoute<NewsDetailRouteProp>();
@@ -70,14 +66,21 @@ export function NewsDetailScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        edges={['top']}
+      >
         <StatusBar
           barStyle={isDark ? 'light-content' : 'dark-content'}
           backgroundColor={colors.background}
         />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>A carregar...</Text>
+          <Text
+            style={[styles.loadingText, { color: colors.textSecondary }]}
+          >
+            A carregar...
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -85,13 +88,20 @@ export function NewsDetailScreen() {
 
   if (error || !post) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        edges={['top']}
+      >
         <StatusBar
           barStyle={isDark ? 'light-content' : 'dark-content'}
           backgroundColor={colors.background}
         />
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle-outline" size={60} color={colors.textSecondary} />
+          <MaterialCommunityIcons
+            name="alert-circle-outline"
+            size={60}
+            color={colors.textSecondary}
+          />
           <Text style={[styles.errorText, { color: colors.textSecondary }]}>
             {error || 'Noticia nao encontrada'}
           </Text>
@@ -102,7 +112,9 @@ export function NewsDetailScreen() {
             ]}
             onPress={() => navigation.goBack()}
           >
-            <Text style={[styles.backButtonText, { color: colors.text }]}>Voltar</Text>
+            <Text style={[styles.backButtonText, { color: colors.text }]}>
+              Voltar
+            </Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -124,23 +136,25 @@ export function NewsDetailScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={['top']}
+    >
       <StatusBar
         barStyle={isDark ? 'light-content' : 'dark-content'}
         backgroundColor={colors.background}
       />
 
-      {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.muted }]}>
         <TouchableOpacity
           style={styles.headerButton}
           onPress={() => navigation.goBack()}
         >
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
+          <MaterialCommunityIcons name="arrow-left" size={24} color={colors.text} />
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.headerButton} onPress={handleShare}>
-          <Ionicons name="share-outline" size={24} color={colors.text} />
+          <MaterialCommunityIcons name="share-variant" size={24} color={colors.text} />
         </TouchableOpacity>
       </View>
 
@@ -148,7 +162,6 @@ export function NewsDetailScreen() {
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
       >
-        {/* Hero Image */}
         <View style={styles.imageContainer}>
           {post.image_url ? (
             <Image
@@ -157,36 +170,55 @@ export function NewsDetailScreen() {
               resizeMode="cover"
             />
           ) : (
-            <View style={[styles.imagePlaceholder, { backgroundColor: colors.backgroundCard }]}>
-              <Ionicons name="newspaper-outline" size={60} color={colors.textSecondary} />
+            <View
+              style={[
+                styles.imagePlaceholder,
+                { backgroundColor: colors.backgroundCard },
+              ]}
+            >
+              <MaterialCommunityIcons
+                name="newspaper-variant-outline"
+                size={60}
+                color={colors.textSecondary}
+              />
             </View>
           )}
         </View>
 
-        {/* Content */}
         <View style={styles.content}>
-          {/* Badges */}
           <View style={styles.badges}>
-            <View style={[styles.categoryBadge, { backgroundColor: categoryColor }]}>
-              <Text style={[styles.categoryText, { color: isDark ? colors.black : colors.text }]}>
+            <View
+              style={[styles.categoryBadge, { backgroundColor: categoryColor }]}
+            >
+              <Text
+                style={[
+                  styles.categoryText,
+                  { color: isDark ? colors.black : colors.text },
+                ]}
+              >
                 {categoryLabel}
               </Text>
             </View>
             <View
               style={[
                 styles.regionBadge,
-                { backgroundColor: colors.backgroundCard, borderColor: colors.muted },
+                {
+                  backgroundColor: colors.backgroundCard,
+                  borderColor: colors.muted,
+                },
               ]}
             >
-              <Ionicons name="location" size={12} color={colors.text} />
-              <Text style={[styles.regionText, { color: colors.text }]}>{post.region}</Text>
+              <MaterialCommunityIcons name="map-marker" size={12} color={colors.text} />
+              <Text style={[styles.regionText, { color: colors.text }]}>
+                {post.region}
+              </Text>
             </View>
           </View>
 
-          {/* Title */}
-          <Text style={[styles.title, { color: colors.text }]}>{post.title}</Text>
+          <Text style={[styles.title, { color: colors.text }]}>
+            {post.title}
+          </Text>
 
-          {/* Meta */}
           <View style={styles.meta}>
             <Text style={[styles.date, { color: colors.textSecondary }]}>
               {formatDate(post.published_at)}
@@ -196,42 +228,53 @@ export function NewsDetailScreen() {
             </Text>
           </View>
 
-          {/* Summary */}
-          <Text style={[styles.summary, { color: colors.text }]}>{post.summary}</Text>
+          <Text style={[styles.summary, { color: colors.text }]}>
+            {post.summary}
+          </Text>
 
-          {/* Divider */}
-          <View style={[styles.divider, { backgroundColor: colors.muted }]} />
+          <View
+            style={[styles.divider, { backgroundColor: colors.muted }]}
+          />
 
-          {/* Body */}
           <View style={styles.body}>
             {paragraphs.map((paragraph, index) => (
-              <Text key={index} style={[styles.paragraph, { color: colors.textSecondary }]}>
+              <Text
+                key={index}
+                style={[styles.paragraph, { color: colors.textSecondary }]}
+              >
                 {paragraph}
               </Text>
             ))}
           </View>
 
-          {/* Tags */}
           {tags.length > 0 && (
             <View style={styles.tagsContainer}>
-              <Text style={[styles.tagsLabel, { color: colors.textSecondary }]}>Tags:</Text>
+              <Text
+                style={[styles.tagsLabel, { color: colors.textSecondary }]}
+              >
+                Tags:
+              </Text>
               <View style={styles.tags}>
                 {tags.map((tag: string, index: number) => (
                   <View
                     key={index}
                     style={[
                       styles.tag,
-                      { backgroundColor: colors.backgroundCard, borderColor: colors.muted },
+                      {
+                        backgroundColor: colors.backgroundCard,
+                        borderColor: colors.muted,
+                      },
                     ]}
                   >
-                    <Text style={[styles.tagText, { color: colors.text }]}>{tag}</Text>
+                    <Text style={[styles.tagText, { color: colors.text }]}>
+                      {tag}
+                    </Text>
                   </View>
                 ))}
               </View>
             </View>
           )}
 
-          {/* Source Link */}
           <TouchableOpacity
             style={[
               styles.sourceButton,
@@ -239,8 +282,10 @@ export function NewsDetailScreen() {
             ]}
             onPress={handleOpenSource}
           >
-            <Ionicons name="open-outline" size={18} color={colors.primary} />
-            <Text style={[styles.sourceButtonText, { color: colors.primary }]}>
+            <MaterialCommunityIcons name="open-in-new" size={18} color={colors.primary} />
+            <Text
+              style={[styles.sourceButtonText, { color: colors.primary }]}
+            >
               Ver fonte original
             </Text>
           </TouchableOpacity>

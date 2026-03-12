@@ -270,7 +270,7 @@ class PurchaseService {
       }
     }
 
-    return '2,99 €';
+    return '3,69 €';
   }
 }
 

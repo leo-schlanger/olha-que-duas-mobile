@@ -26,7 +26,25 @@
       "Bash(echo:*)",
       "Bash(winget:*)",
       "Bash(\"C:\\\\Program Files\\\\Microsoft\\\\jdk-17.0.18.8-hotspot\\\\bin\\\\java.exe\" --version)",
-      "Bash(npx eas-cli:*)"
+      "Bash(npx eas-cli:*)",
+      "Bash(export ANDROID_HOME=\"$LOCALAPPDATA/Android/Sdk\")",
+      "Bash(export JAVA_HOME:*)",
+      "Bash(export PATH=\"/c/nvm4w/nodejs:$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$PATH\")",
+      "Bash(export PATH:*)",
+      "Bash(./gradlew assembleRelease:*)",
+      "Bash(powershell.exe:*)",
+      "Bash(test:*)",
+      "Bash(./gradlew.bat clean:*)",
+      "Bash(./gradlew.bat bundleRelease:*)",
+      "Bash(git -C D:/Projetos/olha-que-duas-mobile status)",
+      "Bash(ls:*)",
+      "Bash(eas credentials:*)",
+      "Bash(cmd //c \"echo %LOCALAPPDATA%\\\\Android\\\\Sdk\")",
+      "WebFetch(domain:docs.expo.dev)",
+      "Bash(./gradlew clean:*)",
+      "Bash(cmd /c \"rd /s /q D:\\\\Projetos\\\\olha-que-duas-mobile\\\\android\")",
+      "Bash(powershell -Command \"Remove-Item -Path ''D:\\\\Projetos\\\\olha-que-duas-mobile\\\\android'' -Recurse -Force\")",
+      "Bash(eas build:*)"
     ]
   }
 }

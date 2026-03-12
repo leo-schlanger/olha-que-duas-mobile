@@ -7,7 +7,7 @@ import {
   StyleSheet,
   Dimensions,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { BlogPost, categoryColors, categoryLabels } from '../types/blog';
 import { useTheme } from '../context/ThemeContext';
 
@@ -19,10 +19,6 @@ interface NewsCardProps {
   onPress: () => void;
 }
 
-/**
- * News card component for list display
- * Shows image, title, summary, category badge, and meta info
- */
 export function NewsCard({ post, onPress }: NewsCardProps) {
   const { colors, isDark } = useTheme();
 
@@ -50,7 +46,6 @@ export function NewsCard({ post, onPress }: NewsCardProps) {
       onPress={onPress}
       activeOpacity={0.8}
     >
-      {/* Image */}
       <View style={styles.imageContainer}>
         {post.image_url ? (
           <Image
@@ -59,45 +54,74 @@ export function NewsCard({ post, onPress }: NewsCardProps) {
             resizeMode="cover"
           />
         ) : (
-          <View style={[styles.imagePlaceholder, { backgroundColor: colors.muted + '30' }]}>
-            <Ionicons name="newspaper-outline" size={40} color={colors.textSecondary} />
+          <View
+            style={[
+              styles.imagePlaceholder,
+              { backgroundColor: colors.muted + '30' },
+            ]}
+          >
+            <MaterialCommunityIcons
+              name="newspaper-variant-outline"
+              size={40}
+              color={colors.textSecondary}
+            />
           </View>
         )}
 
-        {/* Category Badge */}
-        <View style={[styles.categoryBadge, { backgroundColor: categoryColor }]}>
-          <Text style={[styles.categoryText, { color: isDark ? colors.black : colors.text }]}>
+        <View
+          style={[styles.categoryBadge, { backgroundColor: categoryColor }]}
+        >
+          <Text
+            style={[
+              styles.categoryText,
+              { color: isDark ? colors.black : colors.text },
+            ]}
+          >
             {categoryLabel}
           </Text>
         </View>
       </View>
 
-      {/* Content */}
       <View style={styles.content}>
         <Text style={[styles.title, { color: colors.text }]} numberOfLines={2}>
           {post.title}
         </Text>
 
-        <Text style={[styles.summary, { color: colors.textSecondary }]} numberOfLines={3}>
+        <Text
+          style={[styles.summary, { color: colors.textSecondary }]}
+          numberOfLines={3}
+        >
           {post.summary}
         </Text>
 
-        {/* Meta Info */}
         <View style={styles.meta}>
           <View style={styles.metaItem}>
-            <Ionicons name="location-outline" size={14} color={colors.textSecondary} />
-            <Text style={[styles.metaText, { color: colors.textSecondary }]}>{post.region}</Text>
+            <MaterialCommunityIcons
+              name="map-marker-outline"
+              size={14}
+              color={colors.textSecondary}
+            />
+            <Text
+              style={[styles.metaText, { color: colors.textSecondary }]}
+            >
+              {post.region}
+            </Text>
           </View>
 
           <View style={styles.metaItem}>
-            <Ionicons name="calendar-outline" size={14} color={colors.textSecondary} />
-            <Text style={[styles.metaText, { color: colors.textSecondary }]}>
+            <MaterialCommunityIcons
+              name="calendar-blank-outline"
+              size={14}
+              color={colors.textSecondary}
+            />
+            <Text
+              style={[styles.metaText, { color: colors.textSecondary }]}
+            >
               {formatDate(post.published_at)}
             </Text>
           </View>
         </View>
 
-        {/* Source */}
         <Text style={[styles.source, { color: colors.textSecondary }]}>
           Fonte: {post.source_name}
         </Text>

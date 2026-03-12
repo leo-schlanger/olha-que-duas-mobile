@@ -10,16 +10,19 @@ import {
   Image,
 } from 'react-native';
 import Slider from '@react-native-community/slider';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRadio } from '../hooks/useRadio';
 import { useTheme } from '../context/ThemeContext';
 import { useSchedule } from '../hooks/useSchedule';
 import { environment } from '../config/environment';
 
-/**
- * Radio player component with play/pause controls, volume slider, and weekly schedule
- * Supports background playback and reconnection status
- */
+const scheduleIconMap: Record<string, string> = {
+  'leaf-outline': 'leaf',
+  'bulb-outline': 'lightbulb-on-outline',
+  'walk-outline': 'walk',
+  'chatbubbles-outline': 'chat-outline',
+};
+
 export function RadioPlayer() {
   const { colors, isDark } = useTheme();
   const {
@@ -38,12 +41,10 @@ export function RadioPlayer() {
 
   const { schedule, loading: scheduleLoading } = useSchedule();
 
-  // Animated values for visualizer
   const [visualizerHeights] = useState(() =>
-    [...Array(12)].map(() => new Animated.Value(5))
+    [...Array(12)].map(() => new Animated.Value(5)),
   );
 
-  // Animate visualizer when playing
   useEffect(() => {
     let interval: NodeJS.Timeout;
     const animations: Animated.CompositeAnimation[] = [];
@@ -74,16 +75,13 @@ export function RadioPlayer() {
 
     return () => {
       if (interval) clearInterval(interval);
-      // Stop all running animations
       animations.forEach((anim) => anim.stop());
       visualizerHeights.forEach((height) => height.stopAnimation());
     };
   }, [isPlaying, visualizerHeights]);
 
-  // Only show Expo Go warning if actually in Expo Go
   const showExpoGoWarning = environment.isExpoGo;
 
-  // Determine the status text and color
   const getStatusInfo = () => {
     if (isReconnecting) {
       return {
@@ -123,19 +121,18 @@ export function RadioPlayer() {
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.container}>
-        {/* Status Badge */}
         <View style={styles.statusBadge}>
-          <View style={[styles.statusDot, { backgroundColor: statusInfo.dotColor }]} />
+          <View
+            style={[styles.statusDot, { backgroundColor: statusInfo.dotColor }]}
+          />
           <Text style={[styles.statusText, { color: statusInfo.color }]}>
             {statusInfo.text}
           </Text>
         </View>
 
-        {/* Radio Info */}
         <Text style={styles.radioName}>{radioName}</Text>
         <Text style={styles.tagline}>{radioTagline}</Text>
 
-        {/* Play Button */}
         <TouchableOpacity
           style={[styles.playButton, isPlaying && styles.playButtonActive]}
           onPress={togglePlayPause}
@@ -145,7 +142,7 @@ export function RadioPlayer() {
           {isLoading || isReconnecting ? (
             <ActivityIndicator size="large" color={colors.background} />
           ) : (
-            <Ionicons
+            <MaterialCommunityIcons
               name={isPlaying ? 'pause' : 'play'}
               size={40}
               color={colors.background}
@@ -153,30 +150,36 @@ export function RadioPlayer() {
           )}
         </TouchableOpacity>
 
-        {/* Reconnect Button (shown when reconnecting fails) */}
         {isReconnecting && reconnectAttempt && reconnectAttempt >= 5 && (
           <TouchableOpacity
             style={styles.reconnectButton}
             onPress={forceReconnect}
             activeOpacity={0.8}
           >
-            <Ionicons name="refresh" size={16} color={colors.white} />
+            <MaterialCommunityIcons
+              name="refresh"
+              size={16}
+              color={colors.white}
+            />
             <Text style={styles.reconnectButtonText}>Tentar Novamente</Text>
           </TouchableOpacity>
         )}
 
         {showExpoGoWarning && (
           <View style={styles.expoGoWarning}>
-            <Ionicons name="information-circle-outline" size={20} color={colors.vermelho} />
+            <MaterialCommunityIcons
+              name="information-outline"
+              size={20}
+              color={colors.vermelho}
+            />
             <Text style={styles.expoGoText}>
               Áudio disponível apenas no build nativo.
             </Text>
           </View>
         )}
 
-        {/* Volume Control */}
         <View style={styles.volumeContainer}>
-          <Ionicons
+          <MaterialCommunityIcons
             name={volume === 0 ? 'volume-mute' : 'volume-low'}
             size={20}
             color={colors.textSecondary}
@@ -192,14 +195,13 @@ export function RadioPlayer() {
             thumbTintColor={colors.secondary}
             disabled={showExpoGoWarning}
           />
-          <Ionicons
+          <MaterialCommunityIcons
             name="volume-high"
             size={20}
             color={colors.textSecondary}
           />
         </View>
 
-        {/* Audio Visualizer (animated) */}
         <View style={styles.visualizer}>
           {visualizerHeights.map((height, i) => (
             <Animated.View
@@ -208,36 +210,52 @@ export function RadioPlayer() {
                 styles.visualizerBar,
                 {
                   height,
-                  backgroundColor: isPlaying ? colors.secondary : colors.muted,
+                  backgroundColor: isPlaying
+                    ? colors.secondary
+                    : colors.muted,
                 },
               ]}
             />
           ))}
         </View>
 
-        {/* Info Cards */}
         <View style={styles.infoCards}>
           <View style={styles.infoCard}>
-            <Ionicons name="musical-notes" size={24} color={colors.secondary} />
+            <MaterialCommunityIcons
+              name="music"
+              size={24}
+              color={colors.secondary}
+            />
             <Text style={styles.infoCardTitle}>Alta Qualidade</Text>
             <Text style={styles.infoCardText}>192kbps</Text>
           </View>
           <View style={styles.infoCard}>
-            <Ionicons name="time" size={24} color={colors.secondary} />
+            <MaterialCommunityIcons
+              name="clock-outline"
+              size={24}
+              color={colors.secondary}
+            />
             <Text style={styles.infoCardTitle}>Sempre no Ar</Text>
             <Text style={styles.infoCardText}>24/7</Text>
           </View>
           <View style={styles.infoCard}>
-            <Ionicons name="headset" size={24} color={colors.secondary} />
+            <MaterialCommunityIcons
+              name="headphones"
+              size={24}
+              color={colors.secondary}
+            />
             <Text style={styles.infoCardTitle}>Background</Text>
             <Text style={styles.infoCardText}>Ativo</Text>
           </View>
         </View>
 
-        {/* Weekly Schedule Section */}
         <View style={styles.scheduleSection}>
           <View style={styles.scheduleHeader}>
-            <Ionicons name="calendar" size={20} color={colors.secondary} />
+            <MaterialCommunityIcons
+              name="calendar"
+              size={20}
+              color={colors.secondary}
+            />
             <Text style={styles.scheduleTitle}>Programação Semanal</Text>
           </View>
 
@@ -245,41 +263,62 @@ export function RadioPlayer() {
             {scheduleLoading ? (
               <View style={styles.scheduleLoading}>
                 <ActivityIndicator size="small" color={colors.secondary} />
-                <Text style={styles.scheduleLoadingText}>Carregando programação...</Text>
+                <Text style={styles.scheduleLoadingText}>
+                  Carregando programação...
+                </Text>
               </View>
             ) : (
-              schedule.map((item, index) => (
-                <View key={`${item.day}-${item.show}`} style={[
-                  styles.scheduleItem,
-                  index === schedule.length - 1 && styles.scheduleItemLast
-                ]}>
-                  <View style={styles.scheduleIconContainer}>
-                    {item.iconUrl && !item.iconUrl.includes('placehold.co') ? (
-                      <Image
-                        source={{ uri: item.iconUrl }}
-                        style={styles.scheduleIconImage}
-                        resizeMode="contain"
-                      />
-                    ) : (
-                      <Ionicons name={item.icon as any} size={18} color={colors.secondary} />
-                    )}
-                  </View>
-                  <View style={styles.scheduleInfo}>
-                    <View style={styles.scheduleRow}>
-                      <Text style={styles.scheduleShowName}>{item.show}</Text>
-                      <Text style={styles.scheduleDay}>{item.day}</Text>
+              schedule.map((item, index) => {
+                const iconName =
+                  scheduleIconMap[item.icon] ?? (item.icon as string);
+
+                return (
+                  <View
+                    key={`${item.day}-${item.show}`}
+                    style={[
+                      styles.scheduleItem,
+                      index === schedule.length - 1 && styles.scheduleItemLast,
+                    ]}
+                  >
+                    <View style={styles.scheduleIconContainer}>
+                      {item.iconUrl &&
+                        !item.iconUrl.includes('placehold.co') ? (
+                        <Image
+                          source={{ uri: item.iconUrl }}
+                          style={styles.scheduleIconImage}
+                          resizeMode="contain"
+                        />
+                      ) : (
+                        <MaterialCommunityIcons
+                          name={iconName}
+                          size={18}
+                          color={colors.secondary}
+                        />
+                      )}
                     </View>
-                    <View style={styles.scheduleTimes}>
-                      {item.times.map(time => (
-                        <View key={time} style={styles.timeBadge}>
-                          <Ionicons name="time-outline" size={10} color={colors.textSecondary} />
-                          <Text style={styles.timeText}>{time}</Text>
-                        </View>
-                      ))}
+                    <View style={styles.scheduleInfo}>
+                      <View style={styles.scheduleRow}>
+                        <Text style={styles.scheduleShowName}>
+                          {item.show}
+                        </Text>
+                        <Text style={styles.scheduleDay}>{item.day}</Text>
+                      </View>
+                      <View style={styles.scheduleTimes}>
+                        {item.times.map((time) => (
+                          <View key={time} style={styles.timeBadge}>
+                            <MaterialCommunityIcons
+                              name="clock-outline"
+                              size={10}
+                              color={colors.textSecondary}
+                            />
+                            <Text style={styles.timeText}>{time}</Text>
+                          </View>
+                        ))}
+                      </View>
                     </View>
                   </View>
-                </View>
-              ))
+                );
+              })
             )}
           </View>
         </View>

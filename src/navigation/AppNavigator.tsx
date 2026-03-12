@@ -2,7 +2,7 @@ import React from 'react';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
 import { RadioScreen } from '../screens/RadioScreen';
 import { NewsScreen } from '../screens/NewsScreen';
@@ -25,9 +25,6 @@ export type MainTabParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
-/**
- * Main tab navigator with Radio, News and Settings tabs
- */
 function MainTabs() {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
@@ -60,7 +57,7 @@ function MainTabs() {
         options={{
           tabBarLabel: 'Radio',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="radio" size={size} color={color} />
+            <MaterialCommunityIcons name="radio" size={size} color={color} />
           ),
         }}
       />
@@ -70,7 +67,7 @@ function MainTabs() {
         options={{
           tabBarLabel: 'Noticias',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="newspaper" size={size} color={color} />
+            <MaterialCommunityIcons name="newspaper-variant-outline" size={size} color={color} />
           ),
         }}
       />
@@ -80,7 +77,7 @@ function MainTabs() {
         options={{
           tabBarLabel: 'Definicoes',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="settings" size={size} color={color} />
+            <MaterialCommunityIcons name="cog-outline" size={size} color={color} />
           ),
         }}
       />
@@ -88,38 +85,34 @@ function MainTabs() {
   );
 }
 
-/**
- * Root navigator with tab bar and detail screens
- */
 export function AppNavigator() {
   const { colors, isDark } = useTheme();
 
-  // Create custom navigation theme
   const navigationTheme = isDark
     ? {
-        ...DarkTheme,
-        colors: {
-          ...DarkTheme.colors,
-          primary: colors.primary,
-          background: colors.background,
-          card: colors.card,
-          text: colors.text,
-          border: colors.border,
-          notification: colors.notification,
-        },
-      }
+      ...DarkTheme,
+      colors: {
+        ...DarkTheme.colors,
+        primary: colors.primary,
+        background: colors.background,
+        card: colors.card,
+        text: colors.text,
+        border: colors.border,
+        notification: colors.notification,
+      },
+    }
     : {
-        ...DefaultTheme,
-        colors: {
-          ...DefaultTheme.colors,
-          primary: colors.primary,
-          background: colors.background,
-          card: colors.card,
-          text: colors.text,
-          border: colors.border,
-          notification: colors.notification,
-        },
-      };
+      ...DefaultTheme,
+      colors: {
+        ...DefaultTheme.colors,
+        primary: colors.primary,
+        background: colors.background,
+        card: colors.card,
+        text: colors.text,
+        border: colors.border,
+        notification: colors.notification,
+      },
+    };
 
   return (
     <NavigationContainer theme={navigationTheme}>

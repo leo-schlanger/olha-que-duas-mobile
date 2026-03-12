@@ -13,10 +13,13 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { usePremium } from '../context/PremiumContext';
 import { useTheme, ThemeMode } from '../context/ThemeContext';
-import { resetGDPRConsent, getGDPRConsentStatus } from '../components/GDPRConsent';
+import {
+  resetGDPRConsent,
+  getGDPRConsentStatus,
+} from '../components/GDPRConsent';
 import { useRadioSettings } from '../hooks/useRadioSettings';
 import { environment } from '../config/environment';
 import { logger } from '../utils/logger';
@@ -33,20 +36,19 @@ if (environment.canUseNativeModules) {
   }
 }
 
-// Theme option component
 function ThemeOption({
   mode,
   currentMode,
   onSelect,
   colors,
   icon,
-  label
+  label,
 }: {
   mode: ThemeMode;
   currentMode: ThemeMode;
   onSelect: (mode: ThemeMode) => void;
   colors: any;
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: string;
   label: string;
 }) {
   const isSelected = mode === currentMode;
@@ -58,20 +60,22 @@ function ThemeOption({
         {
           backgroundColor: isSelected ? colors.primary : colors.background,
           borderColor: isSelected ? colors.primary : colors.muted,
-        }
+        },
       ]}
       onPress={() => onSelect(mode)}
       activeOpacity={0.7}
     >
-      <Ionicons
-        name={icon}
+      <MaterialCommunityIcons
+        name={icon as any}
         size={22}
         color={isSelected ? colors.white : colors.text}
       />
-      <Text style={[
-        styles.themeOptionText,
-        { color: isSelected ? colors.white : colors.text }
-      ]}>
+      <Text
+        style={[
+          styles.themeOptionText,
+          { color: isSelected ? colors.white : colors.text },
+        ]}
+      >
         {label}
       </Text>
     </TouchableOpacity>
@@ -80,8 +84,13 @@ function ThemeOption({
 
 export function SettingsScreen() {
   const { colors, isDark, themeMode, setThemeMode } = useTheme();
-  const { isPremium, isLoading, purchasePremium, restorePurchases } = usePremium();
-  const { settings: radioSettings, updateSetting: updateRadioSetting, isLoading: radioSettingsLoading } = useRadioSettings();
+  const { isPremium, isLoading, purchasePremium, restorePurchases } =
+    usePremium();
+  const {
+    settings: radioSettings,
+    updateSetting: updateRadioSetting,
+    isLoading: radioSettingsLoading,
+  } = useRadioSettings();
   const [price, setPrice] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [adsConsentStatus, setAdsConsentStatus] = useState<string | null>(null);
@@ -98,10 +107,10 @@ export function SettingsScreen() {
         setPrice(formattedPrice);
       } catch (error) {
         logger.error('Error loading price:', error);
-        setPrice('2,99 €');
+        setPrice('3,69 €');
       }
     } else {
-      setPrice('2,99 €');
+      setPrice('3,69 €');
     }
   }
 
@@ -202,7 +211,8 @@ export function SettingsScreen() {
 
   function getConsentLabel() {
     if (adsConsentStatus === 'personalized') return 'Anúncios personalizados';
-    if (adsConsentStatus === 'non_personalized') return 'Anúncios não personalizados';
+    if (adsConsentStatus === 'non_personalized')
+      return 'Anúncios não personalizados';
     return 'Não definido';
   }
 
@@ -215,19 +225,24 @@ export function SettingsScreen() {
         backgroundColor={colors.background}
       />
 
-      {/* Header */}
       <View style={dynamicStyles.header}>
         <Text style={dynamicStyles.headerTitle}>Definições</Text>
       </View>
 
-      <ScrollView style={dynamicStyles.content} showsVerticalScrollIndicator={false}>
-        {/* Theme Section - Redesigned */}
+      <ScrollView
+        style={dynamicStyles.content}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={dynamicStyles.section}>
           <Text style={dynamicStyles.sectionTitle}>Aparência</Text>
 
           <View style={dynamicStyles.themeCard}>
             <View style={dynamicStyles.themeHeader}>
-              <Ionicons name="color-palette-outline" size={22} color={colors.text} />
+              <MaterialCommunityIcons
+                name="palette-outline"
+                size={22}
+                color={colors.text}
+              />
               <Text style={dynamicStyles.themeHeaderText}>Escolha o tema</Text>
             </View>
 
@@ -237,7 +252,7 @@ export function SettingsScreen() {
                 currentMode={themeMode}
                 onSelect={setThemeMode}
                 colors={colors}
-                icon="sunny"
+                icon="white-balance-sunny"
                 label="Claro"
               />
               <ThemeOption
@@ -245,7 +260,7 @@ export function SettingsScreen() {
                 currentMode={themeMode}
                 onSelect={setThemeMode}
                 colors={colors}
-                icon="phone-portrait-outline"
+                icon="theme-light-dark"
                 label="Sistema"
               />
               <ThemeOption
@@ -253,14 +268,13 @@ export function SettingsScreen() {
                 currentMode={themeMode}
                 onSelect={setThemeMode}
                 colors={colors}
-                icon="moon"
+                icon="weather-night"
                 label="Escuro"
               />
             </View>
           </View>
         </View>
 
-        {/* Radio Settings Section */}
         <View style={dynamicStyles.section}>
           <Text style={dynamicStyles.sectionTitle}>Rádio</Text>
 
@@ -272,31 +286,37 @@ export function SettingsScreen() {
               subtitle="Continuar a tocar com o ecrã desligado"
               colors={colors}
               value={radioSettings?.backgroundPlayback ?? true}
-              onValueChange={(value) => updateRadioSetting('backgroundPlayback', value)}
+              onValueChange={(value) =>
+                updateRadioSetting('backgroundPlayback', value)
+              }
               disabled={radioSettingsLoading}
             />
 
             {Platform.OS === 'android' && (
               <SettingRow
-                icon="exit-outline"
+                icon="exit-to-app"
                 iconColor={colors.secondary}
                 title="Continuar após fechar"
                 subtitle="Manter a reprodução ao fechar a aplicação"
                 colors={colors}
                 value={radioSettings?.continueOnAppKill ?? true}
-                onValueChange={(value) => updateRadioSetting('continueOnAppKill', value)}
+                onValueChange={(value) =>
+                  updateRadioSetting('continueOnAppKill', value)
+                }
                 disabled={radioSettingsLoading}
               />
             )}
 
             <SettingRow
-              icon="refresh-outline"
+              icon="autorenew"
               iconColor={colors.success}
               title="Reconexão automática"
               subtitle="Reconectar se a ligação for perdida"
               colors={colors}
               value={radioSettings?.autoReconnect ?? true}
-              onValueChange={(value) => updateRadioSetting('autoReconnect', value)}
+              onValueChange={(value) =>
+                updateRadioSetting('autoReconnect', value)
+              }
               disabled={radioSettingsLoading}
             />
 
@@ -307,32 +327,42 @@ export function SettingsScreen() {
               subtitle="Iniciar a rádio ao abrir a aplicação"
               colors={colors}
               value={radioSettings?.autoPlayOnStart ?? false}
-              onValueChange={(value) => updateRadioSetting('autoPlayOnStart', value)}
+              onValueChange={(value) =>
+                updateRadioSetting('autoPlayOnStart', value)
+              }
               disabled={radioSettingsLoading}
             />
 
             <SettingRow
-              icon="notifications-outline"
+              icon="bell-outline"
               iconColor={colors.vermelho}
               title="Notificação de reprodução"
               subtitle="Mostrar controlos na notificação"
               colors={colors}
               value={radioSettings?.showNotification ?? true}
-              onValueChange={(value) => updateRadioSetting('showNotification', value)}
+              onValueChange={(value) =>
+                updateRadioSetting('showNotification', value)
+              }
               disabled={radioSettingsLoading}
               isLast
             />
           </View>
         </View>
 
-        {/* Premium Section */}
         <View style={dynamicStyles.section}>
           <Text style={dynamicStyles.sectionTitle}>Premium</Text>
 
           <View style={dynamicStyles.premiumCard}>
-            <View style={[dynamicStyles.premiumBadge, { backgroundColor: isPremium ? colors.success : colors.secondary }]}>
-              <Ionicons
-                name={isPremium ? 'checkmark-circle' : 'star'}
+            <View
+              style={[
+                dynamicStyles.premiumBadge,
+                {
+                  backgroundColor: isPremium ? colors.success : colors.secondary,
+                },
+              ]}
+            >
+              <MaterialCommunityIcons
+                name={isPremium ? 'check-circle' : 'star'}
                 size={28}
                 color={colors.white}
               />
@@ -340,25 +370,36 @@ export function SettingsScreen() {
 
             {isPremium ? (
               <>
-                <Text style={dynamicStyles.premiumTitle}>Você é Premium!</Text>
+                <Text style={dynamicStyles.premiumTitle}>
+                  Você é Premium!
+                </Text>
                 <Text style={dynamicStyles.premiumDescription}>
-                  Obrigado por apoiar o Olha que Duas. Aproveite a experiência sem anúncios.
+                  Obrigado por apoiar o Olha que Duas. Aproveite a experiência
+                  sem anúncios.
                 </Text>
               </>
             ) : (
               <>
                 <Text style={dynamicStyles.premiumTitle}>Remover Anúncios</Text>
                 <Text style={dynamicStyles.premiumDescription}>
-                  Apoie o Olha que Duas e remova todos os anúncios com um pagamento único.
+                  Apoie o Olha que Duas e remova todos os anúncios com um
+                  pagamento único.
                 </Text>
 
                 <View style={dynamicStyles.priceTag}>
-                  <Text style={dynamicStyles.priceText}>{price ?? '...'}</Text>
-                  <Text style={dynamicStyles.priceSubtext}>pagamento único</Text>
+                  <Text style={dynamicStyles.priceText}>
+                    {price ?? '...'}
+                  </Text>
+                  <Text style={dynamicStyles.priceSubtext}>
+                    pagamento único
+                  </Text>
                 </View>
 
                 <TouchableOpacity
-                  style={[dynamicStyles.purchaseButton, { backgroundColor: colors.primary }]}
+                  style={[
+                    dynamicStyles.purchaseButton,
+                    { backgroundColor: colors.primary },
+                  ]}
                   onPress={handlePurchase}
                   disabled={isLoading || isProcessing}
                   activeOpacity={0.8}
@@ -367,8 +408,14 @@ export function SettingsScreen() {
                     <ActivityIndicator color={colors.white} />
                   ) : (
                     <>
-                      <Ionicons name="heart" size={20} color={colors.white} />
-                      <Text style={dynamicStyles.purchaseButtonText}>Remover Anúncios</Text>
+                      <MaterialCommunityIcons
+                        name="heart-outline"
+                        size={20}
+                        color={colors.white}
+                      />
+                      <Text style={dynamicStyles.purchaseButtonText}>
+                        Remover Anúncios
+                      </Text>
                     </>
                   )}
                 </TouchableOpacity>
@@ -378,14 +425,15 @@ export function SettingsScreen() {
                   onPress={handleRestore}
                   disabled={isLoading || isProcessing}
                 >
-                  <Text style={dynamicStyles.restoreButtonText}>Restaurar compra anterior</Text>
+                  <Text style={dynamicStyles.restoreButtonText}>
+                    Restaurar compra anterior
+                  </Text>
                 </TouchableOpacity>
               </>
             )}
           </View>
         </View>
 
-        {/* Privacy Section */}
         <View style={dynamicStyles.section}>
           <Text style={dynamicStyles.sectionTitle}>Privacidade</Text>
 
@@ -401,7 +449,7 @@ export function SettingsScreen() {
             )}
 
             <MenuItem
-              icon="shield-checkmark-outline"
+              icon="shield-check-outline"
               title="Política de Privacidade"
               colors={colors}
               onPress={openPrivacyPolicy}
@@ -409,7 +457,7 @@ export function SettingsScreen() {
             />
 
             <MenuItem
-              icon="document-text-outline"
+              icon="file-document-outline"
               title="Termos de Utilização"
               colors={colors}
               onPress={openTerms}
@@ -419,15 +467,19 @@ export function SettingsScreen() {
           </View>
         </View>
 
-        {/* About Section */}
         <View style={dynamicStyles.section}>
           <Text style={dynamicStyles.sectionTitle}>Sobre</Text>
 
           <View style={dynamicStyles.aboutCard}>
-            <Ionicons name="radio-outline" size={40} color={colors.primary} style={{ marginBottom: 12 }} />
-            <Text style={dynamicStyles.aboutTitle}>Olha que Duas</Text>
+            <MaterialCommunityIcons
+              name="radio"
+              size={40}
+              color={colors.primary}
+            />
+            <Text style={[dynamicStyles.aboutTitle, { marginTop: 24 }]}>Olha que Duas</Text>
             <Text style={dynamicStyles.aboutText}>
-              Rádio e portal de notícias dedicado a trazer-lhe as últimas informações.
+              Rádio e portal de notícias dedicado a trazer-lhe as últimas
+              informações.
             </Text>
             <View style={dynamicStyles.versionBadge}>
               <Text style={dynamicStyles.versionText}>Versão 1.0.0</Text>
@@ -435,17 +487,42 @@ export function SettingsScreen() {
           </View>
         </View>
 
-        {/* Debug info in development */}
         {environment.isDevelopment && (
           <View style={dynamicStyles.section}>
             <Text style={dynamicStyles.sectionTitle}>Debug</Text>
             <View style={dynamicStyles.debugCard}>
-              <DebugRow label="Expo Go" value={environment.isExpoGo ? 'Sim' : 'Não'} colors={colors} />
-              <DebugRow label="Native Modules" value={environment.canUseNativeModules ? 'Sim' : 'Não'} colors={colors} />
-              <DebugRow label="Ads" value={environment.features.ads ? 'Activo' : 'Placeholder'} colors={colors} />
-              <DebugRow label="Purchases" value={environment.features.purchases ? 'Activo' : 'Desactivado'} colors={colors} />
-              <DebugRow label="Theme Mode" value={themeMode} colors={colors} />
-              <DebugRow label="Is Dark" value={isDark ? 'Sim' : 'Não'} colors={colors} />
+              <DebugRow
+                label="Expo Go"
+                value={environment.isExpoGo ? 'Sim' : 'Não'}
+                colors={colors}
+              />
+              <DebugRow
+                label="Native Modules"
+                value={environment.canUseNativeModules ? 'Sim' : 'Não'}
+                colors={colors}
+              />
+              <DebugRow
+                label="Ads"
+                value={environment.features.ads ? 'Activo' : 'Placeholder'}
+                colors={colors}
+              />
+              <DebugRow
+                label="Purchases"
+                value={
+                  environment.features.purchases ? 'Activo' : 'Desactivado'
+                }
+                colors={colors}
+              />
+              <DebugRow
+                label="Theme Mode"
+                value={themeMode}
+                colors={colors}
+              />
+              <DebugRow
+                label="Is Dark"
+                value={isDark ? 'Sim' : 'Não'}
+                colors={colors}
+              />
             </View>
           </View>
         )}
@@ -456,7 +533,6 @@ export function SettingsScreen() {
   );
 }
 
-// Helper Components
 function SettingRow({
   icon,
   iconColor,
@@ -466,9 +542,9 @@ function SettingRow({
   value,
   onValueChange,
   disabled,
-  isLast
+  isLast,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: string;
   iconColor: string;
   title: string;
   subtitle: string;
@@ -479,17 +555,30 @@ function SettingRow({
   isLast?: boolean;
 }) {
   return (
-    <View style={[
-      styles.settingRow,
-      { borderBottomColor: colors.background },
-      isLast && styles.settingRowLast
-    ]}>
-      <View style={[styles.settingIconBox, { backgroundColor: iconColor + '15' }]}>
-        <Ionicons name={icon} size={20} color={iconColor} />
+    <View
+      style={[
+        styles.settingRow,
+        { borderBottomColor: colors.background },
+        isLast && styles.settingRowLast,
+      ]}
+    >
+      <View
+        style={[
+          styles.settingIconBox,
+          { backgroundColor: iconColor + '15' },
+        ]}
+      >
+        <MaterialCommunityIcons name={icon as any} size={20} color={iconColor} />
       </View>
       <View style={styles.settingContent}>
-        <Text style={[styles.settingTitle, { color: colors.text }]}>{title}</Text>
-        <Text style={[styles.settingSubtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
+        <Text style={[styles.settingTitle, { color: colors.text }]}>
+          {title}
+        </Text>
+        <Text
+          style={[styles.settingSubtitle, { color: colors.textSecondary }]}
+        >
+          {subtitle}
+        </Text>
       </View>
       <Switch
         value={value}
@@ -509,9 +598,9 @@ function MenuItem({
   colors,
   onPress,
   showExternal,
-  isLast
+  isLast,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: string;
   title: string;
   subtitle?: string;
   colors: any;
@@ -524,22 +613,33 @@ function MenuItem({
       style={[
         styles.menuItem,
         { borderBottomColor: colors.background },
-        isLast && styles.menuItemLast
+        isLast && styles.menuItemLast,
       ]}
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <View style={[styles.menuIconBox, { backgroundColor: colors.muted }]}>
-        <Ionicons name={icon} size={20} color={colors.text} />
+      <View
+        style={[
+          styles.menuIconBox,
+          { backgroundColor: colors.muted },
+        ]}
+      >
+        <MaterialCommunityIcons name={icon as any} size={20} color={colors.text} />
       </View>
       <View style={styles.menuContent}>
-        <Text style={[styles.menuTitle, { color: colors.text }]}>{title}</Text>
+        <Text style={[styles.menuTitle, { color: colors.text }]}>
+          {title}
+        </Text>
         {subtitle && (
-          <Text style={[styles.menuSubtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
+          <Text
+            style={[styles.menuSubtitle, { color: colors.textSecondary }]}
+          >
+            {subtitle}
+          </Text>
         )}
       </View>
-      <Ionicons
-        name={showExternal ? "open-outline" : "chevron-forward"}
+      <MaterialCommunityIcons
+        name={showExternal ? 'open-in-new' : 'chevron-right'}
         size={18}
         color={colors.textSecondary}
       />
@@ -547,16 +647,27 @@ function MenuItem({
   );
 }
 
-function DebugRow({ label, value, colors }: { label: string; value: string; colors: any }) {
+function DebugRow({
+  label,
+  value,
+  colors,
+}: {
+  label: string;
+  value: string;
+  colors: any;
+}) {
   return (
     <View style={styles.debugRow}>
-      <Text style={[styles.debugLabel, { color: colors.textSecondary }]}>{label}</Text>
-      <Text style={[styles.debugValue, { color: colors.text }]}>{value}</Text>
+      <Text style={[styles.debugLabel, { color: colors.textSecondary }]}>
+        {label}
+      </Text>
+      <Text style={[styles.debugValue, { color: colors.text }]}>
+        {value}
+      </Text>
     </View>
   );
 }
 
-// Static styles
 const styles = StyleSheet.create({
   themeOption: {
     flex: 1,
@@ -642,7 +753,6 @@ const styles = StyleSheet.create({
   },
 });
 
-// Dynamic styles based on theme
 function createDynamicStyles(colors: any, isDark: boolean) {
   return StyleSheet.create({
     container: {

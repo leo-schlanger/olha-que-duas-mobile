@@ -8,6 +8,12 @@ import { GDPRConsent } from "./src/components/GDPRConsent";
 import { environment } from "./src/config/environment";
 import { logger } from "./src/utils/logger";
 
+import {
+  Provider as PaperProvider,
+  DefaultTheme,
+} from "react-native-paper";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+
 // Services - expo-av works everywhere
 import { radioService } from "./src/services/radioService";
 import { radioSettingsService } from "./src/services/radioSettingsService";
@@ -15,6 +21,11 @@ import { radioSettingsService } from "./src/services/radioSettingsService";
 // Lazy load native-only services
 let adService: any = null;
 let purchaseService: any = null;
+
+const theme = {
+  ...DefaultTheme,
+  isV3: true,
+};
 
 if (environment.canUseNativeModules) {
   try {
@@ -68,7 +79,7 @@ function AppContent() {
 
   return (
     <>
-      <StatusBar style={isDark ? 'light' : 'dark'} />
+      <StatusBar style={isDark ? "light" : "dark"} />
       <AppNavigator />
       <GDPRConsent onConsentGiven={handleGDPRConsent} />
     </>
@@ -78,11 +89,24 @@ function AppContent() {
 export default function App() {
   return (
     <SafeAreaProvider>
-      <ThemeProvider>
-        <PremiumProvider>
-          <AppContent />
-        </PremiumProvider>
-      </ThemeProvider>
+      <PaperProvider
+        theme={theme}
+        settings={{
+          icon: (props) => (
+            <MaterialCommunityIcons
+              name={props.name as any}
+              size={props.size ?? 24}
+              color={props.color}
+            />
+          ),
+        }}
+      >
+        <ThemeProvider>
+          <PremiumProvider>
+            <AppContent />
+          </PremiumProvider>
+        </ThemeProvider>
+      </PaperProvider>
     </SafeAreaProvider>
   );
 }

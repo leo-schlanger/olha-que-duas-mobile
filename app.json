@@ -29,7 +29,7 @@
     },
     "android": {
       "package": "com.olhaqueduas.app",
-      "versionCode": 18,
+      "versionCode": 21,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#f7f4ed"
@@ -50,6 +50,7 @@
       "favicon": "./assets/icon.png"
     },
     "plugins": [
+      "expo-font",
       "react-native-iap",
       [
         "react-native-google-mobile-ads",
@@ -63,16 +64,13 @@
         {
           "enableBackgroundPlayback": true
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "extra": {
       "eas": {
         "projectId": "7b8ab7cd-38e7-45ca-b1d4-9193673be567"
       }
-    },
-    "react-native-google-mobile-ads": {
-      "android_app_id": "ca-app-pub-7365386697613870~4390180141",
-      "ios_app_id": "ca-app-pub-7365386697613870~4390180141"
     }
   }
 }
