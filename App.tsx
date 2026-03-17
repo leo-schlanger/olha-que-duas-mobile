@@ -24,7 +24,7 @@ let purchaseService: any = null;
 
 const theme = {
   ...DefaultTheme,
-  isV3: true,
+  isV3: true as const,
 };
 
 if (environment.canUseNativeModules) {

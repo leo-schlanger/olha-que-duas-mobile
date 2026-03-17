@@ -290,7 +290,7 @@ export function RadioPlayer() {
                         />
                       ) : (
                         <MaterialCommunityIcons
-                          name={iconName}
+                          name={iconName as any}
                           size={18}
                           color={colors.secondary}
                         />

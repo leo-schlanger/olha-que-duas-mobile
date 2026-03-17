@@ -1,4 +1,5 @@
 import Constants, { ExecutionEnvironment } from 'expo-constants';
+import { logger } from '../utils/logger';
 
 /**
  * Environment detection for the app
@@ -35,10 +36,8 @@ export const environment = {
 };
 
 // Log environment only in development
-if (__DEV__) {
-  console.log('Environment:', {
-    executionEnvironment,
-    isExpoGo,
-    canUseNativeModules,
-  });
-}
+logger.log('Environment:', {
+  executionEnvironment,
+  isExpoGo,
+  canUseNativeModules,
+});

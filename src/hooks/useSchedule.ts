@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import { siteConfig } from '../config/site';
+import { logger } from '../utils/logger';
 
 interface ScheduleEvent {
   id: string;
@@ -119,7 +120,7 @@ export function useSchedule() {
           setSchedule(sortedSchedule);
         }
       } catch (err) {
-        console.error('Error fetching schedule:', err);
+        logger.error('Error fetching schedule:', err);
         setError(err instanceof Error ? err.message : 'Error fetching schedule');
         // Keep fallback schedule on error
       } finally {
