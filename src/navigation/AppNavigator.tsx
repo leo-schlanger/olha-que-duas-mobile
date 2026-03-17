@@ -1,8 +1,9 @@
 import React from 'react';
-import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme, DarkTheme, LinkingOptions } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import * as Linking from 'expo-linking';
 
 import { RadioScreen } from '../screens/RadioScreen';
 import { NewsScreen } from '../screens/NewsScreen';
@@ -10,6 +11,28 @@ import { NewsDetailScreen } from '../screens/NewsDetailScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
+
+// Deep linking configuration
+const linking: LinkingOptions<RootStackParamList> = {
+  prefixes: [
+    Linking.createURL('/'),
+    'https://www.olhaqueduas.com',
+    'https://olhaqueduas.com',
+    'olhaqueduas://',
+  ],
+  config: {
+    screens: {
+      NewsDetail: 'noticias/:slug',
+      MainTabs: {
+        screens: {
+          Radio: '',
+          News: 'noticias',
+          Settings: 'definicoes',
+        },
+      },
+    },
+  },
+};
 
 export type RootStackParamList = {
   MainTabs: undefined;
@@ -115,7 +138,7 @@ export function AppNavigator() {
     };
 
   return (
-    <NavigationContainer theme={navigationTheme}>
+    <NavigationContainer theme={navigationTheme} linking={linking}>
       <Stack.Navigator
         screenOptions={{
           headerShown: false,

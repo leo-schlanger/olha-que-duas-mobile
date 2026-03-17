@@ -15,6 +15,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.olhaqueduas.app",
+      "associatedDomains": [
+        "applinks:www.olhaqueduas.com",
+        "applinks:olhaqueduas.com"
+      ],
       "infoPlist": {
         "UIBackgroundModes": [
           "audio",
@@ -34,6 +38,25 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#f7f4ed"
       },
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "www.olhaqueduas.com",
+              "pathPrefix": "/noticias"
+            },
+            {
+              "scheme": "https",
+              "host": "olhaqueduas.com",
+              "pathPrefix": "/noticias"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ],
       "permissions": [
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",

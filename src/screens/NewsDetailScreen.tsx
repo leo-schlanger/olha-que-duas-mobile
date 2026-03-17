@@ -51,9 +51,12 @@ export function NewsDetailScreen() {
   const handleShare = async () => {
     if (!post) return;
     try {
+      // URL do site oficial do Olha que Duas (com deep link para o app)
+      const shareUrl = `https://www.olhaqueduas.com/noticias/${post.slug}`;
       await Share.share({
         title: post.title,
-        message: `${post.title}\n\n${post.summary}\n\nLeia mais em: ${post.source_url}`,
+        message: `${post.title}\n\n${post.summary}\n\nLeia mais em: ${shareUrl}`,
+        url: shareUrl, // iOS usa este campo separadamente
       });
     } catch (error) {
       logger.error('Error sharing:', error);
