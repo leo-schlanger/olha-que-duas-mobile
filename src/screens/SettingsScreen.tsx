@@ -316,19 +316,6 @@ export function SettingsScreen() {
                 updateRadioSetting('autoPlayOnStart', value)
               }
               disabled={radioSettingsLoading}
-            />
-
-            <SettingRow
-              icon="bell-outline"
-              iconColor={colors.vermelho}
-              title="Notificação de reprodução"
-              subtitle="Mostrar controlos na notificação"
-              colors={colors}
-              value={radioSettings?.showNotification ?? true}
-              onValueChange={(value) =>
-                updateRadioSetting('showNotification', value)
-              }
-              disabled={radioSettingsLoading}
               isLast
             />
           </View>

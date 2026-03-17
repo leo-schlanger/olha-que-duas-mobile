@@ -4,30 +4,21 @@ import { logger } from '../utils/logger';
 const STORAGE_KEY = '@olhaqueduas:radio_settings';
 
 export interface RadioSettings {
-  /** Enable background playback when screen is off - ACTIVE */
+  /** Enable background playback when screen is off */
   backgroundPlayback: boolean;
-  /** Auto-play radio when app opens - ACTIVE */
+  /** Auto-play radio when app opens */
   autoPlayOnStart: boolean;
-  /** Auto-reconnect on connection loss - ACTIVE */
+  /** Auto-reconnect on connection loss */
   autoReconnect: boolean;
-  /** Keep audio playing when app is killed (Android) - Managed by expo-audio natively */
-  continueOnAppKill: boolean;
-  /** Volume level (0-1) - ACTIVE */
+  /** Volume level (0-1) */
   volume: number;
-  /** Show persistent notification (Android) - Managed by expo-audio natively */
-  showNotification: boolean;
-  /** Audio quality preference - Reserved for future multi-bitrate support */
-  audioQuality: 'high' | 'medium' | 'low';
 }
 
 const DEFAULT_SETTINGS: RadioSettings = {
   backgroundPlayback: true,
   autoPlayOnStart: false,
   autoReconnect: true,
-  continueOnAppKill: true,
   volume: 1.0,
-  showNotification: true,
-  audioQuality: 'high',
 };
 
 class RadioSettingsService {
