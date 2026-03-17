@@ -292,21 +292,6 @@ export function SettingsScreen() {
               disabled={radioSettingsLoading}
             />
 
-            {Platform.OS === 'android' && (
-              <SettingRow
-                icon="exit-to-app"
-                iconColor={colors.secondary}
-                title="Continuar após fechar"
-                subtitle="Manter a reprodução ao fechar a aplicação"
-                colors={colors}
-                value={radioSettings?.continueOnAppKill ?? true}
-                onValueChange={(value) =>
-                  updateRadioSetting('continueOnAppKill', value)
-                }
-                disabled={radioSettingsLoading}
-              />
-            )}
-
             <SettingRow
               icon="autorenew"
               iconColor={colors.success}

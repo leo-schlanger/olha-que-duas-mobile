@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useNewsDetail } from '../hooks/useNews';
 import { categoryColors, categoryLabels } from '../types/blog';
 import { useTheme } from '../context/ThemeContext';
+import { InterstitialAdOverlay } from '../components/InterstitialAdOverlay';
 
 const { width } = Dimensions.get('window');
 
@@ -34,6 +35,7 @@ export function NewsDetailScreen() {
   const navigation = useNavigation();
   const { slug } = route.params;
   const { post, isLoading, error } = useNewsDetail(slug);
+  const [showAdOverlay, setShowAdOverlay] = useState(true);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -143,6 +145,12 @@ export function NewsDetailScreen() {
       <StatusBar
         barStyle={isDark ? 'light-content' : 'dark-content'}
         backgroundColor={colors.background}
+      />
+
+      {/* Interstitial Ad Overlay */}
+      <InterstitialAdOverlay
+        visible={showAdOverlay}
+        onClose={() => setShowAdOverlay(false)}
       />
 
       <View style={[styles.header, { borderBottomColor: colors.muted }]}>
