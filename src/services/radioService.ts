@@ -5,6 +5,7 @@ import {
 } from 'expo-audio';
 import { siteConfig } from '../config/site';
 import { radioSettingsService, RadioSettings } from './radioSettingsService';
+import { nowPlayingService } from './nowPlayingService';
 import { logger } from '../utils/logger';
 
 /**
@@ -24,6 +25,7 @@ class RadioService {
   private readonly MAX_RECONNECT_ATTEMPTS: number = 10;
   private settings: RadioSettings | null = null;
   private settingsUnsubscribe: (() => void) | null = null;
+  private nowPlayingUnsubscribe: (() => void) | null = null;
   private isBuffering: boolean = false;
 
   private clearReconnectTimeout() {
@@ -152,6 +154,9 @@ class RadioService {
         artist: siteConfig.radio.tagline,
       });
 
+      // Subscribe to now-playing updates for lock screen metadata
+      this.subscribeToNowPlaying();
+
       // Start playback
       this.player.play();
 
@@ -204,6 +209,33 @@ class RadioService {
     }
   }
 
+  private subscribeToNowPlaying() {
+    if (this.nowPlayingUnsubscribe) {
+      this.nowPlayingUnsubscribe();
+    }
+
+    this.nowPlayingUnsubscribe = nowPlayingService.subscribe((data) => {
+      if (data.isMusic && data.song && this.player) {
+        this.player.setActiveForLockScreen(true, {
+          title: data.song.title,
+          artist: data.song.artist,
+        });
+      } else if (this.player) {
+        this.player.setActiveForLockScreen(true, {
+          title: siteConfig.radio.name,
+          artist: siteConfig.radio.tagline,
+        });
+      }
+    });
+  }
+
+  private unsubscribeFromNowPlaying() {
+    if (this.nowPlayingUnsubscribe) {
+      this.nowPlayingUnsubscribe();
+      this.nowPlayingUnsubscribe = null;
+    }
+  }
+
   private reconnect() {
     if (this.isIntentionallyStopped) return;
     if (this.reconnectAttempts >= this.MAX_RECONNECT_ATTEMPTS) {
@@ -244,6 +276,7 @@ class RadioService {
     this.isIntentionallyStopped = true;
     this.clearReconnectTimeout();
     this.reconnectAttempts = 0;
+    this.unsubscribeFromNowPlaying();
 
     if (this.player) {
       this.removePlayerListener();
@@ -307,6 +340,7 @@ class RadioService {
       this.settingsUnsubscribe();
       this.settingsUnsubscribe = null;
     }
+    this.unsubscribeFromNowPlaying();
     await this.stop();
   }
 }

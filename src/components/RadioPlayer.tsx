@@ -12,6 +12,7 @@ import {
 import Slider from '@react-native-community/slider';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRadio } from '../hooks/useRadio';
+import { useNowPlaying } from '../hooks/useNowPlaying';
 import { useTheme } from '../context/ThemeContext';
 import { useSchedule } from '../hooks/useSchedule';
 import { environment } from '../config/environment';
@@ -40,6 +41,7 @@ export function RadioPlayer() {
   } = useRadio();
 
   const { schedule, loading: scheduleLoading } = useSchedule();
+  const nowPlaying = useNowPlaying(isPlaying);
 
   const [visualizerHeights] = useState(() =>
     [...Array(12)].map(() => new Animated.Value(5)),
@@ -130,8 +132,39 @@ export function RadioPlayer() {
           </Text>
         </View>
 
-        <Text style={styles.radioName}>{radioName}</Text>
-        <Text style={styles.tagline}>{radioTagline}</Text>
+        {nowPlaying.isMusic && nowPlaying.song && !nowPlaying.isTransition ? (
+          <View style={styles.nowPlayingContainer}>
+            <View style={styles.albumArtContainer}>
+              {nowPlaying.song.art ? (
+                <Image
+                  source={{ uri: nowPlaying.song.art }}
+                  style={styles.albumArt}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={[styles.albumArt, styles.albumArtFallback]}>
+                  <MaterialCommunityIcons
+                    name="music-note"
+                    size={48}
+                    color={colors.secondary}
+                  />
+                </View>
+              )}
+            </View>
+            <Text style={styles.nowPlayingLabel}>A tocar agora</Text>
+            <Text style={styles.songTitle} numberOfLines={2}>
+              {nowPlaying.song.title}
+            </Text>
+            <Text style={styles.songArtist} numberOfLines={1}>
+              {nowPlaying.song.artist}
+            </Text>
+          </View>
+        ) : (
+          <>
+            <Text style={styles.radioName}>{radioName}</Text>
+            <Text style={styles.tagline}>{radioTagline}</Text>
+          </>
+        )}
 
         <TouchableOpacity
           style={[styles.playButton, isPlaying && styles.playButtonActive]}
@@ -374,6 +407,45 @@ function createStyles(colors: any, isDark: boolean) {
       fontSize: 16,
       textAlign: 'center',
       marginBottom: 30,
+    },
+    nowPlayingContainer: {
+      alignItems: 'center' as const,
+      marginBottom: 30,
+    },
+    albumArtContainer: {
+      marginBottom: 12,
+    },
+    albumArt: {
+      width: 120,
+      height: 120,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.muted,
+    },
+    albumArtFallback: {
+      backgroundColor: colors.backgroundCard,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+    },
+    nowPlayingLabel: {
+      fontSize: 11,
+      fontWeight: '600' as const,
+      color: colors.secondary,
+      textTransform: 'uppercase' as const,
+      letterSpacing: 1,
+      marginBottom: 6,
+    },
+    songTitle: {
+      color: colors.text,
+      fontSize: 20,
+      fontWeight: '700' as const,
+      textAlign: 'center' as const,
+      marginBottom: 4,
+    },
+    songArtist: {
+      color: colors.textSecondary,
+      fontSize: 15,
+      textAlign: 'center' as const,
     },
     playButton: {
       width: 80,

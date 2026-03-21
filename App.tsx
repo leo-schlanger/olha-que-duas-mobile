@@ -5,6 +5,7 @@ import { AppNavigator } from "./src/navigation/AppNavigator";
 import { PremiumProvider } from "./src/context/PremiumContext";
 import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 import { GDPRConsent } from "./src/components/GDPRConsent";
+import { AnimatedSplash } from "./src/components/AnimatedSplash";
 import { environment } from "./src/config/environment";
 import { logger } from "./src/utils/logger";
 
@@ -40,6 +41,7 @@ function AppContent() {
   const { isDark } = useTheme();
   const [adsConsent, setAdsConsent] = useState<boolean | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [splashDone, setSplashDone] = useState(false);
 
   useEffect(() => {
     async function initializeServices() {
@@ -80,6 +82,12 @@ function AppContent() {
   return (
     <>
       <StatusBar style={isDark ? "light" : "dark"} />
+      {splashDone ? null : (
+        <AnimatedSplash
+          isReady={isInitialized}
+          onAnimationEnd={() => setSplashDone(true)}
+        />
+      )}
       <AppNavigator />
       <GDPRConsent onConsentGiven={handleGDPRConsent} />
     </>
