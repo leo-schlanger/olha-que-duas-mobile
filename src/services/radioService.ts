@@ -32,6 +32,7 @@ class RadioService {
   private nowPlayingUnsubscribe: (() => void) | null = null;
   private isBuffering: boolean = false;
   private logoUri: string | null = null;
+  private statusPollingInterval: ReturnType<typeof setInterval> | null = null;
 
   private clearReconnectTimeout() {
     if (this.reconnectTimeout) {
@@ -44,6 +45,48 @@ class RadioService {
     if (this.playerSubscription) {
       this.playerSubscription.remove();
       this.playerSubscription = null;
+    }
+  }
+
+  private stopStatusPolling() {
+    if (this.statusPollingInterval) {
+      clearInterval(this.statusPollingInterval);
+      this.statusPollingInterval = null;
+    }
+  }
+
+  private startStatusPolling() {
+    this.stopStatusPolling();
+    // Poll player status every 500ms as fallback for playbackStatusUpdate
+    this.statusPollingInterval = setInterval(() => {
+      this.pollPlayerStatus();
+    }, 500);
+  }
+
+  private pollPlayerStatus() {
+    if (!this.player || this.isIntentionallyStopped) {
+      return;
+    }
+
+    try {
+      // Read status directly from player properties (expo-audio SDK 54+)
+      const playerPlaying = this.player.playing;
+      const playerBuffering = this.player.isBuffering;
+
+      const wasPlaying = this.isPlaying;
+      const wasBuffering = this.isBuffering;
+
+      this.isPlaying = playerPlaying ?? false;
+      this.isBuffering = playerBuffering ?? false;
+
+      const isLoading = !this.isPlaying && !this.isIntentionallyStopped;
+
+      if (wasPlaying !== this.isPlaying || wasBuffering !== this.isBuffering) {
+        logger.log('Polling status:', { isPlaying: this.isPlaying, isBuffering: this.isBuffering });
+        this.emitStatus(isLoading);
+      }
+    } catch (error) {
+      logger.error('Error polling player status:', error);
     }
   }
 
@@ -139,6 +182,7 @@ class RadioService {
     try {
       this.isIntentionallyStopped = false;
       this.clearReconnectTimeout();
+      this.stopStatusPolling();
       this.emitStatus(true);
 
       if (!this.isInitialized) {
@@ -163,21 +207,29 @@ class RadioService {
         this.handlePlaybackStatus(status);
       });
 
-      // Enable lock screen controls with radio logo as default artwork
-      this.player.setActiveForLockScreen(true, {
-        title: siteConfig.radio.name,
-        artist: siteConfig.radio.tagline,
-        artworkUrl: this.logoUri || undefined,
-      });
+      // Start playback first
+      this.player.play();
+
+      // Enable lock screen controls after playback starts (avoid blocking)
+      // Use remote URL for artwork as local file:// URIs may not work in release builds
+      setTimeout(() => {
+        if (this.player) {
+          this.player.setActiveForLockScreen(true, {
+            title: siteConfig.radio.name,
+            artist: siteConfig.radio.tagline,
+            artworkUrl: siteConfig.radio.logoUrl,
+          });
+        }
+      }, 100);
 
       // Subscribe to now-playing updates for lock screen metadata
       this.subscribeToNowPlaying();
 
-      // Start playback
-      this.player.play();
+      // Start polling as fallback for playbackStatusUpdate (which may not fire for live streams)
+      this.startStatusPolling();
 
       // Don't set isPlaying = true here - wait for playbackStatusUpdate callback
-      // to confirm playback has actually started
+      // or polling to confirm playback has actually started
       this.reconnectAttempts = 0;
       this.emitStatus(true); // Keep showing loading until confirmed
 
@@ -237,8 +289,8 @@ class RadioService {
       if (!this.player) return;
 
       if (data.isMusic && data.song) {
-        // Show song info with artwork from now-playing API, fallback to radio logo
-        const artworkUrl = data.song.art || this.logoUri || undefined;
+        // Show song info with artwork from now-playing API, fallback to radio logo URL
+        const artworkUrl = data.song.art || siteConfig.radio.logoUrl;
         logger.log('Updating lock screen metadata:', data.song.title, '-', data.song.artist);
         this.player.setActiveForLockScreen(true, {
           title: data.song.title,
@@ -250,7 +302,7 @@ class RadioService {
         this.player.setActiveForLockScreen(true, {
           title: siteConfig.radio.name,
           artist: siteConfig.radio.tagline,
-          artworkUrl: this.logoUri || undefined,
+          artworkUrl: siteConfig.radio.logoUrl,
         });
       }
     });
@@ -290,6 +342,7 @@ class RadioService {
   async pause(): Promise<void> {
     this.isIntentionallyStopped = true;
     this.clearReconnectTimeout();
+    this.stopStatusPolling();
     this.reconnectAttempts = 0;
 
     if (this.player) {
@@ -303,6 +356,7 @@ class RadioService {
   async stop(): Promise<void> {
     this.isIntentionallyStopped = true;
     this.clearReconnectTimeout();
+    this.stopStatusPolling();
     this.reconnectAttempts = 0;
     this.unsubscribeFromNowPlaying();
 
@@ -368,6 +422,7 @@ class RadioService {
       this.settingsUnsubscribe();
       this.settingsUnsubscribe = null;
     }
+    this.stopStatusPolling();
     this.unsubscribeFromNowPlaying();
     await this.stop();
   }

@@ -15,6 +15,7 @@ export const siteConfig = {
   radio: {
     name: "Rádio Olha que Duas",
     streamUrl: "https://radio.olhaqueduas.com/listen/olha_que_duas/radio.mp3",
+    logoUrl: "https://www.olhaqueduas.com/assets/logo-olha-que-duas-BfEMMZfu.png",
     isLive: true,
     tagline: "A sua companhia, 24 horas por dia",
     quality: "192kbps",
