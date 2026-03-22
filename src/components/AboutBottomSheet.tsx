@@ -129,10 +129,10 @@ export function AboutBottomSheet({ visible, onClose }: AboutBottomSheetProps) {
                   <MaterialCommunityIcons name="facebook" size={22} color="#fff" />
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.socialButton, { backgroundColor: '#000' }]}
+                  style={[styles.socialButton, { backgroundColor: isDark ? '#FFFFFF' : '#000000' }]}
                   onPress={() => openLink(siteConfig.social.tiktok)}
                 >
-                  <MaterialCommunityIcons name="music-note" size={22} color="#fff" />
+                  <MaterialCommunityIcons name="music-note" size={22} color={isDark ? '#000000' : '#FFFFFF'} />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.socialButton, { backgroundColor: '#FF0000' }]}
@@ -173,6 +173,7 @@ function createStyles(colors: any, isDark: boolean) {
       borderTopLeftRadius: 24,
       borderTopRightRadius: 24,
       maxHeight: SCREEN_HEIGHT * 0.85,
+      minHeight: SCREEN_HEIGHT * 0.5,
       paddingBottom: 30,
     },
     handleContainer: {
@@ -213,7 +214,8 @@ function createStyles(colors: any, isDark: boolean) {
       justifyContent: 'center',
     },
     content: {
-      flex: 1,
+      flexGrow: 1,
+      flexShrink: 1,
     },
     contentContainer: {
       padding: 20,

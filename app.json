@@ -26,6 +26,7 @@
           "remote-notification"
         ],
         "NSMicrophoneUsageDescription": "Not required.",
+        "NSLocationWhenInUseUsageDescription": "A sua localização é utilizada para mostrar a previsão meteorológica da sua área.",
         "BGTaskSchedulerPermittedIdentifiers": [
           "com.olhaqueduas.app.background"
         ]
@@ -66,6 +67,8 @@
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
         "com.google.android.gms.permission.AD_ID",
         "com.android.vending.BILLING"
       ]
@@ -76,6 +79,14 @@
     "plugins": [
       "expo-font",
       "react-native-iap",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "A sua localização é utilizada para mostrar a previsão meteorológica da sua área.",
+          "locationAlwaysPermission": "A sua localização é utilizada para mostrar a previsão meteorológica da sua área.",
+          "locationWhenInUsePermission": "A sua localização é utilizada para mostrar a previsão meteorológica da sua área."
+        }
+      ],
       [
         "react-native-google-mobile-ads",
         {

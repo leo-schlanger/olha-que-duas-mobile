@@ -8,6 +8,7 @@ import * as Linking from 'expo-linking';
 import { RadioScreen } from '../screens/RadioScreen';
 import { NewsScreen } from '../screens/NewsScreen';
 import { NewsDetailScreen } from '../screens/NewsDetailScreen';
+import { WeatherScreen } from '../screens/WeatherScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
@@ -27,6 +28,7 @@ const linking: LinkingOptions<RootStackParamList> = {
         screens: {
           Radio: '',
           News: 'noticias',
+          Weather: 'clima',
           Settings: 'definicoes',
         },
       },
@@ -42,6 +44,7 @@ export type RootStackParamList = {
 export type MainTabParamList = {
   Radio: undefined;
   News: undefined;
+  Weather: undefined;
   Settings: undefined;
 };
 
@@ -91,6 +94,16 @@ function MainTabs() {
           tabBarLabel: 'Noticias',
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="newspaper-variant-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Weather"
+        component={WeatherScreen}
+        options={{
+          tabBarLabel: 'Clima',
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="weather-partly-cloudy" size={size} color={color} />
           ),
         }}
       />

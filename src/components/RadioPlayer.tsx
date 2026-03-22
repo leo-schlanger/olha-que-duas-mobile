@@ -360,16 +360,20 @@ export function RadioPlayer() {
           ))}
         </View>
 
+        {/* Website Button */}
+        <TouchableOpacity
+          style={styles.websiteButton}
+          onPress={() => openLink('https://olhaqueduas.com')}
+          activeOpacity={0.8}
+        >
+          <MaterialCommunityIcons name="web" size={20} color={colors.white} />
+          <Text style={styles.websiteButtonText}>Visitar Website</Text>
+        </TouchableOpacity>
+
         {/* Social Links */}
         <View style={styles.socialSection}>
           <Text style={styles.socialTitle}>Siga-nos</Text>
           <View style={styles.socialLinks}>
-            <TouchableOpacity
-              style={styles.socialButton}
-              onPress={() => openLink('https://olhaqueduas.com')}
-            >
-              <MaterialCommunityIcons name="web" size={22} color={colors.primary} />
-            </TouchableOpacity>
             <TouchableOpacity
               style={[styles.socialButton, { backgroundColor: '#E4405F15' }]}
               onPress={() => openLink(siteConfig.social.instagram)}
@@ -383,10 +387,10 @@ export function RadioPlayer() {
               <MaterialCommunityIcons name="facebook" size={22} color="#1877F2" />
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.socialButton, { backgroundColor: '#00000015' }]}
+              style={[styles.socialButton, { backgroundColor: isDark ? '#FFFFFF15' : '#00000015' }]}
               onPress={() => openLink(siteConfig.social.tiktok)}
             >
-              <MaterialCommunityIcons name="music-note" size={22} color="#000000" />
+              <MaterialCommunityIcons name="music-note" size={22} color={isDark ? '#FFFFFF' : '#000000'} />
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.socialButton, { backgroundColor: '#FF000015' }]}
@@ -719,6 +723,22 @@ function createStyles(colors: any, isDark: boolean) {
       width: 4,
       marginHorizontal: 2,
       borderRadius: 2,
+    },
+    websiteButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.primary,
+      paddingHorizontal: 24,
+      paddingVertical: 12,
+      borderRadius: 25,
+      marginBottom: 24,
+      gap: 8,
+    },
+    websiteButtonText: {
+      color: colors.white,
+      fontSize: 16,
+      fontWeight: '600',
     },
     socialSection: {
       width: '100%',
