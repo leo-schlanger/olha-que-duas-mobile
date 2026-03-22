@@ -148,7 +148,7 @@ class RadioService {
         this.handlePlaybackStatus(status);
       });
 
-      // Enable lock screen controls
+      // Enable lock screen controls (artwork will be added when now-playing data is available)
       this.player.setActiveForLockScreen(true, {
         title: siteConfig.radio.name,
         artist: siteConfig.radio.tagline,
@@ -216,11 +216,17 @@ class RadioService {
 
     this.nowPlayingUnsubscribe = nowPlayingService.subscribe((data) => {
       if (data.isMusic && data.song && this.player) {
-        this.player.setActiveForLockScreen(true, {
+        // Show song info with artwork from now-playing API
+        const metadata: { title: string; artist: string; artwork?: string } = {
           title: data.song.title,
           artist: data.song.artist,
-        });
+        };
+        if (data.song.art) {
+          metadata.artwork = data.song.art;
+        }
+        this.player.setActiveForLockScreen(true, metadata);
       } else if (this.player) {
+        // Show radio name when no song is playing (system will use app icon)
         this.player.setActiveForLockScreen(true, {
           title: siteConfig.radio.name,
           artist: siteConfig.radio.tagline,

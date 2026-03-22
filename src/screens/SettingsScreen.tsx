@@ -23,6 +23,7 @@ import {
 } from '../components/GDPRConsent';
 import { useRadioSettings } from '../hooks/useRadioSettings';
 import { useNotifications } from '../hooks/useNotifications';
+import { useSchedule } from '../hooks/useSchedule';
 import { ReminderTime } from '../services/notificationService';
 import { environment } from '../config/environment';
 import { siteConfig } from '../config/site';
@@ -110,6 +111,7 @@ export function SettingsScreen() {
     setEnabled: setNotificationsEnabled,
     setReminderMinutes,
   } = useNotifications();
+  const { schedule, loading: scheduleLoading } = useSchedule();
   const [price, setPrice] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [adsConsentStatus, setAdsConsentStatus] = useState<string | null>(null);
@@ -600,19 +602,23 @@ export function SettingsScreen() {
               <Text style={[dynamicStyles.programsTitle, { color: colors.text }]}>
                 Programas em destaque
               </Text>
-              {siteConfig.radio.schedule.map((item) => (
-                <View key={item.show} style={dynamicStyles.programRow}>
-                  <Text style={[dynamicStyles.programDay, { color: colors.secondary }]}>
-                    {item.day}
-                  </Text>
-                  <Text style={[dynamicStyles.programName, { color: colors.text }]}>
-                    {item.show}
-                  </Text>
-                  <Text style={[dynamicStyles.programTimes, { color: colors.textSecondary }]}>
-                    {item.times.join(' / ')}
-                  </Text>
-                </View>
-              ))}
+              {scheduleLoading ? (
+                <ActivityIndicator size="small" color={colors.secondary} style={{ padding: 10 }} />
+              ) : (
+                schedule.map((item) => (
+                  <View key={`${item.day}-${item.show}`} style={dynamicStyles.programRow}>
+                    <Text style={[dynamicStyles.programDay, { color: colors.secondary }]}>
+                      {item.day}
+                    </Text>
+                    <Text style={[dynamicStyles.programName, { color: colors.text }]}>
+                      {item.show}
+                    </Text>
+                    <Text style={[dynamicStyles.programTimes, { color: colors.textSecondary }]}>
+                      {item.times.join(' / ')}
+                    </Text>
+                  </View>
+                ))
+              )}
             </View>
 
             <Text style={[dynamicStyles.aboutText, { marginTop: 16 }]}>

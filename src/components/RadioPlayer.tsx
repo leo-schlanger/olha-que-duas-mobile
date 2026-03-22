@@ -9,6 +9,7 @@ import {
   Animated,
   Image,
   Alert,
+  Linking,
 } from 'react-native';
 import Slider from '@react-native-community/slider';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
@@ -17,7 +18,10 @@ import { useNowPlaying } from '../hooks/useNowPlaying';
 import { useTheme } from '../context/ThemeContext';
 import { useSchedule, GroupedSchedule } from '../hooks/useSchedule';
 import { useNotifications } from '../hooks/useNotifications';
+import { useNavigation } from '@react-navigation/native';
 import { environment } from '../config/environment';
+import { siteConfig } from '../config/site';
+import { AboutBottomSheet } from './AboutBottomSheet';
 
 const scheduleIconMap: Record<string, string> = {
   'leaf-outline': 'leaf',
@@ -28,6 +32,7 @@ const scheduleIconMap: Record<string, string> = {
 
 export function RadioPlayer() {
   const { colors, isDark } = useTheme();
+  const navigation = useNavigation();
   const {
     isPlaying,
     isLoading,
@@ -55,6 +60,7 @@ export function RadioPlayer() {
   const [visualizerHeights] = useState(() =>
     [...Array(12)].map(() => new Animated.Value(5)),
   );
+  const [showAboutSheet, setShowAboutSheet] = useState(false);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -136,7 +142,6 @@ export function RadioPlayer() {
         [{ text: 'OK' }]
       );
     } else {
-      // Schedule reminders for all times of this show
       let scheduled = false;
       for (const time of item.times) {
         const result = await scheduleReminder(item.show, item.dayNumber, time);
@@ -161,6 +166,20 @@ export function RadioPlayer() {
     }
   }
 
+  function handleOpenNotificationSettings() {
+    (navigation as any).navigate('Settings');
+  }
+
+  function handleRefresh() {
+    forceReconnect();
+  }
+
+  function openLink(url: string) {
+    Linking.openURL(url);
+  }
+
+  const hasActiveNotifications = notificationPrefs.enabledShows.length > 0;
+
   return (
     <ScrollView
       style={styles.outerContainer}
@@ -168,15 +187,31 @@ export function RadioPlayer() {
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.container}>
-        <View style={styles.statusBadge}>
-          <View
-            style={[styles.statusDot, { backgroundColor: statusInfo.dotColor }]}
-          />
-          <Text style={[styles.statusText, { color: statusInfo.color }]}>
-            {statusInfo.text}
-          </Text>
+        {/* Header with Status and Info Button */}
+        <View style={styles.headerRow}>
+          <View style={styles.statusBadge}>
+            <View
+              style={[styles.statusDot, { backgroundColor: statusInfo.dotColor }]}
+            />
+            <Text style={[styles.statusText, { color: statusInfo.color }]}>
+              {statusInfo.text}
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            style={styles.infoButton}
+            onPress={() => setShowAboutSheet(true)}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons
+              name="information-outline"
+              size={22}
+              color={colors.secondary}
+            />
+          </TouchableOpacity>
         </View>
 
+        {/* Now Playing or Radio Name */}
         {nowPlaying.isMusic && nowPlaying.song && !nowPlaying.isTransition ? (
           <View style={styles.nowPlayingContainer}>
             <View style={styles.albumArtContainer}>
@@ -211,37 +246,63 @@ export function RadioPlayer() {
           </>
         )}
 
-        <TouchableOpacity
-          style={[styles.playButton, isPlaying && styles.playButtonActive]}
-          onPress={togglePlayPause}
-          disabled={isLoading || showExpoGoWarning}
-          activeOpacity={0.8}
-        >
-          {isLoading || isReconnecting ? (
-            <ActivityIndicator size="large" color={colors.background} />
-          ) : (
-            <MaterialCommunityIcons
-              name={isPlaying ? 'pause' : 'play'}
-              size={40}
-              color={colors.background}
-            />
-          )}
-        </TouchableOpacity>
-
-        {isReconnecting && reconnectAttempt && reconnectAttempt >= 5 && (
+        {/* Main Controls: Bell | Play | Refresh */}
+        <View style={styles.mainControls}>
+          {/* Notification Bell */}
           <TouchableOpacity
-            style={styles.reconnectButton}
-            onPress={forceReconnect}
+            style={[
+              styles.sideButton,
+              hasActiveNotifications && styles.sideButtonActive,
+            ]}
+            onPress={handleOpenNotificationSettings}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons
+              name={hasActiveNotifications ? 'bell-ring' : 'bell-outline'}
+              size={24}
+              color={hasActiveNotifications ? colors.white : colors.secondary}
+            />
+            {hasActiveNotifications && (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText}>
+                  {notificationPrefs.enabledShows.length}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          {/* Play Button */}
+          <TouchableOpacity
+            style={[styles.playButton, isPlaying && styles.playButtonActive]}
+            onPress={togglePlayPause}
+            disabled={isLoading || showExpoGoWarning}
             activeOpacity={0.8}
+          >
+            {isLoading || isReconnecting ? (
+              <ActivityIndicator size="large" color={colors.background} />
+            ) : (
+              <MaterialCommunityIcons
+                name={isPlaying ? 'pause' : 'play'}
+                size={44}
+                color={colors.background}
+              />
+            )}
+          </TouchableOpacity>
+
+          {/* Refresh Button */}
+          <TouchableOpacity
+            style={styles.sideButton}
+            onPress={handleRefresh}
+            activeOpacity={0.7}
+            disabled={isLoading || isReconnecting}
           >
             <MaterialCommunityIcons
               name="refresh"
-              size={16}
-              color={colors.white}
+              size={24}
+              color={isLoading || isReconnecting ? colors.muted : colors.secondary}
             />
-            <Text style={styles.reconnectButtonText}>Tentar Novamente</Text>
           </TouchableOpacity>
-        )}
+        </View>
 
         {showExpoGoWarning && (
           <View style={styles.expoGoWarning}>
@@ -256,6 +317,7 @@ export function RadioPlayer() {
           </View>
         )}
 
+        {/* Volume Control */}
         <View style={styles.volumeContainer}>
           <MaterialCommunityIcons
             name={volume === 0 ? 'volume-mute' : 'volume-low'}
@@ -280,6 +342,7 @@ export function RadioPlayer() {
           />
         </View>
 
+        {/* Visualizer */}
         <View style={styles.visualizer}>
           {visualizerHeights.map((height, i) => (
             <Animated.View
@@ -297,6 +360,44 @@ export function RadioPlayer() {
           ))}
         </View>
 
+        {/* Social Links */}
+        <View style={styles.socialSection}>
+          <Text style={styles.socialTitle}>Siga-nos</Text>
+          <View style={styles.socialLinks}>
+            <TouchableOpacity
+              style={styles.socialButton}
+              onPress={() => openLink('https://olhaqueduas.com')}
+            >
+              <MaterialCommunityIcons name="web" size={22} color={colors.primary} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.socialButton, { backgroundColor: '#E4405F15' }]}
+              onPress={() => openLink(siteConfig.social.instagram)}
+            >
+              <MaterialCommunityIcons name="instagram" size={22} color="#E4405F" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.socialButton, { backgroundColor: '#1877F215' }]}
+              onPress={() => openLink(siteConfig.social.facebook)}
+            >
+              <MaterialCommunityIcons name="facebook" size={22} color="#1877F2" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.socialButton, { backgroundColor: '#00000015' }]}
+              onPress={() => openLink(siteConfig.social.tiktok)}
+            >
+              <MaterialCommunityIcons name="music-note" size={22} color="#000000" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.socialButton, { backgroundColor: '#FF000015' }]}
+              onPress={() => openLink(siteConfig.social.youtube)}
+            >
+              <MaterialCommunityIcons name="youtube" size={22} color="#FF0000" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Info Cards */}
         <View style={styles.infoCards}>
           <View style={styles.infoCard}>
             <MaterialCommunityIcons
@@ -327,6 +428,7 @@ export function RadioPlayer() {
           </View>
         </View>
 
+        {/* Schedule Section */}
         <View style={styles.scheduleSection}>
           <View style={styles.scheduleHeader}>
             <MaterialCommunityIcons
@@ -416,6 +518,12 @@ export function RadioPlayer() {
           </View>
         </View>
       </View>
+
+      {/* About Bottom Sheet */}
+      <AboutBottomSheet
+        visible={showAboutSheet}
+        onClose={() => setShowAboutSheet(false)}
+      />
     </ScrollView>
   );
 }
@@ -434,6 +542,23 @@ function createStyles(colors: any, isDark: boolean) {
       padding: 20,
       backgroundColor: colors.background,
     },
+    headerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      width: '100%',
+      marginBottom: 20,
+    },
+    infoButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: colors.backgroundCard,
+      borderWidth: 1,
+      borderColor: colors.muted,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     statusBadge: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -441,7 +566,6 @@ function createStyles(colors: any, isDark: boolean) {
       paddingHorizontal: 12,
       paddingVertical: 6,
       borderRadius: 20,
-      marginBottom: 20,
       borderWidth: 1,
       borderColor: colors.muted,
     },
@@ -507,6 +631,43 @@ function createStyles(colors: any, isDark: boolean) {
       fontSize: 15,
       textAlign: 'center' as const,
     },
+    mainControls: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 24,
+      gap: 20,
+    },
+    sideButton: {
+      width: 50,
+      height: 50,
+      borderRadius: 25,
+      backgroundColor: colors.backgroundCard,
+      borderWidth: 1,
+      borderColor: colors.muted,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    sideButtonActive: {
+      backgroundColor: colors.secondary,
+      borderColor: colors.secondary,
+    },
+    notificationBadge: {
+      position: 'absolute',
+      top: -4,
+      right: -4,
+      backgroundColor: colors.primary,
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    notificationBadgeText: {
+      color: colors.white,
+      fontSize: 10,
+      fontWeight: '700',
+    },
     playButton: {
       width: 80,
       height: 80,
@@ -514,7 +675,6 @@ function createStyles(colors: any, isDark: boolean) {
       backgroundColor: colors.secondary,
       alignItems: 'center',
       justifyContent: 'center',
-      marginBottom: 20,
       shadowColor: isDark ? colors.secondary : '#000',
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: isDark ? 0.5 : 0.3,
@@ -523,21 +683,6 @@ function createStyles(colors: any, isDark: boolean) {
     },
     playButtonActive: {
       backgroundColor: colors.primary,
-    },
-    reconnectButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: colors.vermelho,
-      paddingHorizontal: 16,
-      paddingVertical: 8,
-      borderRadius: 20,
-      marginBottom: 15,
-      gap: 6,
-    },
-    reconnectButtonText: {
-      color: colors.white,
-      fontSize: 13,
-      fontWeight: '600',
     },
     expoGoWarning: {
       flexDirection: 'row',
@@ -558,7 +703,7 @@ function createStyles(colors: any, isDark: boolean) {
       alignItems: 'center',
       width: '100%',
       paddingHorizontal: 20,
-      marginBottom: 30,
+      marginBottom: 24,
     },
     volumeSlider: {
       flex: 1,
@@ -568,18 +713,43 @@ function createStyles(colors: any, isDark: boolean) {
       flexDirection: 'row',
       alignItems: 'flex-end',
       height: 30,
-      marginBottom: 30,
+      marginBottom: 24,
     },
     visualizerBar: {
       width: 4,
       marginHorizontal: 2,
       borderRadius: 2,
     },
+    socialSection: {
+      width: '100%',
+      alignItems: 'center',
+      marginBottom: 24,
+    },
+    socialTitle: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+      marginBottom: 12,
+    },
+    socialLinks: {
+      flexDirection: 'row',
+      gap: 12,
+    },
+    socialButton: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: colors.primary + '15',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     infoCards: {
       flexDirection: 'row',
       justifyContent: 'space-around',
       width: '100%',
-      marginBottom: 40,
+      marginBottom: 24,
     },
     infoCard: {
       backgroundColor: colors.backgroundCard,
@@ -609,7 +779,6 @@ function createStyles(colors: any, isDark: boolean) {
       overflow: 'hidden',
       borderWidth: 1,
       borderColor: colors.muted,
-      marginTop: 10,
     },
     scheduleHeader: {
       flexDirection: 'row',
