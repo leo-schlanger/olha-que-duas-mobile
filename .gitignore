@@ -71,6 +71,7 @@ eas-credentials/
 
 # Claude Code local settings
 .claude/
+CLAUDE.md
 
 # Build scripts with sensitive data
 build-aab.bat
@@ -81,3 +82,4 @@ criar-keystore.bat
 # EAS credentials (sensitive)
 credentials.json
 credentials/
+keystore.properties
