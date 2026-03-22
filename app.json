@@ -36,7 +36,7 @@
       "versionCode": 24,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#f7f4ed"
+        "backgroundColor": "#d6402e"
       },
       "intentFilters": [
         {
@@ -65,6 +65,7 @@
         "android.permission.ACCESS_NETWORK_STATE",
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.POST_NOTIFICATIONS",
+        "android.permission.SCHEDULE_EXACT_ALARM",
         "com.google.android.gms.permission.AD_ID",
         "com.android.vending.BILLING"
       ]
@@ -86,6 +87,13 @@
         "expo-audio",
         {
           "enableBackgroundPlayback": true
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#d6402e"
         }
       ],
       "expo-asset"

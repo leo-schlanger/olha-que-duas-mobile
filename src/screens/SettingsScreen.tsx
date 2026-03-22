@@ -11,6 +11,7 @@ import {
   Linking,
   Switch,
   Platform,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
@@ -21,11 +22,22 @@ import {
   getGDPRConsentStatus,
 } from '../components/GDPRConsent';
 import { useRadioSettings } from '../hooks/useRadioSettings';
+import { useNotifications } from '../hooks/useNotifications';
+import { ReminderTime } from '../services/notificationService';
 import { environment } from '../config/environment';
+import { siteConfig } from '../config/site';
 import { logger } from '../utils/logger';
 
 const PRIVACY_POLICY_URL = 'https://olhaqueduas.com/privacidade';
 const TERMS_URL = 'https://olhaqueduas.com/termos';
+const WEBSITE_URL = 'https://olhaqueduas.com';
+
+const REMINDER_OPTIONS: { value: ReminderTime; label: string }[] = [
+  { value: 5, label: '5 min' },
+  { value: 15, label: '15 min' },
+  { value: 30, label: '30 min' },
+  { value: 60, label: '1 hora' },
+];
 
 let purchaseService: any = null;
 if (environment.canUseNativeModules) {
@@ -91,6 +103,13 @@ export function SettingsScreen() {
     updateSetting: updateRadioSetting,
     isLoading: radioSettingsLoading,
   } = useRadioSettings();
+  const {
+    preferences: notificationPrefs,
+    isLoading: notificationLoading,
+    hasPermission: notificationPermission,
+    setEnabled: setNotificationsEnabled,
+    setReminderMinutes,
+  } = useNotifications();
   const [price, setPrice] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [adsConsentStatus, setAdsConsentStatus] = useState<string | null>(null);
@@ -214,6 +233,33 @@ export function SettingsScreen() {
     if (adsConsentStatus === 'non_personalized')
       return 'Anúncios não personalizados';
     return 'Não definido';
+  }
+
+  function handleExitApp() {
+    if (Platform.OS === 'android') {
+      Alert.alert(
+        'Sair da aplicação',
+        'Tem a certeza que pretende sair?',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Sair', onPress: () => BackHandler.exitApp() },
+        ]
+      );
+    } else {
+      Alert.alert(
+        'Informação',
+        'No iOS, deslize para cima a partir do fundo do ecrã e arraste a app para cima para a fechar.',
+        [{ text: 'OK' }]
+      );
+    }
+  }
+
+  function openWebsite() {
+    Linking.openURL(WEBSITE_URL);
+  }
+
+  function openSocialLink(url: string) {
+    Linking.openURL(url);
   }
 
   const dynamicStyles = createDynamicStyles(colors, isDark);
@@ -440,6 +486,103 @@ export function SettingsScreen() {
         </View>
 
         <View style={dynamicStyles.section}>
+          <Text style={dynamicStyles.sectionTitle}>Notificações</Text>
+
+          <View style={dynamicStyles.menuCard}>
+            <SettingRow
+              icon="bell-outline"
+              iconColor={colors.secondary}
+              title="Lembretes de programas"
+              subtitle="Receber notificações antes dos programas"
+              colors={colors}
+              value={notificationPrefs.enabled}
+              onValueChange={setNotificationsEnabled}
+              disabled={notificationLoading}
+            />
+
+            {notificationPrefs.enabled && (
+              <View style={[styles.reminderTimeRow, { borderTopColor: colors.background, borderTopWidth: 1 }]}>
+                <View style={styles.reminderTimeHeader}>
+                  <MaterialCommunityIcons
+                    name="clock-outline"
+                    size={18}
+                    color={colors.textSecondary}
+                  />
+                  <Text style={[styles.reminderTimeLabel, { color: colors.text }]}>
+                    Avisar antes:
+                  </Text>
+                </View>
+                <View style={styles.reminderTimeOptions}>
+                  {REMINDER_OPTIONS.map((option) => (
+                    <TouchableOpacity
+                      key={option.value}
+                      style={[
+                        styles.reminderTimeOption,
+                        {
+                          backgroundColor:
+                            notificationPrefs.reminderMinutes === option.value
+                              ? colors.secondary
+                              : colors.background,
+                          borderColor:
+                            notificationPrefs.reminderMinutes === option.value
+                              ? colors.secondary
+                              : colors.muted,
+                        },
+                      ]}
+                      onPress={() => setReminderMinutes(option.value)}
+                      disabled={notificationLoading}
+                    >
+                      <Text
+                        style={[
+                          styles.reminderTimeText,
+                          {
+                            color:
+                              notificationPrefs.reminderMinutes === option.value
+                                ? colors.white
+                                : colors.text,
+                          },
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+          </View>
+
+          {notificationPrefs.enabled && notificationPrefs.enabledShows.length > 0 && (
+            <View style={[dynamicStyles.menuCard, { marginTop: 10 }]}>
+              <View style={styles.enabledShowsHeader}>
+                <Text style={[styles.enabledShowsTitle, { color: colors.textSecondary }]}>
+                  Programas com lembrete ativo:
+                </Text>
+              </View>
+              {notificationPrefs.enabledShows.map((show, index) => (
+                <View
+                  key={show}
+                  style={[
+                    styles.enabledShowItem,
+                    { borderBottomColor: colors.background },
+                    index === notificationPrefs.enabledShows.length - 1 && styles.enabledShowItemLast,
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name="bell-ring-outline"
+                    size={16}
+                    color={colors.secondary}
+                  />
+                  <Text style={[styles.enabledShowName, { color: colors.text }]}>
+                    {show}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
+        <View style={dynamicStyles.section}>
           <Text style={dynamicStyles.sectionTitle}>Sobre</Text>
 
           <View style={dynamicStyles.aboutCard}>
@@ -450,12 +593,86 @@ export function SettingsScreen() {
             />
             <Text style={[dynamicStyles.aboutTitle, { marginTop: 24 }]}>Olha que Duas</Text>
             <Text style={dynamicStyles.aboutText}>
-              Rádio e portal de notícias dedicado a trazer-lhe as últimas
-              informações.
+              O Olha que Duas é uma rádio online portuguesa que une entretenimento, bem-estar e conversas autênticas. Com uma programação diversificada que vai desde nutrição e motivação até debates descontraídos, estamos no ar 24 horas por dia para lhe fazer companhia.
             </Text>
+
+            <View style={dynamicStyles.programsCard}>
+              <Text style={[dynamicStyles.programsTitle, { color: colors.text }]}>
+                Programas em destaque
+              </Text>
+              {siteConfig.radio.schedule.map((item) => (
+                <View key={item.show} style={dynamicStyles.programRow}>
+                  <Text style={[dynamicStyles.programDay, { color: colors.secondary }]}>
+                    {item.day}
+                  </Text>
+                  <Text style={[dynamicStyles.programName, { color: colors.text }]}>
+                    {item.show}
+                  </Text>
+                  <Text style={[dynamicStyles.programTimes, { color: colors.textSecondary }]}>
+                    {item.times.join(' / ')}
+                  </Text>
+                </View>
+              ))}
+            </View>
+
+            <Text style={[dynamicStyles.aboutText, { marginTop: 16 }]}>
+              Somos mais do que uma rádio - somos uma comunidade. Cada programa é pensado para trazer valor ao seu dia, seja através de dicas práticas de saúde, inspiração para os seus objetivos ou simplesmente boas conversas para descontrair.
+            </Text>
+
+            <TouchableOpacity
+              style={[dynamicStyles.websiteButton, { backgroundColor: colors.primary }]}
+              onPress={openWebsite}
+              activeOpacity={0.8}
+            >
+              <MaterialCommunityIcons name="web" size={20} color={colors.white} />
+              <Text style={dynamicStyles.websiteButtonText}>Visitar Website</Text>
+            </TouchableOpacity>
+
+            <View style={dynamicStyles.socialLinks}>
+              <TouchableOpacity
+                style={[dynamicStyles.socialButton, { backgroundColor: '#E4405F' }]}
+                onPress={() => openSocialLink(siteConfig.social.instagram)}
+              >
+                <MaterialCommunityIcons name="instagram" size={22} color={colors.white} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[dynamicStyles.socialButton, { backgroundColor: '#1877F2' }]}
+                onPress={() => openSocialLink(siteConfig.social.facebook)}
+              >
+                <MaterialCommunityIcons name="facebook" size={22} color={colors.white} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[dynamicStyles.socialButton, { backgroundColor: '#000000' }]}
+                onPress={() => openSocialLink(siteConfig.social.tiktok)}
+              >
+                <MaterialCommunityIcons name="music-note" size={22} color={colors.white} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[dynamicStyles.socialButton, { backgroundColor: '#FF0000' }]}
+                onPress={() => openSocialLink(siteConfig.social.youtube)}
+              >
+                <MaterialCommunityIcons name="youtube" size={22} color={colors.white} />
+              </TouchableOpacity>
+            </View>
+
             <View style={dynamicStyles.versionBadge}>
               <Text style={dynamicStyles.versionText}>Versão 1.0.0</Text>
             </View>
+          </View>
+        </View>
+
+        <View style={dynamicStyles.section}>
+          <Text style={dynamicStyles.sectionTitle}>Aplicação</Text>
+
+          <View style={dynamicStyles.menuCard}>
+            <MenuItem
+              icon="exit-to-app"
+              title="Sair da Aplicação"
+              subtitle={Platform.OS === 'android' ? 'Fechar completamente a app' : 'Ver instruções para fechar'}
+              colors={colors}
+              onPress={handleExitApp}
+              isLast
+            />
           </View>
         </View>
 
@@ -723,6 +940,58 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
   },
+  reminderTimeRow: {
+    padding: 14,
+  },
+  reminderTimeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  reminderTimeLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  reminderTimeOptions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  reminderTimeOption: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  reminderTimeText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  enabledShowsHeader: {
+    padding: 12,
+    paddingBottom: 8,
+  },
+  enabledShowsTitle: {
+    fontSize: 12,
+    fontWeight: '500',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  enabledShowItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 10,
+    borderBottomWidth: 1,
+  },
+  enabledShowItemLast: {
+    borderBottomWidth: 0,
+  },
+  enabledShowName: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
 });
 
 function createDynamicStyles(colors: any, isDark: boolean) {
@@ -871,6 +1140,66 @@ function createDynamicStyles(colors: any, isDark: boolean) {
       textAlign: 'center',
       lineHeight: 20,
       marginBottom: 16,
+    },
+    programsCard: {
+      width: '100%',
+      backgroundColor: colors.background,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 16,
+    },
+    programsTitle: {
+      fontSize: 14,
+      fontWeight: '700',
+      marginBottom: 12,
+      textAlign: 'center',
+    },
+    programRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 6,
+      gap: 8,
+    },
+    programDay: {
+      fontSize: 12,
+      fontWeight: '700',
+      width: 60,
+    },
+    programName: {
+      fontSize: 13,
+      fontWeight: '500',
+      flex: 1,
+    },
+    programTimes: {
+      fontSize: 11,
+      fontWeight: '500',
+    },
+    websiteButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 14,
+      paddingHorizontal: 24,
+      borderRadius: 25,
+      gap: 8,
+      marginBottom: 16,
+    },
+    websiteButtonText: {
+      color: colors.white,
+      fontSize: 15,
+      fontWeight: '600',
+    },
+    socialLinks: {
+      flexDirection: 'row',
+      gap: 12,
+      marginBottom: 20,
+    },
+    socialButton: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     versionBadge: {
       backgroundColor: colors.muted,

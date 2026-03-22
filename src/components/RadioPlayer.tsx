@@ -8,13 +8,15 @@ import {
   ScrollView,
   Animated,
   Image,
+  Alert,
 } from 'react-native';
 import Slider from '@react-native-community/slider';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRadio } from '../hooks/useRadio';
 import { useNowPlaying } from '../hooks/useNowPlaying';
 import { useTheme } from '../context/ThemeContext';
-import { useSchedule } from '../hooks/useSchedule';
+import { useSchedule, GroupedSchedule } from '../hooks/useSchedule';
+import { useNotifications } from '../hooks/useNotifications';
 import { environment } from '../config/environment';
 
 const scheduleIconMap: Record<string, string> = {
@@ -42,6 +44,13 @@ export function RadioPlayer() {
 
   const { schedule, loading: scheduleLoading } = useSchedule();
   const nowPlaying = useNowPlaying(isPlaying);
+  const {
+    preferences: notificationPrefs,
+    isLoading: notificationLoading,
+    scheduleReminder,
+    cancelShowReminders,
+    isShowEnabled,
+  } = useNotifications();
 
   const [visualizerHeights] = useState(() =>
     [...Array(12)].map(() => new Animated.Value(5)),
@@ -115,6 +124,42 @@ export function RadioPlayer() {
 
   const statusInfo = getStatusInfo();
   const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+
+  async function handleToggleReminder(item: GroupedSchedule) {
+    const isEnabled = isShowEnabled(item.show);
+
+    if (isEnabled) {
+      await cancelShowReminders(item.show);
+      Alert.alert(
+        'Lembrete removido',
+        `O lembrete para "${item.show}" foi desativado.`,
+        [{ text: 'OK' }]
+      );
+    } else {
+      // Schedule reminders for all times of this show
+      let scheduled = false;
+      for (const time of item.times) {
+        const result = await scheduleReminder(item.show, item.dayNumber, time);
+        if (result) {
+          scheduled = true;
+        }
+      }
+
+      if (scheduled) {
+        Alert.alert(
+          'Lembrete ativado',
+          `Receberá uma notificação ${notificationPrefs.reminderMinutes} minutos antes de "${item.show}" começar.`,
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert(
+          'Permissão necessária',
+          'Por favor, permita as notificações nas definições do dispositivo para receber lembretes.',
+          [{ text: 'OK' }]
+        );
+      }
+    }
+  }
 
   return (
     <ScrollView
@@ -349,6 +394,21 @@ export function RadioPlayer() {
                         ))}
                       </View>
                     </View>
+                    <TouchableOpacity
+                      style={[
+                        styles.reminderButton,
+                        isShowEnabled(item.show) && styles.reminderButtonActive,
+                      ]}
+                      onPress={() => handleToggleReminder(item)}
+                      disabled={notificationLoading}
+                      activeOpacity={0.7}
+                    >
+                      <MaterialCommunityIcons
+                        name={isShowEnabled(item.show) ? 'bell-ring' : 'bell-outline'}
+                        size={18}
+                        color={isShowEnabled(item.show) ? colors.white : colors.secondary}
+                      />
+                    </TouchableOpacity>
                   </View>
                 );
               })
@@ -643,6 +703,21 @@ function createStyles(colors: any, isDark: boolean) {
       fontSize: 10,
       color: colors.text,
       fontFamily: 'monospace',
+    },
+    reminderButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.secondary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginLeft: 8,
+    },
+    reminderButtonActive: {
+      backgroundColor: colors.secondary,
+      borderColor: colors.secondary,
     },
   });
 }

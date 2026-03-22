@@ -18,6 +18,7 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 // Services - expo-av works everywhere
 import { radioService } from "./src/services/radioService";
 import { radioSettingsService } from "./src/services/radioSettingsService";
+import { notificationService } from "./src/services/notificationService";
 
 // Lazy load native-only services
 let adService: any = null;
@@ -49,6 +50,10 @@ function AppContent() {
         await radioSettingsService.load();
         await radioService.initialize();
         logger.log("Radio service initialized");
+
+        // Initialize notification service
+        await notificationService.initialize();
+        logger.log("Notification service initialized");
 
         if (environment.canUseNativeModules && purchaseService) {
           await purchaseService.initialize();
