@@ -8,8 +8,8 @@ import {
   Dimensions,
 } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { BlogPost, categoryColors, categoryLabels } from '../types/blog';
-import { useTheme } from '../context/ThemeContext';
+import { BlogPost, getCategoryColor, categoryLabels } from '../types/blog';
+import { useTheme, getContrastTextColor } from '../context/ThemeContext';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = width - 32;
@@ -31,7 +31,7 @@ export function NewsCard({ post, onPress }: NewsCardProps) {
     });
   };
 
-  const categoryColor = categoryColors[post.category] || '#6b7280';
+  const categoryColor = getCategoryColor(post.category, isDark);
   const categoryLabel = categoryLabels[post.category] || post.category;
 
   return (
@@ -74,7 +74,7 @@ export function NewsCard({ post, onPress }: NewsCardProps) {
           <Text
             style={[
               styles.categoryText,
-              { color: isDark ? colors.black : colors.text },
+              { color: getContrastTextColor(categoryColor) },
             ]}
           >
             {categoryLabel}

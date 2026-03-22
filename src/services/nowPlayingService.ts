@@ -37,7 +37,7 @@ const JINGLE_PLAYLISTS = [
 ];
 
 const MIN_SONG_DURATION = 60;
-const POLL_INTERVAL = 8000;
+const POLL_INTERVAL = 5000; // Reduzido de 8s para 5s para melhor sincronização
 
 function isValidSong(data: {
   title?: string;
@@ -137,7 +137,10 @@ class NowPlayingService {
             isMusic: true,
           };
 
-          if (songChanged || !this.currentData.isMusic) {
+          // Sempre emitir se a música mudou ou se artwork mudou
+          const artworkChanged = this.currentData.song?.art !== newData.song?.art;
+          if (songChanged || artworkChanged || !this.currentData.isMusic) {
+            logger.log('NowPlaying update:', songData.title, '-', songData.artist);
             this.emit(newData);
           }
         } else {

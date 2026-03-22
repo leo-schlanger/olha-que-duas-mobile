@@ -35,35 +35,61 @@ export const lightColors = {
   statusBar: 'dark-content' as 'dark-content' | 'light-content',
 };
 
-// Dark theme colors
+// Dark theme colors - Otimizado para contraste e acessibilidade
+// Seguindo boas práticas: evitar preto puro, cores levemente desaturadas
 export const darkColors = {
-  primary: '#e85544', // Vermelho mais claro para contraste
-  secondary: '#f5c94d', // Amarelo mais vibrante
-  background: '#1a1614', // Marrom escuro
-  backgroundCard: '#252220', // Marrom escuro mais claro
-  card: '#2d2926', // Card escuro
-  text: '#f0e8e0', // Texto claro
-  textSecondary: '#a89e96', // Texto secundário
-  success: '#34d668',
-  error: '#f05050',
-  charcoal: '#f0e8e0',
-  amarelo: '#f5c94d',
-  amareloSoft: '#c9a43a',
-  vermelho: '#e85544',
-  vermelhoSoft: '#c94a3a',
-  beige: '#1a1614',
-  beigeDark: '#f0e8e0',
+  primary: '#ef6b5a', // Vermelho coral mais claro para melhor contraste
+  secondary: '#f7d465', // Amarelo dourado vibrante mas não agressivo
+  background: '#1c1917', // Cinza escuro quente (não preto puro - evita halation)
+  backgroundCard: '#292524', // Elevação sutil sobre o fundo
+  card: '#322f2d', // Card com mais elevação visual
+  text: '#f5f0eb', // Texto principal - alto contraste mas suave
+  textSecondary: '#a8a29e', // Texto secundário com bom contraste
+  success: '#4ade80', // Verde mais vibrante para visibilidade
+  error: '#f87171', // Vermelho suave para não agredir
+  charcoal: '#f5f0eb',
+  amarelo: '#f7d465',
+  amareloSoft: '#d4a939',
+  vermelho: '#ef6b5a',
+  vermelhoSoft: '#dc5a4a',
+  beige: '#1c1917',
+  beigeDark: '#f5f0eb',
   white: '#FFFFFF',
-  black: '#000000',
-  muted: '#3d3835',
-  border: '#3d3835',
-  notification: '#e85544',
-  tabBar: '#252220',
-  tabBarInactive: '#6d6560',
+  black: '#0c0a09', // Preto suave para uso em badges
+  muted: '#44403c', // Mais claro para melhor visibilidade de bordas
+  border: '#44403c',
+  notification: '#ef6b5a',
+  tabBar: '#292524',
+  tabBarInactive: '#78716c', // Mais claro para melhor legibilidade
   statusBar: 'light-content' as 'dark-content' | 'light-content',
 };
 
 export type ThemeColors = typeof lightColors;
+
+/**
+ * Calcula a luminosidade relativa de uma cor hex
+ * Retorna valor entre 0 (escuro) e 1 (claro)
+ */
+export function getLuminance(hexColor: string): number {
+  const hex = hexColor.replace('#', '');
+  const r = parseInt(hex.substring(0, 2), 16) / 255;
+  const g = parseInt(hex.substring(2, 4), 16) / 255;
+  const b = parseInt(hex.substring(4, 6), 16) / 255;
+
+  const toLinear = (c: number) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+
+  return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+}
+
+/**
+ * Determina a cor de texto ideal (branco ou escuro) baseado na cor de fundo
+ * Usa WCAG para garantir contraste adequado
+ */
+export function getContrastTextColor(backgroundColor: string, lightText = '#FFFFFF', darkText = '#1c1917'): string {
+  const luminance = getLuminance(backgroundColor);
+  // Se a luminância for maior que 0.5, usar texto escuro; caso contrário, texto claro
+  return luminance > 0.45 ? darkText : lightText;
+}
 
 interface ThemeContextType {
   colors: ThemeColors;

@@ -33,7 +33,7 @@ export interface BlogFilters {
 }
 
 /**
- * Category color mapping for UI badges
+ * Category color mapping for UI badges - Light mode
  */
 export const categoryColors: Record<string, string> = {
   politics_pt: '#22c55e',
@@ -43,6 +43,26 @@ export const categoryColors: Record<string, string> = {
   conflicts: '#ef4444',
   disasters: '#dc2626',
 };
+
+/**
+ * Category colors optimized for dark mode - more vibrant/saturated
+ */
+export const categoryColorsDark: Record<string, string> = {
+  politics_pt: '#4ade80', // Verde mais brilhante
+  politics_br: '#34d399', // Verde esmeralda vibrante
+  politics_world: '#60a5fa', // Azul mais claro
+  controversies: '#fb923c', // Laranja mais brilhante
+  conflicts: '#f87171', // Vermelho coral
+  disasters: '#ef4444', // Vermelho vibrante
+};
+
+/**
+ * Helper function to get category color based on theme
+ */
+export function getCategoryColor(category: string, isDark: boolean): string {
+  const colors = isDark ? categoryColorsDark : categoryColors;
+  return colors[category] || (isDark ? '#9ca3af' : '#6b7280');
+}
 
 /**
  * Category labels for display (Portuguese)

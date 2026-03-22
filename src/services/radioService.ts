@@ -3,10 +3,14 @@ import {
   AudioPlayer,
   createAudioPlayer,
 } from 'expo-audio';
+import { Asset } from 'expo-asset';
 import { siteConfig } from '../config/site';
 import { radioSettingsService, RadioSettings } from './radioSettingsService';
 import { nowPlayingService } from './nowPlayingService';
 import { logger } from '../utils/logger';
+
+// Logo local para lock screen
+const radioLogo = require('../../assets/icon.png');
 
 /**
  * Radio streaming service using expo-audio (2026)
@@ -27,6 +31,7 @@ class RadioService {
   private settingsUnsubscribe: (() => void) | null = null;
   private nowPlayingUnsubscribe: (() => void) | null = null;
   private isBuffering: boolean = false;
+  private logoUri: string | null = null;
 
   private clearReconnectTimeout() {
     if (this.reconnectTimeout) {
@@ -51,6 +56,16 @@ class RadioService {
       // Load settings
       this.settings = await radioSettingsService.load();
       this.volume = this.settings.volume;
+
+      // Load logo asset for lock screen
+      try {
+        const asset = Asset.fromModule(radioLogo);
+        await asset.downloadAsync();
+        this.logoUri = asset.localUri || asset.uri;
+        logger.log('Radio logo loaded:', this.logoUri);
+      } catch (logoError) {
+        logger.error('Error loading radio logo:', logoError);
+      }
 
       // Subscribe to settings changes
       this.settingsUnsubscribe = radioSettingsService.subscribe((newSettings) => {
@@ -148,10 +163,11 @@ class RadioService {
         this.handlePlaybackStatus(status);
       });
 
-      // Enable lock screen controls (artwork will be added when now-playing data is available)
+      // Enable lock screen controls with radio logo as default artwork
       this.player.setActiveForLockScreen(true, {
         title: siteConfig.radio.name,
         artist: siteConfig.radio.tagline,
+        artworkUrl: this.logoUri || undefined,
       });
 
       // Subscribe to now-playing updates for lock screen metadata
@@ -214,22 +230,27 @@ class RadioService {
       this.nowPlayingUnsubscribe();
     }
 
+    // Start the now playing service polling
+    nowPlayingService.start();
+
     this.nowPlayingUnsubscribe = nowPlayingService.subscribe((data) => {
-      if (data.isMusic && data.song && this.player) {
-        // Show song info with artwork from now-playing API
-        const metadata: { title: string; artist: string; artwork?: string } = {
+      if (!this.player) return;
+
+      if (data.isMusic && data.song) {
+        // Show song info with artwork from now-playing API, fallback to radio logo
+        const artworkUrl = data.song.art || this.logoUri || undefined;
+        logger.log('Updating lock screen metadata:', data.song.title, '-', data.song.artist);
+        this.player.setActiveForLockScreen(true, {
           title: data.song.title,
           artist: data.song.artist,
-        };
-        if (data.song.art) {
-          metadata.artwork = data.song.art;
-        }
-        this.player.setActiveForLockScreen(true, metadata);
-      } else if (this.player) {
-        // Show radio name when no song is playing (system will use app icon)
+          artworkUrl,
+        });
+      } else {
+        // Show radio name with logo when no song is playing
         this.player.setActiveForLockScreen(true, {
           title: siteConfig.radio.name,
           artist: siteConfig.radio.tagline,
+          artworkUrl: this.logoUri || undefined,
         });
       }
     });
@@ -240,6 +261,7 @@ class RadioService {
       this.nowPlayingUnsubscribe();
       this.nowPlayingUnsubscribe = null;
     }
+    nowPlayingService.stop();
   }
 
   private reconnect() {

@@ -375,30 +375,33 @@ export function RadioPlayer() {
           <Text style={styles.socialTitle}>Siga-nos</Text>
           <View style={styles.socialLinks}>
             <TouchableOpacity
-              style={[styles.socialButton, { backgroundColor: '#E4405F15' }]}
+              style={[styles.socialButton, { backgroundColor: '#E4405F' }]}
               onPress={() => openLink(siteConfig.social.instagram)}
             >
-              <MaterialCommunityIcons name="instagram" size={22} color="#E4405F" />
+              <MaterialCommunityIcons name="instagram" size={22} color="#FFFFFF" />
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.socialButton, { backgroundColor: '#1877F215' }]}
+              style={[styles.socialButton, { backgroundColor: '#1877F2' }]}
               onPress={() => openLink(siteConfig.social.facebook)}
             >
-              <MaterialCommunityIcons name="facebook" size={22} color="#1877F2" />
+              <MaterialCommunityIcons name="facebook" size={22} color="#FFFFFF" />
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.socialButton, { backgroundColor: isDark ? '#FFFFFF15' : '#00000015' }]}
+              style={[styles.socialButton, { backgroundColor: isDark ? '#FFFFFF' : '#000000' }]}
               onPress={() => openLink(siteConfig.social.tiktok)}
             >
-              <MaterialCommunityIcons name="music-note" size={22} color={isDark ? '#FFFFFF' : '#000000'} />
+              <MaterialCommunityIcons name="music-note" size={22} color={isDark ? '#000000' : '#FFFFFF'} />
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.socialButton, { backgroundColor: '#FF000015' }]}
+              style={[styles.socialButton, { backgroundColor: '#FF0000' }]}
               onPress={() => openLink(siteConfig.social.youtube)}
             >
-              <MaterialCommunityIcons name="youtube" size={22} color="#FF0000" />
+              <MaterialCommunityIcons name="youtube" size={22} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
+          <Text style={styles.communityText}>
+            Somos mais do que uma rádio - somos uma comunidade. Cada programa é pensado para trazer valor ao seu dia, seja através de dicas práticas de saúde, inspiração para os seus objetivos ou simplesmente boas conversas para descontrair.
+          </Text>
         </View>
 
         {/* Info Cards */}
@@ -756,14 +759,22 @@ function createStyles(colors: any, isDark: boolean) {
     socialLinks: {
       flexDirection: 'row',
       gap: 12,
+      marginBottom: 16,
     },
     socialButton: {
       width: 44,
       height: 44,
       borderRadius: 22,
-      backgroundColor: colors.primary + '15',
       alignItems: 'center',
       justifyContent: 'center',
+    },
+    communityText: {
+      fontSize: 14,
+      lineHeight: 21,
+      color: colors.textSecondary,
+      fontStyle: 'italic',
+      textAlign: 'center',
+      paddingHorizontal: 8,
     },
     infoCards: {
       flexDirection: 'row',

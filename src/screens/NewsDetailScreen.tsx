@@ -17,8 +17,8 @@ import { logger } from '../utils/logger';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useNewsDetail } from '../hooks/useNews';
-import { categoryColors, categoryLabels } from '../types/blog';
-import { useTheme } from '../context/ThemeContext';
+import { getCategoryColor, categoryLabels } from '../types/blog';
+import { useTheme, getContrastTextColor } from '../context/ThemeContext';
 import { InterstitialAdOverlay } from '../components/InterstitialAdOverlay';
 
 const { width } = Dimensions.get('window');
@@ -126,7 +126,7 @@ export function NewsDetailScreen() {
     );
   }
 
-  const categoryColor = categoryColors[post.category] || '#6b7280';
+  const categoryColor = getCategoryColor(post.category, isDark);
   const categoryLabel = categoryLabels[post.category] || post.category;
   const paragraphs = post.content.split('\n\n').filter(Boolean);
 
@@ -204,7 +204,7 @@ export function NewsDetailScreen() {
               <Text
                 style={[
                   styles.categoryText,
-                  { color: isDark ? colors.black : colors.text },
+                  { color: getContrastTextColor(categoryColor) },
                 ]}
               >
                 {categoryLabel}

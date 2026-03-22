@@ -648,10 +648,10 @@ export function SettingsScreen() {
                 <MaterialCommunityIcons name="facebook" size={22} color={colors.white} />
               </TouchableOpacity>
               <TouchableOpacity
-                style={[dynamicStyles.socialButton, { backgroundColor: '#000000' }]}
+                style={[dynamicStyles.socialButton, { backgroundColor: isDark ? '#FFFFFF' : '#000000' }]}
                 onPress={() => openSocialLink(siteConfig.social.tiktok)}
               >
-                <MaterialCommunityIcons name="music-note" size={22} color={colors.white} />
+                <MaterialCommunityIcons name="music-note" size={22} color={isDark ? '#000000' : '#FFFFFF'} />
               </TouchableOpacity>
               <TouchableOpacity
                 style={[dynamicStyles.socialButton, { backgroundColor: '#FF0000' }]}

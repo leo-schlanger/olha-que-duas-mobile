@@ -9,11 +9,18 @@ import { logger } from '../utils/logger';
 
 export type PermissionStatus = 'undetermined' | 'granted' | 'denied';
 
+// Lisboa como localização padrão
+const DEFAULT_LOCATION: LocationCoords = {
+  latitude: 38.7223,
+  longitude: -9.1393,
+};
+
 interface UseLocationResult {
   location: LocationCoords | null;
   isLoading: boolean;
   error: string | null;
   permissionStatus: PermissionStatus;
+  isUsingDefaultLocation: boolean;
   requestPermission: () => Promise<boolean>;
   refreshLocation: () => Promise<void>;
 }
@@ -23,6 +30,7 @@ export function useLocation(): UseLocationResult {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [permissionStatus, setPermissionStatus] = useState<PermissionStatus>('undetermined');
+  const [isUsingDefaultLocation, setIsUsingDefaultLocation] = useState(false);
 
   const checkPermission = useCallback(async (): Promise<PermissionStatus> => {
     try {
@@ -57,6 +65,13 @@ export function useLocation(): UseLocationResult {
     }
   }, []);
 
+  const useDefaultLocation = useCallback(() => {
+    logger.log('Using default location (Lisboa)');
+    setLocation(DEFAULT_LOCATION);
+    setIsUsingDefaultLocation(true);
+    setIsLoading(false);
+  }, []);
+
   const fetchLocation = useCallback(async () => {
     try {
       setIsLoading(true);
@@ -70,13 +85,14 @@ export function useLocation(): UseLocationResult {
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
       });
+      setIsUsingDefaultLocation(false);
     } catch (err) {
-      logger.error('Error getting location:', err);
-      setError('Erro ao obter localização. Verifique as definições de localização.');
+      logger.error('Error getting location, using default:', err);
+      useDefaultLocation();
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [useDefaultLocation]);
 
   const refreshLocation = useCallback(async () => {
     const status = await checkPermission();
@@ -91,18 +107,20 @@ export function useLocation(): UseLocationResult {
       if (status === 'granted') {
         await fetchLocation();
       } else {
-        setIsLoading(false);
+        // Usar localização padrão quando permissão negada ou não determinada
+        useDefaultLocation();
       }
     };
 
     initialize();
-  }, [checkPermission, fetchLocation]);
+  }, [checkPermission, fetchLocation, useDefaultLocation]);
 
   return {
     location,
     isLoading,
     error,
     permissionStatus,
+    isUsingDefaultLocation,
     requestPermission,
     refreshLocation,
   };

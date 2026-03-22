@@ -7,15 +7,14 @@ import {
   ScrollView,
   Modal,
   Linking,
-  Dimensions,
   ActivityIndicator,
+  StatusBar,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useTheme } from '../context/ThemeContext';
 import { useSchedule } from '../hooks/useSchedule';
 import { siteConfig } from '../config/site';
-
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface AboutBottomSheetProps {
   visible: boolean;
@@ -25,12 +24,13 @@ interface AboutBottomSheetProps {
 export function AboutBottomSheet({ visible, onClose }: AboutBottomSheetProps) {
   const { colors, isDark } = useTheme();
   const { schedule, loading: scheduleLoading } = useSchedule();
+  const insets = useSafeAreaInsets();
 
   function openLink(url: string) {
     Linking.openURL(url);
   }
 
-  const styles = createStyles(colors, isDark);
+  const styles = createStyles(colors, isDark, insets.top);
 
   return (
     <Modal
@@ -38,6 +38,7 @@ export function AboutBottomSheet({ visible, onClose }: AboutBottomSheetProps) {
       animationType="slide"
       transparent={true}
       onRequestClose={onClose}
+      statusBarTranslucent={true}
     >
       <View style={styles.overlay}>
         <TouchableOpacity style={styles.backdrop} onPress={onClose} activeOpacity={1} />
@@ -158,22 +159,20 @@ export function AboutBottomSheet({ visible, onClose }: AboutBottomSheetProps) {
   );
 }
 
-function createStyles(colors: any, isDark: boolean) {
+function createStyles(colors: any, isDark: boolean, insetTop: number) {
   return StyleSheet.create({
     overlay: {
       flex: 1,
-      justifyContent: 'flex-end',
+      backgroundColor: 'rgba(0,0,0,0.6)',
     },
     backdrop: {
-      ...StyleSheet.absoluteFillObject,
-      backgroundColor: 'rgba(0,0,0,0.5)',
+      height: insetTop + 20,
     },
     sheet: {
+      flex: 1,
       backgroundColor: colors.background,
       borderTopLeftRadius: 24,
       borderTopRightRadius: 24,
-      maxHeight: SCREEN_HEIGHT * 0.85,
-      minHeight: SCREEN_HEIGHT * 0.5,
       paddingBottom: 30,
     },
     handleContainer: {

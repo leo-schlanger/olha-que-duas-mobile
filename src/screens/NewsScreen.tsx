@@ -18,8 +18,8 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { NewsCard } from '../components/NewsCard';
 import { BannerAd } from '../components/BannerAd';
 import { useNews } from '../hooks/useNews';
-import { BlogPost, BlogFilters, categoryColors, categoryLabels } from '../types/blog';
-import { useTheme } from '../context/ThemeContext';
+import { BlogPost, BlogFilters, getCategoryColor, categoryLabels } from '../types/blog';
+import { useTheme, getContrastTextColor } from '../context/ThemeContext';
 
 type RootStackParamList = {
   NewsList: undefined;
@@ -123,7 +123,7 @@ export function NewsScreen() {
 
   const renderCategoryChip = (category: string) => {
     const isActive = activeCategory === category;
-    const categoryColor = categoryColors[category] || colors.primary;
+    const categoryColor = getCategoryColor(category, isDark);
 
     return (
       <TouchableOpacity
@@ -141,7 +141,7 @@ export function NewsScreen() {
         <Text
           style={[
             styles.categoryChipText,
-            { color: isActive ? '#fff' : colors.text },
+            { color: isActive ? getContrastTextColor(categoryColor) : colors.text },
           ]}
         >
           {categoryLabels[category]}

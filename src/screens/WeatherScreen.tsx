@@ -29,6 +29,7 @@ export function WeatherScreen() {
     isLoading: isLocationLoading,
     error: locationError,
     permissionStatus,
+    isUsingDefaultLocation,
     requestPermission,
     refreshLocation,
   } = useLocation();
@@ -56,40 +57,6 @@ export function WeatherScreen() {
 
   const isLoading = isLocationLoading || isWeatherLoading;
   const error = locationError || weatherError;
-
-  // Permission denied state
-  if (permissionStatus === 'denied') {
-    return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-        <StatusBar
-          barStyle={isDark ? 'light-content' : 'dark-content'}
-          backgroundColor={colors.background}
-        />
-        <View style={styles.centerContent}>
-          <View style={[styles.messageCard, { backgroundColor: colors.card }]}>
-            <MaterialCommunityIcons
-              name="map-marker-off"
-              size={64}
-              color={colors.primary}
-            />
-            <Text style={[styles.messageTitle, { color: colors.text }]}>
-              Localização Necessária
-            </Text>
-            <Text style={[styles.messageText, { color: colors.textSecondary }]}>
-              Para mostrar a previsão meteorológica, precisamos de aceder à sua localização.
-            </Text>
-            <TouchableOpacity
-              style={[styles.button, { backgroundColor: colors.primary }]}
-              onPress={requestPermission}
-            >
-              <Text style={styles.buttonText}>Permitir Localização</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-        <BannerAd />
-      </SafeAreaView>
-    );
-  }
 
   // Loading state
   if (isLoading && !weather) {
@@ -164,15 +131,45 @@ export function WeatherScreen() {
         }
       >
         <View style={styles.header}>
-          <MaterialCommunityIcons
-            name="map-marker"
-            size={20}
-            color={colors.textSecondary}
-          />
-          <Text style={[styles.headerText, { color: colors.textSecondary }]}>
-            Localização atual
-          </Text>
+          <View style={styles.headerLeft}>
+            <MaterialCommunityIcons
+              name="map-marker"
+              size={20}
+              color={colors.textSecondary}
+            />
+            <Text style={[styles.headerText, { color: colors.textSecondary }]}>
+              {isUsingDefaultLocation ? 'Lisboa (padrão)' : 'Localização atual'}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={[styles.refreshButton, { backgroundColor: colors.card }]}
+            onPress={handleRefresh}
+            disabled={isRefreshing}
+          >
+            <MaterialCommunityIcons
+              name="refresh"
+              size={20}
+              color={isRefreshing ? colors.textSecondary : colors.primary}
+            />
+          </TouchableOpacity>
         </View>
+
+        {isUsingDefaultLocation && (
+          <TouchableOpacity
+            style={[styles.defaultLocationBanner, { backgroundColor: colors.primary + '15' }]}
+            onPress={requestPermission}
+            activeOpacity={0.8}
+          >
+            <MaterialCommunityIcons
+              name="map-marker-alert"
+              size={20}
+              color={colors.primary}
+            />
+            <Text style={[styles.defaultLocationText, { color: colors.primary }]}>
+              A mostrar dados de Lisboa. Toque para ativar a localização.
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {weather && (
           <>
@@ -208,13 +205,38 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     paddingTop: 16,
     paddingHorizontal: 16,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   headerText: {
     fontSize: 14,
     marginLeft: 6,
+  },
+  refreshButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  defaultLocationBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 10,
+    gap: 10,
+  },
+  defaultLocationText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '500',
   },
   loadingText: {
     marginTop: 16,
