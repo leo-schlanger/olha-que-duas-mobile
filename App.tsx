@@ -1,13 +1,14 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { AppNavigator } from "./src/navigation/AppNavigator";
+import { AppNavigator, navigateToTab } from "./src/navigation/AppNavigator";
 import { PremiumProvider } from "./src/context/PremiumContext";
 import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 import { GDPRConsent } from "./src/components/GDPRConsent";
 import { AnimatedSplash } from "./src/components/AnimatedSplash";
 import { environment } from "./src/config/environment";
 import { logger } from "./src/utils/logger";
+import * as Notifications from "expo-notifications";
 
 import {
   Provider as PaperProvider,
@@ -44,6 +45,9 @@ function AppContent() {
   const [isInitialized, setIsInitialized] = useState(false);
   const [splashDone, setSplashDone] = useState(false);
 
+  // Ref to store notification response listener subscription
+  const notificationResponseListener = useRef<Notifications.EventSubscription | null>(null);
+
   useEffect(() => {
     async function initializeServices() {
       try {
@@ -68,9 +72,22 @@ function AppContent() {
 
     initializeServices();
 
+    // Handle notification taps - navigate to Radio tab when user taps a notification
+    notificationResponseListener.current = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        logger.log("Notification tapped:", response.notification.request.content.data);
+        // Navigate to Radio tab when notification is tapped
+        navigateToTab("Radio");
+      }
+    );
+
     return () => {
       radioService.cleanup();
       purchaseService?.disconnect();
+      // Clean up notification listener
+      if (notificationResponseListener.current) {
+        notificationResponseListener.current.remove();
+      }
     };
   }, []);
 

@@ -1,9 +1,24 @@
 import React from 'react';
-import { NavigationContainer, DefaultTheme, DarkTheme, LinkingOptions } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme, DarkTheme, LinkingOptions, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import * as Linking from 'expo-linking';
+
+// Navigation ref for use outside of React components (e.g., notification handlers)
+export const navigationRef = createNavigationContainerRef<RootStackParamList>();
+
+export function navigate(name: keyof RootStackParamList, params?: any) {
+  if (navigationRef.isReady()) {
+    navigationRef.navigate(name, params);
+  }
+}
+
+export function navigateToTab(tabName: keyof MainTabParamList) {
+  if (navigationRef.isReady()) {
+    navigationRef.navigate('MainTabs', { screen: tabName } as any);
+  }
+}
 
 import { RadioScreen } from '../screens/RadioScreen';
 import { NewsScreen } from '../screens/NewsScreen';
@@ -151,7 +166,7 @@ export function AppNavigator() {
     };
 
   return (
-    <NavigationContainer theme={navigationTheme} linking={linking}>
+    <NavigationContainer ref={navigationRef} theme={navigationTheme} linking={linking}>
       <Stack.Navigator
         screenOptions={{
           headerShown: false,

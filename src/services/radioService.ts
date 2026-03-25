@@ -345,6 +345,9 @@ class RadioService {
     this.stopStatusPolling();
     this.reconnectAttempts = 0;
 
+    // Clean up now playing subscription to prevent memory leaks
+    this.unsubscribeFromNowPlaying();
+
     if (this.player) {
       this.player.pause();
     }

@@ -202,7 +202,30 @@ class NotificationService {
       await this.savePreferences();
     }
 
-    const [hours, minutes] = time.split(':').map(Number);
+    // Validate time format (HH:mm or HH:mm:ss)
+    const timeParts = time.split(':');
+    if (timeParts.length < 2) {
+      logger.error('Invalid time format:', time);
+      return null;
+    }
+
+    const [hours, minutes] = timeParts.map(Number);
+
+    // Validate parsed values
+    if (isNaN(hours) || isNaN(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+      logger.error('Invalid time values:', { hours, minutes, time });
+      return null;
+    }
+
+    // Check if notification already exists for this show/day/time to prevent duplicates
+    const existingNotification = this.scheduledNotifications.find(
+      (n) => n.showName === showName && n.dayOfWeek === dayOfWeek && n.time === time
+    );
+
+    if (existingNotification) {
+      logger.log(`Notification already exists for ${showName} on day ${dayOfWeek} at ${time}`);
+      return existingNotification.notificationId;
+    }
     const reminderMinutes = this.preferences.reminderMinutes;
 
     // Calculate reminder time

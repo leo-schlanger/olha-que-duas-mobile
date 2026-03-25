@@ -52,9 +52,11 @@ export function RadioPlayer() {
   const {
     preferences: notificationPrefs,
     isLoading: notificationLoading,
+    hasPermission,
     scheduleReminder,
     cancelShowReminders,
     isShowEnabled,
+    requestPermissions,
   } = useNotifications();
 
   const [visualizerHeights] = useState(() =>
@@ -166,8 +168,46 @@ export function RadioPlayer() {
     }
   }
 
-  function handleOpenNotificationSettings() {
-    (navigation as any).navigate('Settings');
+  async function handleOpenNotificationSettings() {
+    const activeShows = notificationPrefs.enabledShows;
+
+    if (activeShows.length > 0) {
+      // Show summary of active reminders
+      const showsList = activeShows.join(', ');
+      Alert.alert(
+        'Lembretes Ativos',
+        `Tem ${activeShows.length} lembrete(s) ativo(s):\n\n${showsList}\n\nRecebe notificações ${notificationPrefs.reminderMinutes} minutos antes de cada programa.`,
+        [
+          { text: 'Gerir nas Definições', onPress: () => (navigation as any).navigate('Settings') },
+          { text: 'OK', style: 'cancel' }
+        ]
+      );
+    } else {
+      // No active reminders - check permissions and guide user
+      if (hasPermission === false) {
+        const granted = await requestPermissions();
+        if (!granted) {
+          Alert.alert(
+            'Permissões Necessárias',
+            'Para receber lembretes dos programas, precisa permitir notificações nas definições do dispositivo.',
+            [
+              { text: 'Abrir Definições', onPress: () => Linking.openSettings() },
+              { text: 'Cancelar', style: 'cancel' }
+            ]
+          );
+          return;
+        }
+      }
+
+      Alert.alert(
+        'Sem Lembretes Ativos',
+        'Pode ativar lembretes tocando no sininho ao lado de cada programa na lista abaixo.',
+        [
+          { text: 'Ver Definições', onPress: () => (navigation as any).navigate('Settings') },
+          { text: 'OK', style: 'cancel' }
+        ]
+      );
+    }
   }
 
   function handleRefresh() {
@@ -478,7 +518,7 @@ export function RadioPlayer() {
                       ) : (
                         <MaterialCommunityIcons
                           name={iconName as any}
-                          size={18}
+                          size={22}
                           color={colors.secondary}
                         />
                       )}
@@ -833,26 +873,28 @@ function createStyles(colors: any, isDark: boolean) {
       padding: 15,
       borderBottomWidth: 1,
       borderBottomColor: colors.muted,
-      alignItems: 'center',
+      alignItems: 'flex-start',
     },
     scheduleItemLast: {
       borderBottomWidth: 0,
     },
     scheduleIconContainer: {
-      width: 36,
-      height: 36,
+      width: 40,
+      height: 40,
       borderRadius: 8,
       backgroundColor: colors.background,
       alignItems: 'center',
       justifyContent: 'center',
       marginRight: 12,
+      marginTop: 2,
       borderWidth: 1,
       borderColor: colors.muted,
       overflow: 'hidden',
     },
     scheduleIconImage: {
-      width: 24,
-      height: 24,
+      width: '100%',
+      height: '100%',
+      borderRadius: 6,
     },
     scheduleLoading: {
       padding: 20,
@@ -886,7 +928,9 @@ function createStyles(colors: any, isDark: boolean) {
     },
     scheduleTimes: {
       flexDirection: 'row',
+      flexWrap: 'wrap',
       gap: 6,
+      rowGap: 4,
     },
     timeBadge: {
       flexDirection: 'row',
@@ -914,6 +958,7 @@ function createStyles(colors: any, isDark: boolean) {
       alignItems: 'center',
       justifyContent: 'center',
       marginLeft: 8,
+      marginTop: 4,
     },
     reminderButtonActive: {
       backgroundColor: colors.secondary,

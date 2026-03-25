@@ -12,6 +12,8 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   StatusBar,
+  Alert,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
@@ -49,7 +51,18 @@ export function WeatherScreen() {
 
   const handleRetry = useCallback(async () => {
     if (permissionStatus === 'denied') {
-      await requestPermission();
+      const granted = await requestPermission();
+      if (!granted) {
+        // Permission still denied - offer to open settings
+        Alert.alert(
+          'Permissão Necessária',
+          'Para obter dados meteorológicos da sua localização, precisa permitir o acesso à localização nas definições do dispositivo.',
+          [
+            { text: 'Abrir Definições', onPress: () => Linking.openSettings() },
+            { text: 'Usar Lisboa', style: 'cancel' }
+          ]
+        );
+      }
     } else {
       await handleRefresh();
     }
@@ -157,7 +170,19 @@ export function WeatherScreen() {
         {isUsingDefaultLocation && (
           <TouchableOpacity
             style={[styles.defaultLocationBanner, { backgroundColor: colors.primary + '15' }]}
-            onPress={requestPermission}
+            onPress={async () => {
+              const granted = await requestPermission();
+              if (!granted) {
+                Alert.alert(
+                  'Permissão Necessária',
+                  'Para obter dados meteorológicos da sua localização, precisa permitir o acesso à localização nas definições do dispositivo.',
+                  [
+                    { text: 'Abrir Definições', onPress: () => Linking.openSettings() },
+                    { text: 'Usar Lisboa', style: 'cancel' }
+                  ]
+                );
+              }
+            }}
             activeOpacity={0.8}
           >
             <MaterialCommunityIcons
