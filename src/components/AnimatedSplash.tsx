@@ -35,10 +35,17 @@ export function AnimatedSplash({ isReady, onAnimationEnd }: AnimatedSplashProps)
   const fadeOut = useRef(new Animated.Value(1)).current;
   const hasStartedExit = useRef(false);
 
+  // Refs para armazenar animações e timeouts para cleanup adequado
+  const animationsRef = useRef<Animated.CompositeAnimation[]>([]);
+  const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
   // Entrance animation
   useEffect(() => {
+    const animations = animationsRef.current;
+    const timeouts = timeoutsRef.current;
+
     // Logo entrance with bounce
-    Animated.sequence([
+    const entranceAnimation = Animated.sequence([
       Animated.delay(100),
       Animated.parallel([
         Animated.spring(logoScale, {
@@ -59,7 +66,9 @@ export function AnimatedSplash({ isReady, onAnimationEnd }: AnimatedSplashProps)
           useNativeDriver: true,
         }),
       ]),
-    ]).start();
+    ]);
+    animations.push(entranceAnimation);
+    entranceAnimation.start();
 
     // Pulse animation loop
     const pulseAnimation = Animated.loop(
@@ -78,59 +87,59 @@ export function AnimatedSplash({ isReady, onAnimationEnd }: AnimatedSplashProps)
         }),
       ])
     );
+    animations.push(pulseAnimation);
     pulseAnimation.start();
 
     // Expanding rings animation
-    const ringAnimation = () => {
-      Animated.loop(
-        Animated.parallel([
-          Animated.sequence([
-            Animated.parallel([
-              Animated.timing(ringScale1, {
-                toValue: 2.5,
-                duration: 2000,
-                easing: Easing.out(Easing.ease),
-                useNativeDriver: true,
-              }),
-              Animated.timing(ringOpacity1, {
-                toValue: 0,
-                duration: 2000,
-                useNativeDriver: true,
-              }),
-            ]),
-            Animated.parallel([
-              Animated.timing(ringScale1, { toValue: 0.8, duration: 0, useNativeDriver: true }),
-              Animated.timing(ringOpacity1, { toValue: 0.6, duration: 0, useNativeDriver: true }),
-            ]),
+    const ringLoopAnimation = Animated.loop(
+      Animated.parallel([
+        Animated.sequence([
+          Animated.parallel([
+            Animated.timing(ringScale1, {
+              toValue: 2.5,
+              duration: 2000,
+              easing: Easing.out(Easing.ease),
+              useNativeDriver: true,
+            }),
+            Animated.timing(ringOpacity1, {
+              toValue: 0,
+              duration: 2000,
+              useNativeDriver: true,
+            }),
           ]),
-          Animated.sequence([
-            Animated.delay(500),
-            Animated.parallel([
-              Animated.timing(ringScale2, {
-                toValue: 2.5,
-                duration: 2000,
-                easing: Easing.out(Easing.ease),
-                useNativeDriver: true,
-              }),
-              Animated.timing(ringOpacity2, {
-                toValue: 0,
-                duration: 2000,
-                useNativeDriver: true,
-              }),
-            ]),
-            Animated.parallel([
-              Animated.timing(ringScale2, { toValue: 0.8, duration: 0, useNativeDriver: true }),
-              Animated.timing(ringOpacity2, { toValue: 0.4, duration: 0, useNativeDriver: true }),
-            ]),
+          Animated.parallel([
+            Animated.timing(ringScale1, { toValue: 0.8, duration: 0, useNativeDriver: true }),
+            Animated.timing(ringOpacity1, { toValue: 0.6, duration: 0, useNativeDriver: true }),
           ]),
-        ])
-      ).start();
-    };
-    ringAnimation();
+        ]),
+        Animated.sequence([
+          Animated.delay(500),
+          Animated.parallel([
+            Animated.timing(ringScale2, {
+              toValue: 2.5,
+              duration: 2000,
+              easing: Easing.out(Easing.ease),
+              useNativeDriver: true,
+            }),
+            Animated.timing(ringOpacity2, {
+              toValue: 0,
+              duration: 2000,
+              useNativeDriver: true,
+            }),
+          ]),
+          Animated.parallel([
+            Animated.timing(ringScale2, { toValue: 0.8, duration: 0, useNativeDriver: true }),
+            Animated.timing(ringOpacity2, { toValue: 0.4, duration: 0, useNativeDriver: true }),
+          ]),
+        ]),
+      ])
+    );
+    animations.push(ringLoopAnimation);
+    ringLoopAnimation.start();
 
     // Tagline entrance
-    setTimeout(() => {
-      Animated.parallel([
+    const taglineTimeout = setTimeout(() => {
+      const taglineAnimation = Animated.parallel([
         Animated.timing(taglineOpacity, {
           toValue: 1,
           duration: 600,
@@ -142,40 +151,51 @@ export function AnimatedSplash({ isReady, onAnimationEnd }: AnimatedSplashProps)
           easing: Easing.out(Easing.back(1.5)),
           useNativeDriver: true,
         }),
-      ]).start();
+      ]);
+      animations.push(taglineAnimation);
+      taglineAnimation.start();
     }, 400);
+    timeouts.push(taglineTimeout);
 
     // Loading dots
-    setTimeout(() => {
-      Animated.timing(dotsOpacity, {
+    const dotsTimeout = setTimeout(() => {
+      const dotsOpacityAnimation = Animated.timing(dotsOpacity, {
         toValue: 1,
         duration: 300,
         useNativeDriver: true,
-      }).start();
+      });
+      animations.push(dotsOpacityAnimation);
+      dotsOpacityAnimation.start();
 
-      const animateDots = () => {
-        Animated.loop(
-          Animated.stagger(200, [
-            Animated.sequence([
-              Animated.timing(dot1, { toValue: 1, duration: 300, useNativeDriver: true }),
-              Animated.timing(dot1, { toValue: 0, duration: 300, useNativeDriver: true }),
-            ]),
-            Animated.sequence([
-              Animated.timing(dot2, { toValue: 1, duration: 300, useNativeDriver: true }),
-              Animated.timing(dot2, { toValue: 0, duration: 300, useNativeDriver: true }),
-            ]),
-            Animated.sequence([
-              Animated.timing(dot3, { toValue: 1, duration: 300, useNativeDriver: true }),
-              Animated.timing(dot3, { toValue: 0, duration: 300, useNativeDriver: true }),
-            ]),
-          ])
-        ).start();
-      };
-      animateDots();
+      const dotsLoopAnimation = Animated.loop(
+        Animated.stagger(200, [
+          Animated.sequence([
+            Animated.timing(dot1, { toValue: 1, duration: 300, useNativeDriver: true }),
+            Animated.timing(dot1, { toValue: 0, duration: 300, useNativeDriver: true }),
+          ]),
+          Animated.sequence([
+            Animated.timing(dot2, { toValue: 1, duration: 300, useNativeDriver: true }),
+            Animated.timing(dot2, { toValue: 0, duration: 300, useNativeDriver: true }),
+          ]),
+          Animated.sequence([
+            Animated.timing(dot3, { toValue: 1, duration: 300, useNativeDriver: true }),
+            Animated.timing(dot3, { toValue: 0, duration: 300, useNativeDriver: true }),
+          ]),
+        ])
+      );
+      animations.push(dotsLoopAnimation);
+      dotsLoopAnimation.start();
     }, 800);
+    timeouts.push(dotsTimeout);
 
     return () => {
-      pulseAnimation.stop();
+      // Limpar todos os timeouts
+      timeouts.forEach(t => clearTimeout(t));
+      timeoutsRef.current = [];
+
+      // Parar todas as animações
+      animations.forEach(anim => anim.stop());
+      animationsRef.current = [];
     };
   }, []);
 

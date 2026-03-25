@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
 import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { logger } from '../utils/logger';
@@ -107,7 +107,6 @@ interface ThemeProviderProps {
 export function ThemeProvider({ children }: ThemeProviderProps) {
   const systemColorScheme = useColorScheme();
   const [themeMode, setThemeModeState] = useState<ThemeMode>('system');
-  const [isLoaded, setIsLoaded] = useState(false);
 
   // Load saved theme preference
   useEffect(() => {
@@ -120,7 +119,6 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       } catch (error) {
         logger.error('Error loading theme preference:', error);
       }
-      setIsLoaded(true);
     }
     loadTheme();
   }, []);
@@ -141,13 +139,14 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
 
   const colors = isDark ? darkColors : lightColors;
 
-  // Don't render until theme is loaded to avoid flash
-  if (!isLoaded) {
-    return null;
-  }
+  // Memoizar o value do context para evitar re-renders desnecessários
+  const contextValue = useMemo(
+    () => ({ colors, isDark, themeMode, setThemeMode }),
+    [colors, isDark, themeMode]
+  );
 
   return (
-    <ThemeContext.Provider value={{ colors, isDark, themeMode, setThemeMode }}>
+    <ThemeContext.Provider value={contextValue}>
       {children}
     </ThemeContext.Provider>
   );

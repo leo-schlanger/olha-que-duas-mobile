@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback, memo } from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,7 @@ import Slider from '@react-native-community/slider';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRadio } from '../hooks/useRadio';
 import { useNowPlaying } from '../hooks/useNowPlaying';
-import { useTheme } from '../context/ThemeContext';
+import { useTheme, ThemeColors } from '../context/ThemeContext';
 import { useSchedule, GroupedSchedule } from '../hooks/useSchedule';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '@react-navigation/native';
@@ -29,6 +29,168 @@ const scheduleIconMap: Record<string, string> = {
   'walk-outline': 'walk',
   'chatbubbles-outline': 'chat-outline',
 };
+
+// Componente memoizado para item de programação
+interface ScheduleItemProps {
+  item: GroupedSchedule;
+  isLast: boolean;
+  colors: ThemeColors;
+  isEnabled: boolean;
+  isLoading: boolean;
+  isOperationPending: boolean;
+  onToggleReminder: (item: GroupedSchedule) => void;
+}
+
+const ScheduleItem = memo(function ScheduleItem({
+  item,
+  isLast,
+  colors,
+  isEnabled,
+  isLoading,
+  isOperationPending,
+  onToggleReminder,
+}: ScheduleItemProps) {
+  const iconName = scheduleIconMap[item.icon] ?? (item.icon as string);
+
+  return (
+    <View
+      style={[
+        scheduleItemStyles.scheduleItem,
+        { borderBottomColor: colors.muted },
+        isLast && scheduleItemStyles.scheduleItemLast,
+      ]}
+    >
+      <View style={[scheduleItemStyles.scheduleIconContainer, { backgroundColor: colors.background, borderColor: colors.muted }]}>
+        {item.iconUrl && !item.iconUrl.includes('placehold.co') ? (
+          <Image
+            source={{ uri: item.iconUrl }}
+            style={scheduleItemStyles.scheduleIconImage}
+            resizeMode="contain"
+          />
+        ) : (
+          <MaterialCommunityIcons
+            name={iconName as any}
+            size={22}
+            color={colors.secondary}
+          />
+        )}
+      </View>
+      <View style={scheduleItemStyles.scheduleInfo}>
+        <View style={scheduleItemStyles.scheduleRow}>
+          <Text style={[scheduleItemStyles.scheduleShowName, { color: colors.text }]}>
+            {item.show}
+          </Text>
+          <Text style={[scheduleItemStyles.scheduleDay, { color: colors.textSecondary }]}>{item.day}</Text>
+        </View>
+        <View style={scheduleItemStyles.scheduleTimes}>
+          {item.times.map((time) => (
+            <View key={time} style={[scheduleItemStyles.timeBadge, { backgroundColor: colors.background, borderColor: colors.muted }]}>
+              <MaterialCommunityIcons
+                name="clock-outline"
+                size={10}
+                color={colors.textSecondary}
+              />
+              <Text style={[scheduleItemStyles.timeText, { color: colors.text }]}>{time}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+      <TouchableOpacity
+        style={[
+          scheduleItemStyles.reminderButton,
+          { backgroundColor: colors.background, borderColor: colors.secondary },
+          isEnabled && { backgroundColor: colors.secondary },
+        ]}
+        onPress={() => onToggleReminder(item)}
+        disabled={isLoading || isOperationPending}
+        activeOpacity={0.7}
+      >
+        <MaterialCommunityIcons
+          name={isEnabled ? 'bell-ring' : 'bell-outline'}
+          size={18}
+          color={isEnabled ? '#FFFFFF' : colors.secondary}
+        />
+      </TouchableOpacity>
+    </View>
+  );
+});
+
+// Estilos do ScheduleItem (estáticos, não dependem de theme)
+const scheduleItemStyles = StyleSheet.create({
+  scheduleItem: {
+    flexDirection: 'row',
+    padding: 15,
+    borderBottomWidth: 1,
+    alignItems: 'flex-start',
+  },
+  scheduleItemLast: {
+    borderBottomWidth: 0,
+  },
+  scheduleIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    marginTop: 2,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  scheduleIconImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 6,
+  },
+  scheduleInfo: {
+    flex: 1,
+  },
+  scheduleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  scheduleShowName: {
+    fontSize: 14,
+    fontWeight: '700',
+    flex: 1,
+  },
+  scheduleDay: {
+    fontSize: 10,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  scheduleTimes: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    rowGap: 4,
+  },
+  timeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+    gap: 4,
+  },
+  timeText: {
+    fontSize: 10,
+    fontFamily: 'monospace',
+  },
+  reminderButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+    marginTop: 4,
+  },
+});
 
 export function RadioPlayer() {
   const { colors, isDark } = useTheme();
@@ -57,44 +219,51 @@ export function RadioPlayer() {
     cancelShowReminders,
     isShowEnabled,
     requestPermissions,
+    isOperationPending,
   } = useNotifications();
 
   const [visualizerHeights] = useState(() =>
     [...Array(12)].map(() => new Animated.Value(5)),
   );
   const [showAboutSheet, setShowAboutSheet] = useState(false);
+  const visualizerIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-    const animations: Animated.CompositeAnimation[] = [];
+    // Limpar interval anterior se existir
+    if (visualizerIntervalRef.current) {
+      clearInterval(visualizerIntervalRef.current);
+      visualizerIntervalRef.current = null;
+    }
+
+    // Parar todas as animações anteriores
+    visualizerHeights.forEach((height) => height.stopAnimation());
 
     if (isPlaying) {
-      interval = setInterval(() => {
+      visualizerIntervalRef.current = setInterval(() => {
         visualizerHeights.forEach((height) => {
-          const anim = Animated.timing(height, {
+          Animated.timing(height, {
             toValue: Math.random() * 20 + 5,
             duration: 150,
             useNativeDriver: false,
-          });
-          animations.push(anim);
-          anim.start();
+          }).start();
         });
       }, 150);
     } else {
+      // Animar de volta ao estado inicial
       visualizerHeights.forEach((height) => {
-        const anim = Animated.timing(height, {
+        Animated.timing(height, {
           toValue: 5,
           duration: 300,
           useNativeDriver: false,
-        });
-        animations.push(anim);
-        anim.start();
+        }).start();
       });
     }
 
     return () => {
-      if (interval) clearInterval(interval);
-      animations.forEach((anim) => anim.stop());
+      if (visualizerIntervalRef.current) {
+        clearInterval(visualizerIntervalRef.current);
+        visualizerIntervalRef.current = null;
+      }
       visualizerHeights.forEach((height) => height.stopAnimation());
     };
   }, [isPlaying, visualizerHeights]);
@@ -133,10 +302,15 @@ export function RadioPlayer() {
   const statusInfo = getStatusInfo();
   const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
 
-  async function handleToggleReminder(item: GroupedSchedule) {
-    const isEnabled = isShowEnabled(item.show);
+  const handleToggleReminder = useCallback(async (item: GroupedSchedule) => {
+    // Prevenir cliques rápidos / race conditions
+    if (isOperationPending()) {
+      return;
+    }
 
-    if (isEnabled) {
+    const enabled = isShowEnabled(item.show);
+
+    if (enabled) {
       await cancelShowReminders(item.show);
       Alert.alert(
         'Lembrete removido',
@@ -166,9 +340,9 @@ export function RadioPlayer() {
         );
       }
     }
-  }
+  }, [isOperationPending, isShowEnabled, cancelShowReminders, scheduleReminder, notificationPrefs.reminderMinutes]);
 
-  async function handleOpenNotificationSettings() {
+  const handleOpenNotificationSettings = useCallback(async () => {
     const activeShows = notificationPrefs.enabledShows;
 
     if (activeShows.length > 0) {
@@ -208,15 +382,15 @@ export function RadioPlayer() {
         ]
       );
     }
-  }
+  }, [notificationPrefs.enabledShows, notificationPrefs.reminderMinutes, hasPermission, requestPermissions, navigation]);
 
-  function handleRefresh() {
+  const handleRefresh = useCallback(() => {
     forceReconnect();
-  }
+  }, [forceReconnect]);
 
-  function openLink(url: string) {
+  const openLink = useCallback((url: string) => {
     Linking.openURL(url);
-  }
+  }, []);
 
   const hasActiveNotifications = notificationPrefs.enabledShows.length > 0;
 
@@ -495,72 +669,18 @@ export function RadioPlayer() {
                 </Text>
               </View>
             ) : (
-              schedule.map((item, index) => {
-                const iconName =
-                  scheduleIconMap[item.icon] ?? (item.icon as string);
-
-                return (
-                  <View
-                    key={`${item.day}-${item.show}`}
-                    style={[
-                      styles.scheduleItem,
-                      index === schedule.length - 1 && styles.scheduleItemLast,
-                    ]}
-                  >
-                    <View style={styles.scheduleIconContainer}>
-                      {item.iconUrl &&
-                        !item.iconUrl.includes('placehold.co') ? (
-                        <Image
-                          source={{ uri: item.iconUrl }}
-                          style={styles.scheduleIconImage}
-                          resizeMode="contain"
-                        />
-                      ) : (
-                        <MaterialCommunityIcons
-                          name={iconName as any}
-                          size={22}
-                          color={colors.secondary}
-                        />
-                      )}
-                    </View>
-                    <View style={styles.scheduleInfo}>
-                      <View style={styles.scheduleRow}>
-                        <Text style={styles.scheduleShowName}>
-                          {item.show}
-                        </Text>
-                        <Text style={styles.scheduleDay}>{item.day}</Text>
-                      </View>
-                      <View style={styles.scheduleTimes}>
-                        {item.times.map((time) => (
-                          <View key={time} style={styles.timeBadge}>
-                            <MaterialCommunityIcons
-                              name="clock-outline"
-                              size={10}
-                              color={colors.textSecondary}
-                            />
-                            <Text style={styles.timeText}>{time}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    </View>
-                    <TouchableOpacity
-                      style={[
-                        styles.reminderButton,
-                        isShowEnabled(item.show) && styles.reminderButtonActive,
-                      ]}
-                      onPress={() => handleToggleReminder(item)}
-                      disabled={notificationLoading}
-                      activeOpacity={0.7}
-                    >
-                      <MaterialCommunityIcons
-                        name={isShowEnabled(item.show) ? 'bell-ring' : 'bell-outline'}
-                        size={18}
-                        color={isShowEnabled(item.show) ? colors.white : colors.secondary}
-                      />
-                    </TouchableOpacity>
-                  </View>
-                );
-              })
+              schedule.map((item, index) => (
+                <ScheduleItem
+                  key={`${item.day}-${item.show}`}
+                  item={item}
+                  isLast={index === schedule.length - 1}
+                  colors={colors}
+                  isEnabled={isShowEnabled(item.show)}
+                  isLoading={notificationLoading}
+                  isOperationPending={isOperationPending()}
+                  onToggleReminder={handleToggleReminder}
+                />
+              ))
             )}
           </View>
         </View>
@@ -868,34 +988,6 @@ function createStyles(colors: any, isDark: boolean) {
     scheduleGrid: {
       padding: 0,
     },
-    scheduleItem: {
-      flexDirection: 'row',
-      padding: 15,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.muted,
-      alignItems: 'flex-start',
-    },
-    scheduleItemLast: {
-      borderBottomWidth: 0,
-    },
-    scheduleIconContainer: {
-      width: 40,
-      height: 40,
-      borderRadius: 8,
-      backgroundColor: colors.background,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginRight: 12,
-      marginTop: 2,
-      borderWidth: 1,
-      borderColor: colors.muted,
-      overflow: 'hidden',
-    },
-    scheduleIconImage: {
-      width: '100%',
-      height: '100%',
-      borderRadius: 6,
-    },
     scheduleLoading: {
       padding: 20,
       alignItems: 'center',
@@ -904,65 +996,6 @@ function createStyles(colors: any, isDark: boolean) {
     scheduleLoadingText: {
       color: colors.textSecondary,
       fontSize: 12,
-    },
-    scheduleInfo: {
-      flex: 1,
-    },
-    scheduleRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 4,
-    },
-    scheduleShowName: {
-      fontSize: 14,
-      fontWeight: '700',
-      color: colors.text,
-      flex: 1,
-    },
-    scheduleDay: {
-      fontSize: 10,
-      color: colors.textSecondary,
-      fontWeight: '600',
-      textTransform: 'uppercase',
-    },
-    scheduleTimes: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 6,
-      rowGap: 4,
-    },
-    timeBadge: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: colors.background,
-      paddingHorizontal: 6,
-      paddingVertical: 2,
-      borderRadius: 4,
-      borderWidth: 1,
-      borderColor: colors.muted,
-      gap: 4,
-    },
-    timeText: {
-      fontSize: 10,
-      color: colors.text,
-      fontFamily: 'monospace',
-    },
-    reminderButton: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      backgroundColor: colors.background,
-      borderWidth: 1,
-      borderColor: colors.secondary,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginLeft: 8,
-      marginTop: 4,
-    },
-    reminderButtonActive: {
-      backgroundColor: colors.secondary,
-      borderColor: colors.secondary,
     },
   });
 }

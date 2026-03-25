@@ -5,6 +5,8 @@
 
 import { WeatherData, LocationCoords, CurrentWeather, HourlyForecast, DailyForecast } from '../types/weather';
 import { logger } from '../utils/logger';
+import { fetchWithTimeout } from '../utils/fetchWithTimeout';
+import { TIMING } from '../config/constants';
 
 const OPEN_METEO_BASE_URL = 'https://api.open-meteo.com/v1/forecast';
 
@@ -56,9 +58,9 @@ export async function fetchWeatherData(coords: LocationCoords): Promise<WeatherD
 
   const url = `${OPEN_METEO_BASE_URL}?${params.toString()}`;
 
-  logger.log('Fetching weather data:', url);
+  logger.log('Fetching weather data');
 
-  const response = await fetch(url);
+  const response = await fetchWithTimeout(url, { timeout: TIMING.FETCH_TIMEOUT });
 
   if (!response.ok) {
     throw new Error(`Weather API error: ${response.status} ${response.statusText}`);

@@ -1,8 +1,15 @@
 import { supabase } from './supabase';
 import { BlogPost, BlogFilters } from '../types/blog';
 import { logger } from '../utils/logger';
+import { LIMITS } from '../config/constants';
 
-const POSTS_PER_PAGE = 10;
+/**
+ * Sanitiza string de busca para evitar SQL injection
+ */
+function sanitizeSearchQuery(query: string): string {
+  // Remove caracteres especiais que poderiam ser usados em SQL injection
+  return query.replace(/[%_'"\\;]/g, '').trim();
+}
 
 /**
  * Fetch paginated news with optional filters
@@ -26,13 +33,16 @@ export async function fetchNews(
   }
 
   if (filters.search) {
-    query = query.or(
-      `title.ilike.%${filters.search}%,summary.ilike.%${filters.search}%`
-    );
+    const sanitizedSearch = sanitizeSearchQuery(filters.search);
+    if (sanitizedSearch) {
+      query = query.or(
+        `title.ilike.%${sanitizedSearch}%,summary.ilike.%${sanitizedSearch}%`
+      );
+    }
   }
 
-  const from = (page - 1) * POSTS_PER_PAGE;
-  const to = from + POSTS_PER_PAGE - 1;
+  const from = (page - 1) * LIMITS.POSTS_PER_PAGE;
+  const to = from + LIMITS.POSTS_PER_PAGE - 1;
   query = query.range(from, to);
 
   const { data, count, error } = await query;

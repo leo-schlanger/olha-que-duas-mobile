@@ -56,6 +56,7 @@ export function InterstitialAdOverlay({ visible, onClose }: InterstitialAdOverla
 
     let mounted = true;
     let checkInterval: ReturnType<typeof setInterval> | null = null;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
     if (adService?.isReady()) {
       setSdkReady(true);
@@ -64,11 +65,12 @@ export function InterstitialAdOverlay({ visible, onClose }: InterstitialAdOverla
         if (adService?.isReady() && mounted) {
           setSdkReady(true);
           if (checkInterval) clearInterval(checkInterval);
+          if (timeoutId) clearTimeout(timeoutId);
         }
       }, 500);
 
       // Timeout after 5 seconds
-      setTimeout(() => {
+      timeoutId = setTimeout(() => {
         if (checkInterval) clearInterval(checkInterval);
         if (mounted && !sdkReady) {
           setAdError(true);
@@ -79,6 +81,7 @@ export function InterstitialAdOverlay({ visible, onClose }: InterstitialAdOverla
     return () => {
       mounted = false;
       if (checkInterval) clearInterval(checkInterval);
+      if (timeoutId) clearTimeout(timeoutId);
     };
   }, [visible]);
 

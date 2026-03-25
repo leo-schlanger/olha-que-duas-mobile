@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { environment } from '../config/environment';
 import { logger } from '../utils/logger';
@@ -76,7 +76,7 @@ export function PremiumProvider({ children }: PremiumProviderProps) {
     };
   }, []);
 
-  async function purchasePremium(): Promise<boolean> {
+  const purchasePremium = useCallback(async (): Promise<boolean> => {
     try {
       if (!purchaseService || !environment.features.purchases) {
         logger.log('Purchases not available in this environment');
@@ -98,9 +98,9 @@ export function PremiumProvider({ children }: PremiumProviderProps) {
     } finally {
       setIsLoading(false);
     }
-  }
+  }, []);
 
-  async function restorePurchases(): Promise<boolean> {
+  const restorePurchases = useCallback(async (): Promise<boolean> => {
     try {
       if (!purchaseService || !environment.features.purchases) {
         logger.log('Purchases not available in this environment');
@@ -122,17 +122,21 @@ export function PremiumProvider({ children }: PremiumProviderProps) {
     } finally {
       setIsLoading(false);
     }
-  }
+  }, []);
+
+  // Memoizar o value do context para evitar re-renders desnecessários
+  const contextValue = useMemo(
+    () => ({
+      isPremium,
+      isLoading,
+      purchasePremium,
+      restorePurchases,
+    }),
+    [isPremium, isLoading, purchasePremium, restorePurchases]
+  );
 
   return (
-    <PremiumContext.Provider
-      value={{
-        isPremium,
-        isLoading,
-        purchasePremium,
-        restorePurchases,
-      }}
-    >
+    <PremiumContext.Provider value={contextValue}>
       {children}
     </PremiumContext.Provider>
   );

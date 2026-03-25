@@ -53,6 +53,7 @@ class PurchaseService {
   private purchaseUpdateSubscription: PurchaseSubscription | null = null;
   private purchaseErrorSubscription: PurchaseSubscription | null = null;
   private onPurchaseComplete: ((success: boolean) => void) | null = null;
+  private isPurchaseInProgress = false; // Previne múltiplas compras simultâneas
 
   /**
    * Initialize connection with the store (Google Play / App Store)
@@ -177,43 +178,51 @@ class PurchaseService {
    * Start the remove ads purchase flow
    */
   async purchaseRemoveAds(): Promise<boolean> {
+    // Prevenir múltiplas compras simultâneas
+    if (this.isPurchaseInProgress) {
+      logger.log('PurchaseService: Purchase already in progress');
+      return false;
+    }
+
     if (!this.isConnected) {
       await this.initialize();
     }
 
-    return new Promise(async (resolve) => {
+    this.isPurchaseInProgress = true;
+
+    return new Promise<boolean>((resolve) => {
       // Timeout after 2 minutes to prevent infinite loading
       const timeoutId = setTimeout(() => {
         logger.log('PurchaseService: Purchase timeout');
         this.onPurchaseComplete = null;
+        this.isPurchaseInProgress = false;
         resolve(false);
       }, 120000);
 
-      try {
-        // Set callback for when purchase completes
-        this.onPurchaseComplete = (success: boolean) => {
-          clearTimeout(timeoutId);
-          resolve(success);
-        };
+      // Set callback for when purchase completes
+      this.onPurchaseComplete = (success: boolean) => {
+        clearTimeout(timeoutId);
+        this.isPurchaseInProgress = false;
+        resolve(success);
+      };
 
-        // Request the purchase using the new API format
-        const purchaseRequest = Platform.OS === 'android'
-          ? { google: { skus: [REMOVE_ADS_SKU] } }
-          : { apple: { sku: REMOVE_ADS_SKU } };
+      // Request the purchase using the new API format
+      const purchaseRequest = Platform.OS === 'android'
+        ? { google: { skus: [REMOVE_ADS_SKU] } }
+        : { apple: { sku: REMOVE_ADS_SKU } };
 
-        await requestPurchase({
-          request: purchaseRequest,
-          type: 'in-app',
-        });
-
-        // Note: The actual result comes through the listener
-        // If requestPurchase throws, we resolve false
-      } catch (error) {
+      requestPurchase({
+        request: purchaseRequest,
+        type: 'in-app',
+      }).catch((error) => {
         logger.error('PurchaseService: Error requesting purchase:', error);
         clearTimeout(timeoutId);
         this.onPurchaseComplete = null;
+        this.isPurchaseInProgress = false;
         resolve(false);
-      }
+      });
+
+      // Note: The actual result comes through the listener
     });
   }
 

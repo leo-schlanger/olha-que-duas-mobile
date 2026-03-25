@@ -53,6 +53,26 @@
               "scheme": "https",
               "host": "olhaqueduas.com",
               "pathPrefix": "/noticias"
+            },
+            {
+              "scheme": "https",
+              "host": "www.olhaqueduas.com",
+              "pathPrefix": "/clima"
+            },
+            {
+              "scheme": "https",
+              "host": "olhaqueduas.com",
+              "pathPrefix": "/clima"
+            },
+            {
+              "scheme": "https",
+              "host": "www.olhaqueduas.com",
+              "pathPrefix": "/definicoes"
+            },
+            {
+              "scheme": "https",
+              "host": "olhaqueduas.com",
+              "pathPrefix": "/definicoes"
             }
           ],
           "category": ["BROWSABLE", "DEFAULT"]

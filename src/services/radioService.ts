@@ -212,15 +212,16 @@ class RadioService {
 
       // Enable lock screen controls after playback starts (avoid blocking)
       // Use remote URL for artwork as local file:// URIs may not work in release builds
+      // Delay increased for slower devices
       setTimeout(() => {
-        if (this.player) {
+        if (this.player && !this.isIntentionallyStopped) {
           this.player.setActiveForLockScreen(true, {
             title: siteConfig.radio.name,
             artist: siteConfig.radio.tagline,
             artworkUrl: siteConfig.radio.logoUrl,
           });
         }
-      }, 100);
+      }, 200);
 
       // Subscribe to now-playing updates for lock screen metadata
       this.subscribeToNowPlaying();
@@ -286,24 +287,33 @@ class RadioService {
     nowPlayingService.start();
 
     this.nowPlayingUnsubscribe = nowPlayingService.subscribe((data) => {
-      if (!this.player) return;
+      // Verificar se ainda estamos tocando antes de atualizar lock screen
+      if (!this.player || this.isIntentionallyStopped) return;
 
       if (data.isMusic && data.song) {
         // Show song info with artwork from now-playing API, fallback to radio logo URL
         const artworkUrl = data.song.art || siteConfig.radio.logoUrl;
         logger.log('Updating lock screen metadata:', data.song.title, '-', data.song.artist);
-        this.player.setActiveForLockScreen(true, {
-          title: data.song.title,
-          artist: data.song.artist,
-          artworkUrl,
-        });
+        try {
+          this.player.setActiveForLockScreen(true, {
+            title: data.song.title,
+            artist: data.song.artist,
+            artworkUrl,
+          });
+        } catch (error) {
+          logger.error('Error updating lock screen:', error);
+        }
       } else {
         // Show radio name with logo when no song is playing
-        this.player.setActiveForLockScreen(true, {
-          title: siteConfig.radio.name,
-          artist: siteConfig.radio.tagline,
-          artworkUrl: siteConfig.radio.logoUrl,
-        });
+        try {
+          this.player.setActiveForLockScreen(true, {
+            title: siteConfig.radio.name,
+            artist: siteConfig.radio.tagline,
+            artworkUrl: siteConfig.radio.logoUrl,
+          });
+        } catch (error) {
+          logger.error('Error updating lock screen:', error);
+        }
       }
     });
   }

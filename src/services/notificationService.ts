@@ -43,16 +43,62 @@ class NotificationService {
   private scheduledNotifications: ScheduledNotification[] = [];
   private listeners: Set<(prefs: NotificationPreferences) => void> = new Set();
   private isInitialized = false;
+  private isOperationInProgress = false; // Previne race conditions
 
   async initialize(): Promise<boolean> {
     try {
       await this.loadPreferences();
       await this.loadScheduledNotifications();
+
+      // Sincronizar com notificações do sistema para limpar órfãs
+      await this.syncWithSystemNotifications();
+
       this.isInitialized = true;
       return true;
     } catch (error) {
       logger.error('Error initializing notification service:', error);
       return false;
+    }
+  }
+
+  /**
+   * Sincroniza o estado local com as notificações realmente agendadas no sistema.
+   * Remove notificações órfãs (que existem no sistema mas não no estado local)
+   * e limpa referências locais de notificações que não existem mais no sistema.
+   */
+  private async syncWithSystemNotifications(): Promise<void> {
+    try {
+      const systemNotifications = await Notifications.getAllScheduledNotificationsAsync();
+      const systemIds = new Set(systemNotifications.map(n => n.identifier));
+
+      // Remover do estado local notificações que não existem mais no sistema
+      const validLocalNotifications = this.scheduledNotifications.filter(
+        n => systemIds.has(n.notificationId)
+      );
+
+      // Cancelar notificações órfãs do sistema (que não estão no nosso estado)
+      const localIds = new Set(this.scheduledNotifications.map(n => n.notificationId));
+      const orphanNotifications = systemNotifications.filter(
+        n => !localIds.has(n.identifier)
+      );
+
+      for (const orphan of orphanNotifications) {
+        try {
+          await Notifications.cancelScheduledNotificationAsync(orphan.identifier);
+          logger.log('Cancelled orphan notification:', orphan.identifier);
+        } catch (error) {
+          logger.error('Error cancelling orphan notification:', error);
+        }
+      }
+
+      // Atualizar estado local se houve mudanças
+      if (validLocalNotifications.length !== this.scheduledNotifications.length || orphanNotifications.length > 0) {
+        this.scheduledNotifications = validLocalNotifications;
+        await this.saveScheduledNotifications();
+        logger.log(`Synced notifications: ${validLocalNotifications.length} valid, ${orphanNotifications.length} orphans removed`);
+      }
+    } catch (error) {
+      logger.error('Error syncing with system notifications:', error);
     }
   }
 
@@ -166,22 +212,33 @@ class NotificationService {
   }
 
   async toggleShowReminder(showName: string): Promise<boolean> {
-    const index = this.preferences.enabledShows.indexOf(showName);
-    if (index >= 0) {
-      this.preferences.enabledShows.splice(index, 1);
-      await this.cancelShowNotifications(showName);
-    } else {
-      if (!this.preferences.enabled) {
-        const hasPermission = await this.requestPermissions();
-        if (!hasPermission) {
-          return false;
-        }
-        this.preferences.enabled = true;
-      }
-      this.preferences.enabledShows.push(showName);
+    // Prevenir race conditions de múltiplos cliques
+    if (this.isOperationInProgress) {
+      logger.log('Operation already in progress, ignoring toggle request');
+      return this.preferences.enabledShows.includes(showName);
     }
-    await this.savePreferences();
-    return this.preferences.enabledShows.includes(showName);
+
+    this.isOperationInProgress = true;
+    try {
+      const index = this.preferences.enabledShows.indexOf(showName);
+      if (index >= 0) {
+        this.preferences.enabledShows.splice(index, 1);
+        await this.cancelShowNotifications(showName);
+      } else {
+        if (!this.preferences.enabled) {
+          const hasPermission = await this.requestPermissions();
+          if (!hasPermission) {
+            return false;
+          }
+          this.preferences.enabled = true;
+        }
+        this.preferences.enabledShows.push(showName);
+      }
+      await this.savePreferences();
+      return this.preferences.enabledShows.includes(showName);
+    } finally {
+      this.isOperationInProgress = false;
+    }
   }
 
   isShowEnabled(showName: string): boolean {
@@ -286,20 +343,31 @@ class NotificationService {
       (n) => n.showName === showName
     );
 
+    const cancelledIds: string[] = [];
+    const failedIds: string[] = [];
+
     for (const notification of toCancel) {
       try {
         await Notifications.cancelScheduledNotificationAsync(
           notification.notificationId
         );
+        cancelledIds.push(notification.notificationId);
       } catch (error) {
         logger.error('Error canceling notification:', error);
+        failedIds.push(notification.notificationId);
       }
     }
 
+    // Remover apenas as notificações que foram canceladas com sucesso
+    // Mantém as que falharam para tentar novamente depois
     this.scheduledNotifications = this.scheduledNotifications.filter(
-      (n) => n.showName !== showName
+      (n) => n.showName !== showName || failedIds.includes(n.notificationId)
     );
     await this.saveScheduledNotifications();
+
+    if (failedIds.length > 0) {
+      logger.log(`${cancelledIds.length} notifications cancelled, ${failedIds.length} failed`);
+    }
   }
 
   async cancelAllNotifications(): Promise<void> {
@@ -309,26 +377,80 @@ class NotificationService {
       await this.saveScheduledNotifications();
     } catch (error) {
       logger.error('Error canceling all notifications:', error);
+      // Fallback: tentar cancelar uma por uma
+      for (const notification of this.scheduledNotifications) {
+        try {
+          await Notifications.cancelScheduledNotificationAsync(notification.notificationId);
+        } catch (innerError) {
+          logger.error('Fallback cancel error:', innerError);
+        }
+      }
+      this.scheduledNotifications = [];
+      await this.saveScheduledNotifications();
     }
   }
 
   private async rescheduleAllNotifications(): Promise<void> {
-    const currentScheduled = [...this.scheduledNotifications];
-    await this.cancelAllNotifications();
+    // Prevenir race conditions
+    if (this.isOperationInProgress) {
+      logger.log('Operation already in progress, skipping reschedule');
+      return;
+    }
 
-    for (const notification of currentScheduled) {
-      if (this.preferences.enabledShows.includes(notification.showName)) {
-        await this.scheduleShowReminder(
-          notification.showName,
-          notification.dayOfWeek,
-          notification.time
-        );
+    this.isOperationInProgress = true;
+    try {
+      const currentScheduled = [...this.scheduledNotifications];
+
+      // Primeiro, cancelar todas
+      await this.cancelAllNotifications();
+
+      // Reagendar apenas os programas habilitados
+      const failedNotifications: ScheduledNotification[] = [];
+
+      for (const notification of currentScheduled) {
+        if (this.preferences.enabledShows.includes(notification.showName)) {
+          const result = await this.scheduleShowReminder(
+            notification.showName,
+            notification.dayOfWeek,
+            notification.time
+          );
+          if (!result) {
+            failedNotifications.push(notification);
+          }
+        }
       }
+
+      if (failedNotifications.length > 0) {
+        logger.log(`${failedNotifications.length} notifications failed to reschedule`);
+      }
+    } finally {
+      this.isOperationInProgress = false;
     }
   }
 
   async getScheduledNotifications(): Promise<Notifications.NotificationRequest[]> {
     return Notifications.getAllScheduledNotificationsAsync();
+  }
+
+  /**
+   * Retorna as notificações agendadas localmente (nosso estado)
+   */
+  getLocalScheduledNotifications(): ScheduledNotification[] {
+    return [...this.scheduledNotifications];
+  }
+
+  /**
+   * Força sincronização com o sistema de notificações
+   */
+  async forceSync(): Promise<void> {
+    await this.syncWithSystemNotifications();
+  }
+
+  /**
+   * Verifica se há uma operação em andamento
+   */
+  isOperationPending(): boolean {
+    return this.isOperationInProgress;
   }
 
   subscribe(listener: (prefs: NotificationPreferences) => void): () => void {

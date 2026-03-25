@@ -3,19 +3,32 @@ import {
   radioSettingsService,
   RadioSettings,
 } from '../services/radioSettingsService';
+import { logger } from '../utils/logger';
 
 export function useRadioSettings() {
   const [settings, setSettings] = useState<RadioSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
 
     async function loadSettings() {
-      const loaded = await radioSettingsService.load();
-      if (mounted) {
-        setSettings(loaded);
-        setIsLoading(false);
+      try {
+        const loaded = await radioSettingsService.load();
+        if (mounted) {
+          setSettings(loaded);
+          setError(null);
+        }
+      } catch (err) {
+        logger.error('Error loading radio settings:', err);
+        if (mounted) {
+          setError('Erro ao carregar configurações');
+        }
+      } finally {
+        if (mounted) {
+          setIsLoading(false);
+        }
       }
     }
 
@@ -36,18 +49,29 @@ export function useRadioSettings() {
 
   const updateSetting = useCallback(
     async <K extends keyof RadioSettings>(key: K, value: RadioSettings[K]) => {
-      await radioSettingsService.updateSetting(key, value);
+      try {
+        await radioSettingsService.updateSetting(key, value);
+      } catch (err) {
+        logger.error('Error updating radio setting:', err);
+        throw err;
+      }
     },
     []
   );
 
   const resetSettings = useCallback(async () => {
-    await radioSettingsService.reset();
+    try {
+      await radioSettingsService.reset();
+    } catch (err) {
+      logger.error('Error resetting radio settings:', err);
+      throw err;
+    }
   }, []);
 
   return {
     settings,
     isLoading,
+    error,
     updateSetting,
     resetSettings,
   };

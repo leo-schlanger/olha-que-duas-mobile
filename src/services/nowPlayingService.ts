@@ -1,5 +1,7 @@
 import { siteConfig } from '../config/site';
 import { logger } from '../utils/logger';
+import { fetchWithTimeout } from '../utils/fetchWithTimeout';
+import { TIMING, LIMITS } from '../config/constants';
 
 export interface NowPlayingSong {
   title: string;
@@ -36,9 +38,6 @@ const JINGLE_PLAYLISTS = [
   /promo/i,
 ];
 
-const MIN_SONG_DURATION = 60;
-const POLL_INTERVAL = 5000; // Reduzido de 8s para 5s para melhor sincronização
-
 function isValidSong(data: {
   title?: string;
   artist?: string;
@@ -49,7 +48,7 @@ function isValidSong(data: {
 
   if (!title || title.trim() === '') return false;
   if (!artist || artist.trim() === '' || artist.toLowerCase() === 'unknown') return false;
-  if (duration && duration < MIN_SONG_DURATION) return false;
+  if (duration && duration < LIMITS.MIN_SONG_DURATION_SECONDS) return false;
   if (JINGLE_PATTERNS.some((p) => p.test(title!))) return false;
   if (JINGLE_PATTERNS.some((p) => p.test(artist!))) return false;
   if (playlist && JINGLE_PLAYLISTS.some((p) => p.test(playlist))) return false;
@@ -75,7 +74,7 @@ class NowPlayingService {
     if (this.interval) return;
 
     this.fetchNowPlaying();
-    this.interval = setInterval(() => this.fetchNowPlaying(), POLL_INTERVAL);
+    this.interval = setInterval(() => this.fetchNowPlaying(), TIMING.NOW_PLAYING_POLL_INTERVAL);
     logger.log('NowPlayingService started');
   }
 
@@ -84,6 +83,9 @@ class NowPlayingService {
       clearInterval(this.interval);
       this.interval = null;
     }
+    // Resetar estado ao parar para evitar dessincronização quando reiniciar
+    this.lastSongKey = null;
+    this.currentData = { song: null, isMusic: false };
   }
 
   subscribe(listener: NowPlayingListener): () => void {
@@ -106,7 +108,7 @@ class NowPlayingService {
 
   private async fetchNowPlaying() {
     try {
-      const response = await fetch(this.apiUrl);
+      const response = await fetchWithTimeout(this.apiUrl, { timeout: 10000 });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
       const data = await response.json();
