@@ -84,6 +84,7 @@ function AppContent() {
     return () => {
       radioService.cleanup();
       purchaseService?.disconnect();
+      notificationService.cleanup();
       // Clean up notification listener
       if (notificationResponseListener.current) {
         notificationResponseListener.current.remove();

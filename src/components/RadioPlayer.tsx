@@ -90,7 +90,7 @@ const ScheduleItem = memo(function ScheduleItem({
                 size={10}
                 color={colors.textSecondary}
               />
-              <Text style={[scheduleItemStyles.timeText, { color: colors.text }]}>{time}</Text>
+              <Text style={[scheduleItemStyles.timeText, { color: colors.text }]}>{time} <Text style={{ fontSize: 9, color: colors.textSecondary }}>(PT)</Text></Text>
             </View>
           ))}
         </View>
@@ -215,7 +215,7 @@ export function RadioPlayer() {
     preferences: notificationPrefs,
     isLoading: notificationLoading,
     hasPermission,
-    scheduleReminder,
+    scheduleAllTimesForShow,
     cancelShowReminders,
     isShowEnabled,
     requestPermissions,
@@ -311,25 +311,22 @@ export function RadioPlayer() {
     const enabled = isShowEnabled(item.show);
 
     if (enabled) {
-      await cancelShowReminders(item.show);
-      Alert.alert(
-        'Lembrete removido',
-        `O lembrete para "${item.show}" foi desativado.`,
-        [{ text: 'OK' }]
-      );
-    } else {
-      let scheduled = false;
-      for (const time of item.times) {
-        const result = await scheduleReminder(item.show, item.dayNumber, time);
-        if (result) {
-          scheduled = true;
-        }
+      const success = await cancelShowReminders(item.show);
+      if (success) {
+        Alert.alert(
+          'Lembrete removido',
+          `O lembrete para "${item.show}" foi desativado.`,
+          [{ text: 'OK' }]
+        );
       }
+    } else {
+      // Schedule all times atomically
+      const success = await scheduleAllTimesForShow(item.show, item.dayNumber, item.times);
 
-      if (scheduled) {
+      if (success) {
         Alert.alert(
           'Lembrete ativado',
-          `Receberá uma notificação ${notificationPrefs.reminderMinutes} minutos antes de "${item.show}" começar.`,
+          `Receberá uma notificação ${notificationPrefs.reminderMinutes} minutos antes de "${item.show}" começar.\n\nO horário será ajustado automaticamente ao seu fuso horário.`,
           [{ text: 'OK' }]
         );
       } else {
@@ -340,7 +337,7 @@ export function RadioPlayer() {
         );
       }
     }
-  }, [isOperationPending, isShowEnabled, cancelShowReminders, scheduleReminder, notificationPrefs.reminderMinutes]);
+  }, [isOperationPending, isShowEnabled, cancelShowReminders, scheduleAllTimesForShow, notificationPrefs.reminderMinutes]);
 
   const handleOpenNotificationSettings = useCallback(async () => {
     const activeShows = notificationPrefs.enabledShows;
@@ -350,7 +347,7 @@ export function RadioPlayer() {
       const showsList = activeShows.join(', ');
       Alert.alert(
         'Lembretes Ativos',
-        `Tem ${activeShows.length} lembrete(s) ativo(s):\n\n${showsList}\n\nRecebe notificações ${notificationPrefs.reminderMinutes} minutos antes de cada programa.`,
+        `Tem ${activeShows.length} lembrete(s) ativo(s):\n\n${showsList}\n\nRecebe notificações ${notificationPrefs.reminderMinutes} minutos antes de cada programa (horários de Portugal, ajustados ao seu fuso).`,
         [
           { text: 'Gerir nas Definições', onPress: () => (navigation as any).navigate('Settings') },
           { text: 'OK', style: 'cancel' }

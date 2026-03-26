@@ -550,6 +550,16 @@ export function SettingsScreen() {
                     </TouchableOpacity>
                   ))}
                 </View>
+                <View style={styles.timezoneInfo}>
+                  <MaterialCommunityIcons
+                    name="earth"
+                    size={14}
+                    color={colors.textSecondary}
+                  />
+                  <Text style={[styles.timezoneInfoText, { color: colors.textSecondary }]}>
+                    Horários em Portugal (PT). Ajustamos automaticamente ao seu fuso horário.
+                  </Text>
+                </View>
               </View>
             )}
           </View>
@@ -972,6 +982,19 @@ const styles = StyleSheet.create({
   reminderTimeText: {
     fontSize: 13,
     fontWeight: '600',
+  },
+  timezoneInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.05)',
+  },
+  timezoneInfoText: {
+    fontSize: 11,
+    flex: 1,
   },
   enabledShowsHeader: {
     padding: 12,

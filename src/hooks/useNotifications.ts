@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   notificationService,
   NotificationPreferences,
@@ -6,152 +6,308 @@ import {
 } from '../services/notificationService';
 import { logger } from '../utils/logger';
 
-export function useNotifications() {
+interface UseNotificationsReturn {
+  preferences: NotificationPreferences;
+  isLoading: boolean;
+  hasPermission: boolean | null;
+  error: string | null;
+  setEnabled: (enabled: boolean) => Promise<boolean>;
+  setReminderMinutes: (minutes: ReminderTime) => Promise<boolean>;
+  toggleShowReminder: (showName: string) => Promise<boolean>;
+  scheduleReminder: (showName: string, dayOfWeek: number, time: string) => Promise<string | null>;
+  scheduleAllTimesForShow: (showName: string, dayOfWeek: number, times: string[]) => Promise<boolean>;
+  cancelShowReminders: (showName: string) => Promise<boolean>;
+  isShowEnabled: (showName: string) => boolean;
+  requestPermissions: () => Promise<boolean>;
+  forceSync: () => Promise<void>;
+  isOperationPending: () => boolean;
+  clearError: () => void;
+}
+
+export function useNotifications(): UseNotificationsReturn {
   const [preferences, setPreferences] = useState<NotificationPreferences>(
     notificationService.getPreferences()
   );
   const [isLoading, setIsLoading] = useState(false);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const isMountedRef = useRef(true);
 
   useEffect(() => {
-    const unsubscribe = notificationService.subscribe(setPreferences);
+    isMountedRef.current = true;
+
+    const unsubscribe = notificationService.subscribe((prefs) => {
+      if (isMountedRef.current) {
+        setPreferences(prefs);
+      }
+    });
 
     // Check initial permission status
-    notificationService.checkPermissions().then(setHasPermission);
+    notificationService.checkPermissions().then((granted) => {
+      if (isMountedRef.current) {
+        setHasPermission(granted);
+      }
+    });
 
-    // Sincronizar com notificações do sistema ao montar
+    // Initial sync
     notificationService.forceSync().catch((err) => {
       logger.error('Error syncing notifications:', err);
     });
 
-    return unsubscribe;
+    return () => {
+      isMountedRef.current = false;
+      unsubscribe();
+    };
   }, []);
 
-  // Verifica se há operação em andamento no serviço
-  const isOperationPending = useCallback(() => {
-    return notificationService.isOperationPending();
-  }, []);
+  const setEnabled = useCallback(async (enabled: boolean): Promise<boolean> => {
+    if (!isMountedRef.current) return false;
 
-  const setEnabled = useCallback(async (enabled: boolean) => {
     setIsLoading(true);
     setError(null);
-    try {
-      await notificationService.setEnabled(enabled);
-      const permission = await notificationService.checkPermissions();
-      setHasPermission(permission);
-    } catch (err) {
-      logger.error('Error setting notifications enabled:', err);
-      setError('Erro ao atualizar notificações');
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
 
-  const setReminderMinutes = useCallback(async (minutes: ReminderTime) => {
-    setIsLoading(true);
-    setError(null);
     try {
-      await notificationService.setReminderMinutes(minutes);
-    } catch (err) {
-      logger.error('Error setting reminder minutes:', err);
-      setError('Erro ao atualizar tempo de lembrete');
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+      const result = await notificationService.setEnabled(enabled);
 
-  const toggleShowReminder = useCallback(async (showName: string) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const result = await notificationService.toggleShowReminder(showName);
-      const permission = await notificationService.checkPermissions();
-      setHasPermission(permission);
-      return result;
+      if (isMountedRef.current) {
+        if (!result.success) {
+          setError(result.error || 'Erro ao atualizar notificações');
+        }
+        const permission = await notificationService.checkPermissions();
+        setHasPermission(permission);
+      }
+
+      return result.success;
     } catch (err) {
-      logger.error('Error toggling show reminder:', err);
-      setError('Erro ao atualizar lembrete');
+      if (isMountedRef.current) {
+        logger.error('Error setting notifications enabled:', err);
+        setError('Erro ao atualizar notificações');
+      }
       return false;
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
+    }
+  }, []);
+
+  const setReminderMinutes = useCallback(async (minutes: ReminderTime): Promise<boolean> => {
+    if (!isMountedRef.current) return false;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const result = await notificationService.setReminderMinutes(minutes);
+
+      if (isMountedRef.current && !result.success) {
+        setError(result.error || 'Erro ao atualizar tempo de lembrete');
+      }
+
+      return result.success;
+    } catch (err) {
+      if (isMountedRef.current) {
+        logger.error('Error setting reminder minutes:', err);
+        setError('Erro ao atualizar tempo de lembrete');
+      }
+      return false;
+    } finally {
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
+    }
+  }, []);
+
+  const toggleShowReminder = useCallback(async (showName: string): Promise<boolean> => {
+    if (!isMountedRef.current) return false;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const result = await notificationService.toggleShowReminder(showName);
+
+      if (isMountedRef.current) {
+        if (!result.success) {
+          setError(result.error || 'Erro ao atualizar lembrete');
+        }
+        const permission = await notificationService.checkPermissions();
+        setHasPermission(permission);
+      }
+
+      return result.success ? (result.data ?? false) : false;
+    } catch (err) {
+      if (isMountedRef.current) {
+        logger.error('Error toggling show reminder:', err);
+        setError('Erro ao atualizar lembrete');
+      }
+      return false;
+    } finally {
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
     }
   }, []);
 
   const scheduleReminder = useCallback(
-    async (showName: string, dayOfWeek: number, time: string) => {
+    async (showName: string, dayOfWeek: number, time: string): Promise<string | null> => {
+      if (!isMountedRef.current) return null;
+
       setIsLoading(true);
       setError(null);
+
       try {
-        const notificationId = await notificationService.scheduleShowReminder(
-          showName,
-          dayOfWeek,
-          time
-        );
-        const permission = await notificationService.checkPermissions();
-        setHasPermission(permission);
-        return notificationId;
+        const result = await notificationService.scheduleShowReminder(showName, dayOfWeek, time);
+
+        if (isMountedRef.current) {
+          if (!result.success) {
+            setError(result.error || 'Erro ao agendar lembrete');
+          }
+          const permission = await notificationService.checkPermissions();
+          setHasPermission(permission);
+        }
+
+        return result.success ? (result.data ?? null) : null;
       } catch (err) {
-        logger.error('Error scheduling reminder:', err);
-        setError('Erro ao agendar lembrete');
+        if (isMountedRef.current) {
+          logger.error('Error scheduling reminder:', err);
+          setError('Erro ao agendar lembrete');
+        }
         return null;
       } finally {
-        setIsLoading(false);
+        if (isMountedRef.current) {
+          setIsLoading(false);
+        }
       }
     },
     []
   );
 
-  const cancelShowReminders = useCallback(async (showName: string) => {
+  const scheduleAllTimesForShow = useCallback(
+    async (showName: string, dayOfWeek: number, times: string[]): Promise<boolean> => {
+      if (!isMountedRef.current) return false;
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const result = await notificationService.scheduleAllTimesForShow(showName, dayOfWeek, times);
+
+        if (isMountedRef.current) {
+          if (!result.success) {
+            setError(result.error || 'Erro ao agendar lembretes');
+          } else if (result.data && result.data.failed > 0) {
+            setError(`${result.data.failed} lembrete(s) não foram agendados`);
+          }
+          const permission = await notificationService.checkPermissions();
+          setHasPermission(permission);
+        }
+
+        return result.success;
+      } catch (err) {
+        if (isMountedRef.current) {
+          logger.error('Error scheduling reminders:', err);
+          setError('Erro ao agendar lembretes');
+        }
+        return false;
+      } finally {
+        if (isMountedRef.current) {
+          setIsLoading(false);
+        }
+      }
+    },
+    []
+  );
+
+  const cancelShowReminders = useCallback(async (showName: string): Promise<boolean> => {
+    if (!isMountedRef.current) return false;
+
     setIsLoading(true);
     setError(null);
+
     try {
-      await notificationService.cancelShowNotifications(showName);
+      const result = await notificationService.cancelShowNotifications(showName);
+
+      if (isMountedRef.current && !result.success) {
+        setError(result.error || 'Erro ao cancelar lembretes');
+      }
+
+      return result.success;
     } catch (err) {
-      logger.error('Error cancelling show reminders:', err);
-      setError('Erro ao cancelar lembretes');
+      if (isMountedRef.current) {
+        logger.error('Error cancelling show reminders:', err);
+        setError('Erro ao cancelar lembretes');
+      }
+      return false;
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
     }
   }, []);
 
   const isShowEnabled = useCallback(
-    (showName: string) => {
+    (showName: string): boolean => {
       return preferences.enabledShows.includes(showName);
     },
     [preferences.enabledShows]
   );
 
-  const requestPermissions = useCallback(async () => {
+  const requestPermissions = useCallback(async (): Promise<boolean> => {
+    if (!isMountedRef.current) return false;
+
     setIsLoading(true);
     setError(null);
+
     try {
       const granted = await notificationService.requestPermissions();
-      setHasPermission(granted);
+
+      if (isMountedRef.current) {
+        setHasPermission(granted);
+        if (!granted) {
+          setError('Permissão de notificações não concedida');
+        }
+      }
+
       return granted;
     } catch (err) {
-      logger.error('Error requesting permissions:', err);
-      setError('Erro ao solicitar permissões');
+      if (isMountedRef.current) {
+        logger.error('Error requesting permissions:', err);
+        setError('Erro ao solicitar permissões');
+      }
       return false;
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
     }
   }, []);
 
-  const forceSync = useCallback(async () => {
+  const forceSync = useCallback(async (): Promise<void> => {
+    if (!isMountedRef.current) return;
+
     setIsLoading(true);
     setError(null);
+
     try {
       await notificationService.forceSync();
     } catch (err) {
-      logger.error('Error forcing sync:', err);
-      setError('Erro ao sincronizar notificações');
+      if (isMountedRef.current) {
+        logger.error('Error forcing sync:', err);
+        setError('Erro ao sincronizar notificações');
+      }
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
     }
   }, []);
 
-  const clearError = useCallback(() => {
+  const isOperationPending = useCallback((): boolean => {
+    return notificationService.isOperationPending();
+  }, []);
+
+  const clearError = useCallback((): void => {
     setError(null);
   }, []);
 
@@ -164,6 +320,7 @@ export function useNotifications() {
     setReminderMinutes,
     toggleShowReminder,
     scheduleReminder,
+    scheduleAllTimesForShow,
     cancelShowReminders,
     isShowEnabled,
     requestPermissions,
