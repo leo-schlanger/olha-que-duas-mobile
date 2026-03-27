@@ -82,7 +82,10 @@ function AppContent() {
     );
 
     return () => {
-      radioService.cleanup();
+      // Stop radio explicitly first to remove notification, then cleanup
+      radioService.stop().then(() => {
+        radioService.cleanup();
+      });
       purchaseService?.disconnect();
       notificationService.cleanup();
       // Clean up notification listener

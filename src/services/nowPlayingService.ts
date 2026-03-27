@@ -1,3 +1,4 @@
+import { AppState, AppStateStatus } from 'react-native';
 import { siteConfig } from '../config/site';
 import { logger } from '../utils/logger';
 import { fetchWithTimeout } from '../utils/fetchWithTimeout';
@@ -64,10 +65,19 @@ class NowPlayingService {
   private currentData: NowPlayingData = { song: null, isMusic: false };
   private lastSongKey: string | null = null;
   private apiUrl: string;
+  private isInBackground: boolean = false;
+  private appStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null;
 
   constructor() {
     const url = new URL(siteConfig.radio.streamUrl);
     this.apiUrl = `${url.protocol}//${url.host}/api/nowplaying/olha_que_duas`;
+    this.setupAppStateListener();
+  }
+
+  private setupAppStateListener(): void {
+    this.appStateSubscription = AppState.addEventListener('change', (state: AppStateStatus) => {
+      this.isInBackground = state === 'background';
+    });
   }
 
   start() {
@@ -86,6 +96,14 @@ class NowPlayingService {
     // Resetar estado ao parar para evitar dessincronização quando reiniciar
     this.lastSongKey = null;
     this.currentData = { song: null, isMusic: false };
+  }
+
+  cleanup() {
+    this.stop();
+    if (this.appStateSubscription) {
+      this.appStateSubscription.remove();
+      this.appStateSubscription = null;
+    }
   }
 
   subscribe(listener: NowPlayingListener): () => void {
@@ -107,6 +125,12 @@ class NowPlayingService {
   }
 
   private async fetchNowPlaying() {
+    // Skip fetch when in background to save battery
+    // Lock screen metadata is updated less frequently anyway
+    if (this.isInBackground) {
+      return;
+    }
+
     try {
       const response = await fetchWithTimeout(this.apiUrl, { timeout: 10000 });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -146,12 +170,18 @@ class NowPlayingService {
             this.emit(newData);
           }
         } else {
+          // Only emit if state actually changed
+          if (this.lastSongKey !== null || this.currentData.isMusic) {
+            this.lastSongKey = null;
+            this.emit({ song: null, isMusic: false });
+          }
+        }
+      } else {
+        // Only emit if state actually changed
+        if (this.lastSongKey !== null || this.currentData.isMusic) {
           this.lastSongKey = null;
           this.emit({ song: null, isMusic: false });
         }
-      } else {
-        this.lastSongKey = null;
-        this.emit({ song: null, isMusic: false });
       }
     } catch (error) {
       logger.error('NowPlaying fetch error:', error);

@@ -364,6 +364,19 @@ export function SettingsScreen() {
                 updateRadioSetting('autoPlayOnStart', value)
               }
               disabled={radioSettingsLoading}
+            />
+
+            <SettingRow
+              icon="close-circle-outline"
+              iconColor={colors.error}
+              title="Parar ao fechar aplicação"
+              subtitle="A rádio para quando fechar a aplicação"
+              colors={colors}
+              value={radioSettings?.stopOnClose ?? false}
+              onValueChange={(value) =>
+                updateRadioSetting('stopOnClose', value)
+              }
+              disabled={radioSettingsLoading}
               isLast
             />
           </View>

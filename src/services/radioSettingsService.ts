@@ -12,6 +12,8 @@ export interface RadioSettings {
   autoReconnect: boolean;
   /** Volume level (0-1) */
   volume: number;
+  /** Stop radio when app is closed (swipe from recent apps) */
+  stopOnClose: boolean;
 }
 
 const DEFAULT_SETTINGS: RadioSettings = {
@@ -19,6 +21,7 @@ const DEFAULT_SETTINGS: RadioSettings = {
   autoPlayOnStart: false,
   autoReconnect: true,
   volume: 1.0,
+  stopOnClose: false,
 };
 
 class RadioSettingsService {

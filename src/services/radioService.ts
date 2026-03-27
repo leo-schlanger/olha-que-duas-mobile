@@ -3,14 +3,11 @@ import {
   AudioPlayer,
   createAudioPlayer,
 } from 'expo-audio';
-import { Asset } from 'expo-asset';
+import { AppState, AppStateStatus } from 'react-native';
 import { siteConfig } from '../config/site';
 import { radioSettingsService, RadioSettings } from './radioSettingsService';
 import { nowPlayingService } from './nowPlayingService';
 import { logger } from '../utils/logger';
-
-// Logo local para lock screen
-const radioLogo = require('../../assets/icon.png');
 
 /**
  * Radio streaming service using expo-audio (2026)
@@ -31,8 +28,9 @@ class RadioService {
   private settingsUnsubscribe: (() => void) | null = null;
   private nowPlayingUnsubscribe: (() => void) | null = null;
   private isBuffering: boolean = false;
-  private logoUri: string | null = null;
   private statusPollingInterval: ReturnType<typeof setInterval> | null = null;
+  private appStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null;
+  private lastAppState: AppStateStatus = 'active';
 
   private clearReconnectTimeout() {
     if (this.reconnectTimeout) {
@@ -100,16 +98,6 @@ class RadioService {
       this.settings = await radioSettingsService.load();
       this.volume = this.settings.volume;
 
-      // Load logo asset for lock screen
-      try {
-        const asset = Asset.fromModule(radioLogo);
-        await asset.downloadAsync();
-        this.logoUri = asset.localUri || asset.uri;
-        logger.log('Radio logo loaded:', this.logoUri);
-      } catch (logoError) {
-        logger.error('Error loading radio logo:', logoError);
-      }
-
       // Subscribe to settings changes
       this.settingsUnsubscribe = radioSettingsService.subscribe((newSettings) => {
         this.handleSettingsChange(newSettings);
@@ -121,6 +109,9 @@ class RadioService {
         shouldPlayInBackground: this.settings.backgroundPlayback,
         interruptionMode: 'doNotMix',
       });
+
+      // Setup AppState listener for app lifecycle events
+      this.setupAppStateListener();
 
       this.isInitialized = true;
       logger.log('RadioService initialized with expo-audio');
@@ -134,6 +125,40 @@ class RadioService {
       this.isInitialized = true;
     }
   }
+
+  private setupAppStateListener(): void {
+    this.lastAppState = AppState.currentState;
+    this.appStateSubscription = AppState.addEventListener('change', this.handleAppStateChange);
+  }
+
+  private handleAppStateChange = (nextAppState: AppStateStatus): void => {
+    logger.log('AppState changed:', this.lastAppState, '->', nextAppState);
+
+    // App coming back to active from background/inactive
+    if (this.lastAppState.match(/inactive|background/) && nextAppState === 'active') {
+      // Resume polling if playing
+      if (this.isPlaying && !this.statusPollingInterval) {
+        this.startStatusPolling();
+      }
+    }
+
+    // App going to background
+    if (nextAppState === 'background') {
+      // Pause polling to save battery (lock screen doesn't need frequent updates)
+      if (this.statusPollingInterval) {
+        this.stopStatusPolling();
+      }
+
+      // If stopOnClose is enabled, stop the radio when app goes to background
+      // Note: This handles the case when user swipes app from recent apps
+      if (this.settings?.stopOnClose && this.isPlaying) {
+        logger.log('Stopping radio due to stopOnClose setting');
+        this.stop();
+      }
+    }
+
+    this.lastAppState = nextAppState;
+  };
 
   private async handleSettingsChange(newSettings: RadioSettings) {
     const oldSettings = this.settings;
@@ -191,6 +216,12 @@ class RadioService {
 
       // Release previous player if exists
       if (this.player) {
+        // Deactivate lock screen before releasing to prevent orphan notifications
+        try {
+          this.player.setActiveForLockScreen(false);
+        } catch (e) {
+          // Ignore if already released
+        }
         this.removePlayerListener();
         this.player.release();
         this.player = null;
@@ -359,7 +390,11 @@ class RadioService {
     this.unsubscribeFromNowPlaying();
 
     if (this.player) {
-      this.player.pause();
+      try {
+        this.player.pause();
+      } catch (e) {
+        logger.log('Error pausing player:', e);
+      }
     }
 
     this.isPlaying = false;
@@ -374,6 +409,14 @@ class RadioService {
     this.unsubscribeFromNowPlaying();
 
     if (this.player) {
+      // Deactivate lock screen BEFORE releasing the player to remove notification
+      try {
+        this.player.pause();
+        this.player.setActiveForLockScreen(false);
+      } catch (e) {
+        // Ignore error if player is already released
+        logger.log('Error deactivating lock screen:', e);
+      }
       this.removePlayerListener();
       this.player.release();
       this.player = null;
@@ -431,6 +474,10 @@ class RadioService {
   }
 
   async cleanup() {
+    if (this.appStateSubscription) {
+      this.appStateSubscription.remove();
+      this.appStateSubscription = null;
+    }
     if (this.settingsUnsubscribe) {
       this.settingsUnsubscribe();
       this.settingsUnsubscribe = null;
