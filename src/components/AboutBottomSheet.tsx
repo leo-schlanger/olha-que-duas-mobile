@@ -8,11 +8,11 @@ import {
   Modal,
   Linking,
   ActivityIndicator,
-  StatusBar,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { useTheme } from '../context/ThemeContext';
+import { useTranslation } from 'react-i18next';
+import { useTheme, ThemeColors } from '../context/ThemeContext';
 import { useSchedule } from '../hooks/useSchedule';
 import { siteConfig } from '../config/site';
 
@@ -22,6 +22,7 @@ interface AboutBottomSheetProps {
 }
 
 export function AboutBottomSheet({ visible, onClose }: AboutBottomSheetProps) {
+  const { t } = useTranslation();
   const { colors, isDark } = useTheme();
   const { schedule, loading: scheduleLoading } = useSchedule();
   const insets = useSafeAreaInsets();
@@ -53,7 +54,7 @@ export function AboutBottomSheet({ visible, onClose }: AboutBottomSheetProps) {
           <View style={styles.header}>
             <View style={styles.headerLeft}>
               <MaterialCommunityIcons name="radio" size={28} color={colors.primary} />
-              <Text style={styles.headerTitle}>Sobre a Rádio</Text>
+              <Text style={styles.headerTitle}>{t('settings.about.aboutRadio')}</Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <MaterialCommunityIcons name="close" size={24} color={colors.textSecondary} />
@@ -66,15 +67,13 @@ export function AboutBottomSheet({ visible, onClose }: AboutBottomSheetProps) {
             contentContainerStyle={styles.contentContainer}
           >
             {/* Description */}
-            <Text style={styles.description}>
-              O Olha que Duas é uma rádio online portuguesa que une entretenimento, bem-estar e conversas autênticas. Com uma programação diversificada que vai desde nutrição e motivação até debates descontraídos, estamos no ar 24 horas por dia para lhe fazer companhia.
-            </Text>
+            <Text style={styles.description}>{t('settings.about.description')}</Text>
 
             {/* Schedule */}
             <View style={styles.scheduleCard}>
               <View style={styles.scheduleHeader}>
                 <MaterialCommunityIcons name="calendar-clock" size={20} color={colors.secondary} />
-                <Text style={styles.scheduleTitle}>Programação em Destaque</Text>
+                <Text style={styles.scheduleTitle}>{t('settings.about.featuredPrograms')}</Text>
               </View>
 
               {scheduleLoading ? (
@@ -99,9 +98,7 @@ export function AboutBottomSheet({ visible, onClose }: AboutBottomSheetProps) {
             </View>
 
             {/* Community text */}
-            <Text style={styles.communityText}>
-              Somos mais do que uma rádio - somos uma comunidade. Cada programa é pensado para trazer valor ao seu dia, seja através de dicas práticas de saúde, inspiração para os seus objetivos ou simplesmente boas conversas para descontrair.
-            </Text>
+            <Text style={styles.communityText}>{t('radio.social.communityText')}</Text>
 
             {/* Website Button */}
             <TouchableOpacity
@@ -110,12 +107,12 @@ export function AboutBottomSheet({ visible, onClose }: AboutBottomSheetProps) {
               activeOpacity={0.8}
             >
               <MaterialCommunityIcons name="web" size={20} color={colors.white} />
-              <Text style={styles.websiteButtonText}>Visitar Website</Text>
+              <Text style={styles.websiteButtonText}>{t('radio.social.visitWebsite')}</Text>
             </TouchableOpacity>
 
             {/* Social Links */}
             <View style={styles.socialSection}>
-              <Text style={styles.socialTitle}>Siga-nos nas redes</Text>
+              <Text style={styles.socialTitle}>{t('radio.social.followOnSocial')}</Text>
               <View style={styles.socialLinks}>
                 <TouchableOpacity
                   style={[styles.socialButton, { backgroundColor: '#E4405F' }]}
@@ -133,7 +130,11 @@ export function AboutBottomSheet({ visible, onClose }: AboutBottomSheetProps) {
                   style={[styles.socialButton, { backgroundColor: isDark ? '#FFFFFF' : '#000000' }]}
                   onPress={() => openLink(siteConfig.social.tiktok)}
                 >
-                  <MaterialCommunityIcons name="music-note" size={22} color={isDark ? '#000000' : '#FFFFFF'} />
+                  <MaterialCommunityIcons
+                    name="music-note"
+                    size={22}
+                    color={isDark ? '#000000' : '#FFFFFF'}
+                  />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.socialButton, { backgroundColor: '#FF0000' }]}
@@ -159,7 +160,7 @@ export function AboutBottomSheet({ visible, onClose }: AboutBottomSheetProps) {
   );
 }
 
-function createStyles(colors: any, isDark: boolean, insetTop: number) {
+function createStyles(colors: ThemeColors, isDark: boolean, insetTop: number) {
   return StyleSheet.create({
     overlay: {
       flex: 1,

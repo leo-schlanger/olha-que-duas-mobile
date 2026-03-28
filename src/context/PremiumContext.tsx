@@ -1,16 +1,32 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+  useMemo,
+  useCallback,
+} from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { environment } from '../config/environment';
 import { logger } from '../utils/logger';
 
 const PREMIUM_STORAGE_KEY = '@olhaqueduas:premium';
 
+// Type definition for dynamically loaded purchase service
+interface PurchaseServiceType {
+  initialize: () => Promise<void>;
+  checkPurchaseStatus: () => Promise<boolean>;
+  purchaseRemoveAds: () => Promise<boolean>;
+  restorePurchases: () => Promise<boolean>;
+}
+
 // Lazy load purchase service only when native modules are available
-let purchaseService: any = null;
+let purchaseService: PurchaseServiceType | null = null;
 if (environment.canUseNativeModules) {
   try {
     purchaseService = require('../services/purchaseService').purchaseService;
-  } catch (error) {
+  } catch (_error) {
     logger.log('Purchase service not available');
   }
 }
@@ -37,32 +53,48 @@ export function PremiumProvider({ children }: PremiumProviderProps) {
 
     async function loadPremiumStatus() {
       try {
-        // First, check local storage
+        // First, check local storage - this is fast and unblocks UI immediately
         const storedPremium = await AsyncStorage.getItem(PREMIUM_STORAGE_KEY);
         if (!mounted) return;
 
         if (storedPremium === 'true') {
           setIsPremium(true);
+          setIsLoading(false); // Libera UI imediatamente se já é premium
         }
 
-        // Then, verify with stores (only if native modules available)
+        // Then, verify with stores in background (only if native modules available)
         if (purchaseService && environment.features.purchases) {
           // Initialize the purchase service connection
-          await purchaseService.initialize();
-          if (!mounted) return;
-
-          // Check if user has valid purchase
-          const hasValidPurchase = await purchaseService.checkPurchaseStatus();
-          if (!mounted) return;
-
-          if (hasValidPurchase) {
-            setIsPremium(true);
-            await AsyncStorage.setItem(PREMIUM_STORAGE_KEY, 'true');
+          purchaseService
+            .initialize()
+            .then(() => {
+              if (!mounted) return;
+              return purchaseService.checkPurchaseStatus();
+            })
+            .then((hasValidPurchase) => {
+              if (hasValidPurchase === undefined) return;
+              if (!mounted) return;
+              if (hasValidPurchase) {
+                setIsPremium(true);
+                AsyncStorage.setItem(PREMIUM_STORAGE_KEY, 'true');
+              }
+            })
+            .catch((error: Error) => {
+              logger.error('Error verifying purchases:', error);
+            })
+            .finally(() => {
+              if (mounted) {
+                setIsLoading(false);
+              }
+            });
+        } else {
+          // Se não há purchase service, libera loading
+          if (mounted) {
+            setIsLoading(false);
           }
         }
       } catch (error) {
         logger.error('Error loading premium status:', error);
-      } finally {
         if (mounted) {
           setIsLoading(false);
         }
@@ -135,11 +167,7 @@ export function PremiumProvider({ children }: PremiumProviderProps) {
     [isPremium, isLoading, purchasePremium, restorePurchases]
   );
 
-  return (
-    <PremiumContext.Provider value={contextValue}>
-      {children}
-    </PremiumContext.Provider>
-  );
+  return <PremiumContext.Provider value={contextValue}>{children}</PremiumContext.Provider>;
 }
 
 export function usePremium(): PremiumContextData {

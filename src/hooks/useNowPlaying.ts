@@ -21,10 +21,11 @@ export function useNowPlaying(isPlaying: boolean) {
   const pendingSongRef = useRef<NowPlayingSong | null>(null); // Armazena a música pendente durante transição
 
   useEffect(() => {
-    if (isPlaying) {
-      nowPlayingService.start();
-    } else {
-      nowPlayingService.stop();
+    // Cleanup function reference - will be set when subscribing
+    let unsubscribe: (() => void) | null = null;
+
+    if (!isPlaying) {
+      // Not playing - just reset state, don't stop service (radioService manages it)
       setState({ song: null, isMusic: false, isTransition: false });
       lastSongKeyRef.current = null;
       pendingSongRef.current = null;
@@ -32,10 +33,12 @@ export function useNowPlaying(isPlaying: boolean) {
         clearTimeout(transitionTimeoutRef.current);
         transitionTimeoutRef.current = null;
       }
-      return;
+      // Return cleanup that does nothing since we didn't subscribe
+      return () => {};
     }
 
-    const unsubscribe = nowPlayingService.subscribe((data: NowPlayingData) => {
+    // Playing - subscribe to updates (don't call start, radioService manages it)
+    unsubscribe = nowPlayingService.subscribe((data: NowPlayingData) => {
       if (!data.isMusic || !data.song) {
         // Se não é música, limpar transição e mostrar estado padrão
         if (transitionTimeoutRef.current) {
@@ -43,7 +46,9 @@ export function useNowPlaying(isPlaying: boolean) {
           transitionTimeoutRef.current = null;
         }
         pendingSongRef.current = null;
-        setState((prev) => (prev.isTransition ? prev : { song: null, isMusic: false, isTransition: false }));
+        setState((prev) =>
+          prev.isTransition ? prev : { song: null, isMusic: false, isTransition: false }
+        );
         return;
       }
 
@@ -81,7 +86,9 @@ export function useNowPlaying(isPlaying: boolean) {
     });
 
     return () => {
-      unsubscribe();
+      if (unsubscribe) {
+        unsubscribe();
+      }
       if (transitionTimeoutRef.current) {
         clearTimeout(transitionTimeoutRef.current);
         transitionTimeoutRef.current = null;

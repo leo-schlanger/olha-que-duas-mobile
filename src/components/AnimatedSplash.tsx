@@ -1,12 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import {
-  View,
-  Image,
-  Animated,
-  StyleSheet,
-  Dimensions,
-  Easing,
-} from 'react-native';
+import { View, Image, Animated, StyleSheet, Dimensions, Easing } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '../config/site';
 
@@ -190,11 +183,11 @@ export function AnimatedSplash({ isReady, onAnimationEnd }: AnimatedSplashProps)
 
     return () => {
       // Limpar todos os timeouts
-      timeouts.forEach(t => clearTimeout(t));
+      timeouts.forEach((t) => clearTimeout(t));
       timeoutsRef.current = [];
 
       // Parar todas as animações
-      animations.forEach(anim => anim.stop());
+      animations.forEach((anim) => anim.stop());
       animationsRef.current = [];
     };
   }, []);
@@ -299,9 +292,7 @@ export function AnimatedSplash({ isReady, onAnimationEnd }: AnimatedSplashProps)
           },
         ]}
       >
-        <Animated.Text style={styles.tagline}>
-          A sua voz, 24 horas por dia
-        </Animated.Text>
+        <Animated.Text style={styles.tagline}>A sua voz, 24 horas por dia</Animated.Text>
       </Animated.View>
 
       {/* Loading dots */}

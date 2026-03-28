@@ -30,7 +30,8 @@ export function useWeather(location: LocationCoords | null): UseWeatherResult {
       }
       setError(null);
 
-      const data = await fetchWeatherData(coords);
+      // Force refresh bypasses cache
+      const data = await fetchWeatherData(coords, refreshing);
       setWeather(data);
     } catch (err) {
       logger.error('Error loading weather:', err);

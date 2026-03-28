@@ -8,16 +8,33 @@ import {
   Dimensions,
   ActivityIndicator,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { usePremium } from '../context/PremiumContext';
 import { useTheme } from '../context/ThemeContext';
 import { environment } from '../config/environment';
 import { logger } from '../utils/logger';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
+// Type definitions for dynamically loaded ad modules
+interface AdServiceType {
+  isReady: () => boolean;
+  getMRectAdUnitId: () => string;
+  getBannerAdUnitId: () => string;
+  isPersonalizedAdsEnabled: () => boolean;
+}
+
+type BannerAdComponentType = React.ComponentType<{
+  unitId: string;
+  size: string;
+  requestOptions?: { requestNonPersonalizedAdsOnly: boolean };
+  onAdLoaded?: () => void;
+  onAdFailedToLoad?: (_error: unknown) => void;
+}>;
+
 // Lazy load native ad modules (not available in Expo Go)
-let GoogleBannerAd: any = null;
-let BannerAdSize: any = { MEDIUM_RECTANGLE: 'MEDIUM_RECTANGLE' };
-let adService: any = null;
+let GoogleBannerAd: BannerAdComponentType | null = null;
+let BannerAdSize: { MEDIUM_RECTANGLE: string } = { MEDIUM_RECTANGLE: 'MEDIUM_RECTANGLE' };
+let adService: AdServiceType | null = null;
 
 if (environment.canUseNativeModules) {
   try {
@@ -25,12 +42,12 @@ if (environment.canUseNativeModules) {
     GoogleBannerAd = adsModule.BannerAd;
     BannerAdSize = adsModule.BannerAdSize;
     adService = require('../services/adService').adService;
-  } catch (error) {
+  } catch (_error) {
     logger.log('Ad modules not available');
   }
 }
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 // Tempo de espera em segundos antes de poder fechar
 const WAIT_TIME_SECONDS = 5;
@@ -41,7 +58,8 @@ interface InterstitialAdOverlayProps {
 }
 
 export function InterstitialAdOverlay({ visible, onClose }: InterstitialAdOverlayProps) {
-  const { colors, isDark } = useTheme();
+  const { t } = useTranslation();
+  const { colors } = useTheme();
   const { isPremium } = usePremium();
   const [countdown, setCountdown] = useState(WAIT_TIME_SECONDS);
   const [canClose, setCanClose] = useState(false);
@@ -94,7 +112,7 @@ export function InterstitialAdOverlay({ visible, onClose }: InterstitialAdOverla
       setAdError(false);
 
       countdownRef.current = setInterval(() => {
-        setCountdown(prev => {
+        setCountdown((prev) => {
           if (prev <= 1) {
             if (countdownRef.current) {
               clearInterval(countdownRef.current);
@@ -134,16 +152,11 @@ export function InterstitialAdOverlay({ visible, onClose }: InterstitialAdOverla
     }
   };
 
-  const adUnitId = adService?.getBannerAdUnitId();
+  const adUnitId = adService?.getBannerAdUnitId() ?? '';
   const nonPersonalizedAds = adService ? !adService.isPersonalizedAdsEnabled() : true;
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={handleClose}
-    >
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
       <View style={styles.overlay}>
         <View style={[styles.container, { backgroundColor: colors.backgroundCard }]}>
           {/* Header */}
@@ -155,7 +168,7 @@ export function InterstitialAdOverlay({ visible, onClose }: InterstitialAdOverla
                 color={colors.textSecondary}
               />
               <Text style={[styles.headerText, { color: colors.textSecondary }]}>
-                Publicidade
+                {t('ads.title')}
               </Text>
             </View>
 
@@ -173,10 +186,12 @@ export function InterstitialAdOverlay({ visible, onClose }: InterstitialAdOverla
               {canClose ? (
                 <>
                   <MaterialCommunityIcons name="close" size={16} color="#fff" />
-                  <Text style={styles.closeButtonText}>Fechar</Text>
+                  <Text style={styles.closeButtonText}>{t('ads.close')}</Text>
                 </>
               ) : (
-                <Text style={styles.closeButtonText}>{countdown}s</Text>
+                <Text style={styles.closeButtonText}>
+                  {t('ads.closeIn', { seconds: countdown })}
+                </Text>
               )}
             </TouchableOpacity>
           </View>
@@ -192,7 +207,7 @@ export function InterstitialAdOverlay({ visible, onClose }: InterstitialAdOverla
                   color={colors.textSecondary}
                 />
                 <Text style={[styles.placeholderText, { color: colors.textSecondary }]}>
-                  Anuncios indisponiveis no Expo Go
+                  {t('ads.unavailableExpoGo')}
                 </Text>
               </View>
             ) : !sdkReady && !adError ? (
@@ -200,7 +215,7 @@ export function InterstitialAdOverlay({ visible, onClose }: InterstitialAdOverla
               <View style={[styles.placeholderAd, { backgroundColor: colors.background }]}>
                 <ActivityIndicator size="large" color={colors.primary} />
                 <Text style={[styles.placeholderText, { color: colors.textSecondary }]}>
-                  A carregar anuncio...
+                  {t('ads.loadingAd')}
                 </Text>
               </View>
             ) : adError ? (
@@ -245,7 +260,7 @@ export function InterstitialAdOverlay({ visible, onClose }: InterstitialAdOverla
           {/* Footer message */}
           <View style={[styles.footer, { borderTopColor: colors.muted }]}>
             <Text style={[styles.footerText, { color: colors.textSecondary }]}>
-              Os anuncios ajudam a manter a app gratuita
+              {t('ads.helpKeepFree')}
             </Text>
           </View>
         </View>

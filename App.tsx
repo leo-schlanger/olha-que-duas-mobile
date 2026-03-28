@@ -10,6 +10,10 @@ import { environment } from "./src/config/environment";
 import { logger } from "./src/utils/logger";
 import * as Notifications from "expo-notifications";
 
+// i18n initialization
+import "./src/i18n";
+import { loadSavedLanguage } from "./src/i18n";
+
 import {
   Provider as PaperProvider,
   DefaultTheme,
@@ -51,6 +55,10 @@ function AppContent() {
   useEffect(() => {
     async function initializeServices() {
       try {
+        // Load saved language preference
+        await loadSavedLanguage();
+        logger.log("Language loaded");
+
         await radioSettingsService.load();
         await radioService.initialize();
         logger.log("Radio service initialized");
@@ -82,16 +90,22 @@ function AppContent() {
     );
 
     return () => {
-      // Stop radio explicitly first to remove notification, then cleanup
-      radioService.stop().then(() => {
-        radioService.cleanup();
-      });
-      purchaseService?.disconnect();
-      notificationService.cleanup();
-      // Clean up notification listener
+      // Clean up notification listener first (sync)
       if (notificationResponseListener.current) {
         notificationResponseListener.current.remove();
       }
+
+      // Stop radio explicitly first to remove notification, then cleanup
+      // Use finally to ensure cleanup runs even if stop fails
+      radioService
+        .stop()
+        .catch((e) => logger.error('Error stopping radio:', e))
+        .finally(() => {
+          radioService.cleanup();
+        });
+
+      purchaseService?.disconnect();
+      notificationService.cleanup();
     };
   }, []);
 

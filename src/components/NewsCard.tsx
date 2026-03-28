@@ -1,12 +1,6 @@
-import React from 'react';
-import {
-  View,
-  Text,
-  Image,
-  TouchableOpacity,
-  StyleSheet,
-  Dimensions,
-} from 'react-native';
+import React, { memo, useMemo } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
+import { Image } from 'expo-image';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { BlogPost, getCategoryColor, categoryLabels } from '../types/blog';
 import { useTheme, getContrastTextColor } from '../context/ThemeContext';
@@ -19,116 +13,116 @@ interface NewsCardProps {
   onPress: () => void;
 }
 
-export function NewsCard({ post, onPress }: NewsCardProps) {
-  const { colors, isDark } = useTheme();
+/**
+ * Memoized news card component with image caching
+ */
+export const NewsCard = memo(
+  function NewsCard({ post, onPress }: NewsCardProps) {
+    const { colors, isDark } = useTheme();
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('pt-PT', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
-  };
+    // Memoizar formatação de data
+    const formattedDate = useMemo(() => {
+      const date = new Date(post.published_at);
+      return date.toLocaleDateString('pt-PT', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      });
+    }, [post.published_at]);
 
-  const categoryColor = getCategoryColor(post.category, isDark);
-  const categoryLabel = categoryLabels[post.category] || post.category;
+    // Memoizar cores de categoria
+    const categoryColor = useMemo(
+      () => getCategoryColor(post.category, isDark),
+      [post.category, isDark]
+    );
 
-  return (
-    <TouchableOpacity
-      style={[
-        styles.container,
-        {
-          backgroundColor: colors.backgroundCard,
-          borderColor: colors.muted,
-        },
-      ]}
-      onPress={onPress}
-      activeOpacity={0.8}
-    >
-      <View style={styles.imageContainer}>
-        {post.image_url ? (
-          <Image
-            source={{ uri: post.image_url }}
-            style={styles.image}
-            resizeMode="cover"
-          />
-        ) : (
-          <View
-            style={[
-              styles.imagePlaceholder,
-              { backgroundColor: colors.muted + '30' },
-            ]}
-          >
-            <MaterialCommunityIcons
-              name="newspaper-variant-outline"
-              size={40}
-              color={colors.textSecondary}
+    const categoryLabel = categoryLabels[post.category] || post.category;
+
+    return (
+      <TouchableOpacity
+        style={[
+          styles.container,
+          {
+            backgroundColor: colors.backgroundCard,
+            borderColor: colors.muted,
+          },
+        ]}
+        onPress={onPress}
+        activeOpacity={0.8}
+        accessibilityLabel={`Notícia: ${post.title}. Categoria: ${categoryLabel}. Publicado em ${formattedDate}`}
+        accessibilityRole="button"
+        accessibilityHint="Toque para ler a notícia completa"
+      >
+        <View style={styles.imageContainer}>
+          {post.image_url ? (
+            <Image
+              source={{ uri: post.image_url }}
+              style={styles.image}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              transition={200}
+              recyclingKey={post.id.toString()}
             />
-          </View>
-        )}
+          ) : (
+            <View style={[styles.imagePlaceholder, { backgroundColor: colors.muted + '30' }]}>
+              <MaterialCommunityIcons
+                name="newspaper-variant-outline"
+                size={40}
+                color={colors.textSecondary}
+              />
+            </View>
+          )}
 
-        <View
-          style={[styles.categoryBadge, { backgroundColor: categoryColor }]}
-        >
-          <Text
-            style={[
-              styles.categoryText,
-              { color: getContrastTextColor(categoryColor) },
-            ]}
-          >
-            {categoryLabel}
+          <View style={[styles.categoryBadge, { backgroundColor: categoryColor }]}>
+            <Text style={[styles.categoryText, { color: getContrastTextColor(categoryColor) }]}>
+              {categoryLabel}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.content}>
+          <Text style={[styles.title, { color: colors.text }]} numberOfLines={2}>
+            {post.title}
+          </Text>
+
+          <Text style={[styles.summary, { color: colors.textSecondary }]} numberOfLines={3}>
+            {post.summary}
+          </Text>
+
+          <View style={styles.meta}>
+            <View style={styles.metaItem}>
+              <MaterialCommunityIcons
+                name="map-marker-outline"
+                size={14}
+                color={colors.textSecondary}
+              />
+              <Text style={[styles.metaText, { color: colors.textSecondary }]}>{post.region}</Text>
+            </View>
+
+            <View style={styles.metaItem}>
+              <MaterialCommunityIcons
+                name="calendar-blank-outline"
+                size={14}
+                color={colors.textSecondary}
+              />
+              <Text style={[styles.metaText, { color: colors.textSecondary }]}>
+                {formattedDate}
+              </Text>
+            </View>
+          </View>
+
+          <Text style={[styles.source, { color: colors.textSecondary }]}>
+            Fonte: {post.source_name}
           </Text>
         </View>
-      </View>
-
-      <View style={styles.content}>
-        <Text style={[styles.title, { color: colors.text }]} numberOfLines={2}>
-          {post.title}
-        </Text>
-
-        <Text
-          style={[styles.summary, { color: colors.textSecondary }]}
-          numberOfLines={3}
-        >
-          {post.summary}
-        </Text>
-
-        <View style={styles.meta}>
-          <View style={styles.metaItem}>
-            <MaterialCommunityIcons
-              name="map-marker-outline"
-              size={14}
-              color={colors.textSecondary}
-            />
-            <Text
-              style={[styles.metaText, { color: colors.textSecondary }]}
-            >
-              {post.region}
-            </Text>
-          </View>
-
-          <View style={styles.metaItem}>
-            <MaterialCommunityIcons
-              name="calendar-blank-outline"
-              size={14}
-              color={colors.textSecondary}
-            />
-            <Text
-              style={[styles.metaText, { color: colors.textSecondary }]}
-            >
-              {formatDate(post.published_at)}
-            </Text>
-          </View>
-        </View>
-
-        <Text style={[styles.source, { color: colors.textSecondary }]}>
-          Fonte: {post.source_name}
-        </Text>
-      </View>
-    </TouchableOpacity>
-  );
-}
+      </TouchableOpacity>
+    );
+  },
+  (prevProps, nextProps) => {
+    // Custom comparison: apenas re-render se post.id mudar
+    return prevProps.post.id === nextProps.post.id;
+  }
+);
 
 const styles = StyleSheet.create({
   container: {

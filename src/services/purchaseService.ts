@@ -3,22 +3,14 @@
  *
  * Handles Google Play Store purchases for removing ads
  * Compatible with react-native-iap v14+
+ *
+ * Note: When running in Expo Go, Metro resolves react-native-iap
+ * to a mock module (see metro.config.js) that provides stub implementations.
  */
 
 import { Platform } from 'react-native';
 import { logger } from '../utils/logger';
-import {
-  initConnection,
-  endConnection,
-  fetchProducts,
-  requestPurchase,
-  getAvailablePurchases,
-  finishTransaction,
-  purchaseUpdatedListener,
-  purchaseErrorListener,
-  type Purchase,
-  type PurchaseError,
-} from 'react-native-iap';
+import { environment } from '../config/environment';
 
 // Product ID for removing ads (must match Play Console)
 const REMOVE_ADS_SKU = 'remove_ads';
@@ -47,13 +39,52 @@ type IAP_Product = {
   };
 };
 
+// IAP module interface (subset of react-native-iap we actually use)
+interface IAPModule {
+  initConnection: () => Promise<boolean>;
+  endConnection: () => Promise<void>;
+  getAvailablePurchases: () => Promise<Array<{ productId: string }>>;
+  fetchProducts: (params: { skus: string[] }) => Promise<IAP_Product[]>;
+  requestPurchase: (params: { request: unknown; type: string }) => Promise<void>;
+  finishTransaction: (params: { purchase: unknown; isConsumable: boolean }) => Promise<void>;
+  purchaseUpdatedListener: (
+    callback: (purchase: { transactionId?: string }) => void
+  ) => PurchaseSubscription;
+  purchaseErrorListener: (callback: (error: unknown) => void) => PurchaseSubscription;
+}
+
+// Lazy-loaded IAP module
+let iapModule: IAPModule | null = null;
+
+/**
+ * Get the IAP module, loading it dynamically if needed
+ */
+function getIAPModule(): IAPModule | null {
+  if (!environment.canUseNativeModules) {
+    return null;
+  }
+
+  if (iapModule === null) {
+    try {
+      // Metro config handles mocking in Expo Go
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      iapModule = require('react-native-iap') as IAPModule;
+    } catch (error) {
+      logger.error('PurchaseService: Failed to load react-native-iap:', error);
+      return null;
+    }
+  }
+
+  return iapModule;
+}
+
 class PurchaseService {
   private isConnected = false;
   private products: IAP_Product[] = [];
   private purchaseUpdateSubscription: PurchaseSubscription | null = null;
   private purchaseErrorSubscription: PurchaseSubscription | null = null;
-  private onPurchaseComplete: ((success: boolean) => void) | null = null;
-  private isPurchaseInProgress = false; // Previne múltiplas compras simultâneas
+  private onPurchaseComplete: ((_success: boolean) => void) | null = null;
+  private isPurchaseInProgress = false;
 
   /**
    * Initialize connection with the store (Google Play / App Store)
@@ -63,8 +94,14 @@ class PurchaseService {
       return;
     }
 
+    const iap = getIAPModule();
+    if (!iap) {
+      logger.log('PurchaseService: IAP not available (Expo Go?)');
+      return;
+    }
+
     try {
-      const result = await initConnection();
+      const result = await iap.initConnection();
       logger.log('PurchaseService: Connection result:', result);
       this.isConnected = true;
 
@@ -85,51 +122,53 @@ class PurchaseService {
    * Setup purchase update and error listeners
    */
   private setupListeners(): void {
+    const iap = getIAPModule();
+    if (!iap) return;
+
     // Listen for purchase updates
-    this.purchaseUpdateSubscription = purchaseUpdatedListener(
-      async (purchase: Purchase) => {
-        logger.log('PurchaseService: Purchase updated:', purchase);
+    this.purchaseUpdateSubscription = iap.purchaseUpdatedListener(async (purchase) => {
+      logger.log('PurchaseService: Purchase updated:', purchase);
 
-        // Check if purchase has a transaction ID (indicates valid purchase)
-        const transactionId = purchase.transactionId;
-        if (transactionId) {
-          try {
-            // Acknowledge the purchase (required for Google Play)
-            await finishTransaction({ purchase, isConsumable: false });
-            logger.log('PurchaseService: Transaction finished');
+      // Check if purchase has a transaction ID (indicates valid purchase)
+      const transactionId = purchase.transactionId;
+      if (transactionId) {
+        try {
+          // Acknowledge the purchase (required for Google Play)
+          await iap.finishTransaction({ purchase, isConsumable: false });
+          logger.log('PurchaseService: Transaction finished');
 
-            // Notify success
-            if (this.onPurchaseComplete) {
-              this.onPurchaseComplete(true);
-              this.onPurchaseComplete = null;
-            }
-          } catch (error) {
-            logger.error('PurchaseService: Error finishing transaction:', error);
+          // Notify success
+          if (this.onPurchaseComplete) {
+            this.onPurchaseComplete(true);
+            this.onPurchaseComplete = null;
           }
+        } catch (error) {
+          logger.error('PurchaseService: Error finishing transaction:', error);
         }
       }
-    );
+    });
 
     // Listen for purchase errors
-    this.purchaseErrorSubscription = purchaseErrorListener(
-      (error: PurchaseError) => {
-        logger.error('PurchaseService: Purchase error:', error);
+    this.purchaseErrorSubscription = iap.purchaseErrorListener((error) => {
+      logger.error('PurchaseService: Purchase error:', error);
 
-        // Notify failure
-        if (this.onPurchaseComplete) {
-          this.onPurchaseComplete(false);
-          this.onPurchaseComplete = null;
-        }
+      // Notify failure
+      if (this.onPurchaseComplete) {
+        this.onPurchaseComplete(false);
+        this.onPurchaseComplete = null;
       }
-    );
+    });
   }
 
   /**
    * Load available products from the store
    */
   private async loadProducts(): Promise<void> {
+    const iap = getIAPModule();
+    if (!iap) return;
+
     try {
-      const products = await fetchProducts({ skus: PRODUCT_SKUS });
+      const products = await iap.fetchProducts({ skus: PRODUCT_SKUS });
       this.products = (products ?? []) as unknown as IAP_Product[];
       logger.log('PurchaseService: Products loaded:', this.products.length);
     } catch (error) {
@@ -152,10 +191,13 @@ class PurchaseService {
     }
 
     if (this.isConnected) {
-      try {
-        await endConnection();
-      } catch (error) {
-        logger.error('PurchaseService: Error disconnecting:', error);
+      const iap = getIAPModule();
+      if (iap) {
+        try {
+          await iap.endConnection();
+        } catch (error) {
+          logger.error('PurchaseService: Error disconnecting:', error);
+        }
       }
     }
 
@@ -178,7 +220,13 @@ class PurchaseService {
    * Start the remove ads purchase flow
    */
   async purchaseRemoveAds(): Promise<boolean> {
-    // Prevenir múltiplas compras simultâneas
+    const iap = getIAPModule();
+    if (!iap) {
+      logger.log('PurchaseService: IAP not available');
+      return false;
+    }
+
+    // Prevent multiple simultaneous purchases
     if (this.isPurchaseInProgress) {
       logger.log('PurchaseService: Purchase already in progress');
       return false;
@@ -207,20 +255,23 @@ class PurchaseService {
       };
 
       // Request the purchase using the new API format
-      const purchaseRequest = Platform.OS === 'android'
-        ? { google: { skus: [REMOVE_ADS_SKU] } }
-        : { apple: { sku: REMOVE_ADS_SKU } };
+      const purchaseRequest =
+        Platform.OS === 'android'
+          ? { google: { skus: [REMOVE_ADS_SKU] } }
+          : { apple: { sku: REMOVE_ADS_SKU } };
 
-      requestPurchase({
-        request: purchaseRequest,
-        type: 'in-app',
-      }).catch((error) => {
-        logger.error('PurchaseService: Error requesting purchase:', error);
-        clearTimeout(timeoutId);
-        this.onPurchaseComplete = null;
-        this.isPurchaseInProgress = false;
-        resolve(false);
-      });
+      iap
+        .requestPurchase({
+          request: purchaseRequest,
+          type: 'in-app',
+        })
+        .catch((error) => {
+          logger.error('PurchaseService: Error requesting purchase:', error);
+          clearTimeout(timeoutId);
+          this.onPurchaseComplete = null;
+          this.isPurchaseInProgress = false;
+          resolve(false);
+        });
 
       // Note: The actual result comes through the listener
     });
@@ -230,17 +281,18 @@ class PurchaseService {
    * Check if user has already purchased remove ads
    */
   async checkPurchaseStatus(): Promise<boolean> {
+    const iap = getIAPModule();
+    if (!iap) return false;
+
     if (!this.isConnected) {
       await this.initialize();
     }
 
     try {
-      const purchases = await getAvailablePurchases();
+      const purchases = await iap.getAvailablePurchases();
       logger.log('PurchaseService: Available purchases:', purchases.length);
 
-      const hasRemoveAds = purchases.some(
-        (purchase) => purchase.productId === REMOVE_ADS_SKU
-      );
+      const hasRemoveAds = purchases.some((purchase) => purchase.productId === REMOVE_ADS_SKU);
 
       return hasRemoveAds;
     } catch (error) {

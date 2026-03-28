@@ -85,7 +85,11 @@ export function getLuminance(hexColor: string): number {
  * Determina a cor de texto ideal (branco ou escuro) baseado na cor de fundo
  * Usa WCAG para garantir contraste adequado
  */
-export function getContrastTextColor(backgroundColor: string, lightText = '#FFFFFF', darkText = '#1c1917'): string {
+export function getContrastTextColor(
+  backgroundColor: string,
+  lightText = '#FFFFFF',
+  darkText = '#1c1917'
+): string {
   const luminance = getLuminance(backgroundColor);
   // Se a luminância for maior que 0.5, usar texto escuro; caso contrário, texto claro
   return luminance > 0.45 ? darkText : lightText;
@@ -95,7 +99,7 @@ interface ThemeContextType {
   colors: ThemeColors;
   isDark: boolean;
   themeMode: ThemeMode;
-  setThemeMode: (mode: ThemeMode) => void;
+  setThemeMode: (_mode: ThemeMode) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -134,8 +138,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   };
 
   // Determine if dark mode should be used
-  const isDark =
-    themeMode === 'dark' || (themeMode === 'system' && systemColorScheme === 'dark');
+  const isDark = themeMode === 'dark' || (themeMode === 'system' && systemColorScheme === 'dark');
 
   const colors = isDark ? darkColors : lightColors;
 
@@ -145,11 +148,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     [colors, isDark, themeMode]
   );
 
-  return (
-    <ThemeContext.Provider value={contextValue}>
-      {children}
-    </ThemeContext.Provider>
-  );
+  return <ThemeContext.Provider value={contextValue}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme() {

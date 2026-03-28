@@ -31,13 +31,7 @@ const JINGLE_PATTERNS = [
   /^cortina/i,
 ];
 
-const JINGLE_PLAYLISTS = [
-  /jingle/i,
-  /vinheta/i,
-  /interrup/i,
-  /spot/i,
-  /promo/i,
-];
+const JINGLE_PLAYLISTS = [/jingle/i, /vinheta/i, /interrup/i, /spot/i, /promo/i];
 
 function isValidSong(data: {
   title?: string;
@@ -57,7 +51,7 @@ function isValidSong(data: {
   return true;
 }
 
-type NowPlayingListener = (data: NowPlayingData) => void;
+type NowPlayingListener = (_data: NowPlayingData) => void;
 
 class NowPlayingService {
   private listeners: NowPlayingListener[] = [];

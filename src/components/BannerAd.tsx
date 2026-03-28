@@ -5,10 +5,27 @@ import { useTheme } from '../context/ThemeContext';
 import { environment } from '../config/environment';
 import { logger } from '../utils/logger';
 
+// Type definitions for dynamically loaded ad modules
+interface AdServiceType {
+  isReady: () => boolean;
+  getBannerAdUnitId: () => string;
+  isPersonalizedAdsEnabled: () => boolean;
+}
+
+type BannerAdComponentType = React.ComponentType<{
+  unitId: string;
+  size: string;
+  requestOptions?: { requestNonPersonalizedAdsOnly: boolean };
+  onAdLoaded?: () => void;
+  onAdFailedToLoad?: (_error: unknown) => void;
+}>;
+
 // Lazy load native ad modules (not available in Expo Go)
-let GoogleBannerAd: any = null;
-let BannerAdSize: any = { ANCHORED_ADAPTIVE_BANNER: 'ANCHORED_ADAPTIVE_BANNER' };
-let adService: any = null;
+let GoogleBannerAd: BannerAdComponentType | null = null;
+let BannerAdSize: { ANCHORED_ADAPTIVE_BANNER: string } = {
+  ANCHORED_ADAPTIVE_BANNER: 'ANCHORED_ADAPTIVE_BANNER',
+};
+let adService: AdServiceType | null = null;
 
 if (environment.canUseNativeModules) {
   try {
@@ -16,7 +33,7 @@ if (environment.canUseNativeModules) {
     GoogleBannerAd = adsModule.BannerAd;
     BannerAdSize = adsModule.BannerAdSize;
     adService = require('../services/adService').adService;
-  } catch (error) {
+  } catch (_error) {
     logger.log('Ad modules not available');
   }
 }
@@ -103,7 +120,12 @@ export function BannerAd({ size = BannerAdSize.ANCHORED_ADAPTIVE_BANNER }: Banne
   if (adError) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={[styles.placeholder, { backgroundColor: colors.card, borderTopColor: colors.background }]}>
+        <View
+          style={[
+            styles.placeholder,
+            { backgroundColor: colors.card, borderTopColor: colors.background },
+          ]}
+        >
           <Text style={[styles.placeholderText, { color: colors.textSecondary }]}>Publicidade</Text>
         </View>
       </View>

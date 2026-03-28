@@ -1,14 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Modal,
-  Linking,
-  ScrollView,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, Linking, ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '../context/ThemeContext';
 import { logger } from '../utils/logger';
 
@@ -16,11 +9,12 @@ const GDPR_CONSENT_KEY = '@olhaqueduas:gdpr_consent';
 const PRIVACY_POLICY_URL = 'https://olhaqueduas.com/privacidade';
 
 interface GDPRConsentProps {
-  onConsentGiven: (personalizedAds: boolean) => void;
+  onConsentGiven: (_personalizedAds: boolean) => void;
 }
 
 export function GDPRConsent({ onConsentGiven }: GDPRConsentProps) {
-  const { colors, isDark } = useTheme();
+  const { t } = useTranslation();
+  const { colors } = useTheme();
   const [visible, setVisible] = useState(false);
   const [hasChecked, setHasChecked] = useState(false);
 
@@ -75,49 +69,41 @@ export function GDPRConsent({ onConsentGiven }: GDPRConsentProps) {
   }
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={() => {}}
-    >
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={() => {}}>
       <View style={styles.overlay}>
         <View style={[styles.container, { backgroundColor: colors.card }]}>
           <ScrollView showsVerticalScrollIndicator={false}>
             {/* Header */}
-            <Text style={[styles.title, { color: colors.text }]}>A sua privacidade</Text>
+            <Text style={[styles.title, { color: colors.text }]}>{t('consent.title')}</Text>
 
             {/* Content */}
             <Text style={[styles.description, { color: colors.textSecondary }]}>
-              Utilizamos cookies e tecnologias semelhantes para exibir anúncios.
-              Pode escolher como pretende que os seus dados sejam utilizados:
+              {t('consent.description')}
             </Text>
 
             {/* Options explanation */}
             <View style={[styles.optionBox, { backgroundColor: colors.background }]}>
               <Text style={[styles.optionTitle, { color: colors.text }]}>
-                Anúncios personalizados
+                {t('consent.personalizedTitle')}
               </Text>
               <Text style={[styles.optionDescription, { color: colors.textSecondary }]}>
-                Anúncios baseados nos seus interesses e histórico de navegação.
-                Os dados são processados pelo Google AdMob.
+                {t('consent.personalizedDesc')}
               </Text>
             </View>
 
             <View style={[styles.optionBox, { backgroundColor: colors.background }]}>
               <Text style={[styles.optionTitle, { color: colors.text }]}>
-                Anúncios não personalizados
+                {t('consent.nonPersonalizedTitle')}
               </Text>
               <Text style={[styles.optionDescription, { color: colors.textSecondary }]}>
-                Anúncios genéricos que não utilizam os seus dados pessoais
-                para personalização.
+                {t('consent.nonPersonalizedDesc')}
               </Text>
             </View>
 
             {/* Privacy Policy Link */}
             <TouchableOpacity onPress={openPrivacyPolicy}>
               <Text style={[styles.privacyLink, { color: colors.secondary }]}>
-                Ler Política de Privacidade completa
+                {t('consent.readPrivacyPolicy')}
               </Text>
             </TouchableOpacity>
           </ScrollView>
@@ -128,7 +114,9 @@ export function GDPRConsent({ onConsentGiven }: GDPRConsentProps) {
               style={[styles.acceptAllButton, { backgroundColor: colors.primary }]}
               onPress={handleAcceptAll}
             >
-              <Text style={[styles.acceptAllText, { color: colors.white }]}>Aceitar todos</Text>
+              <Text style={[styles.acceptAllText, { color: colors.white }]}>
+                {t('consent.acceptAll')}
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -136,7 +124,7 @@ export function GDPRConsent({ onConsentGiven }: GDPRConsentProps) {
               onPress={handleAcceptNonPersonalized}
             >
               <Text style={[styles.nonPersonalizedText, { color: colors.textSecondary }]}>
-                Apenas anúncios não personalizados
+                {t('consent.acceptNonPersonalized')}
               </Text>
             </TouchableOpacity>
           </View>

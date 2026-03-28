@@ -1,0 +1,240 @@
+{
+  "common": {
+    "ok": "OK",
+    "cancel": "Cancel",
+    "close": "Close",
+    "yes": "Yes",
+    "no": "No",
+    "active": "Active",
+    "inactive": "Inactive",
+    "unavailable": "Unavailable",
+    "loading": "Loading...",
+    "error": "Error",
+    "retry": "Try Again",
+    "settings": "Settings",
+    "openSettings": "Open Settings",
+    "viewSettings": "View Settings",
+    "manageInSettings": "Manage in Settings",
+    "version": "Version {{version}}"
+  },
+  "radio": {
+    "status": {
+      "reconnecting": "Reconnecting... ({{attempt}}/10)",
+      "loading": "Loading...",
+      "onAir": "On Air",
+      "offline": "Offline"
+    },
+    "controls": {
+      "play": "Play radio",
+      "pause": "Pause radio",
+      "notificationsActive": "Notifications active: {{count}} shows",
+      "configureNotifications": "Configure show notifications",
+      "expoGoWarning": "Audio only available in native build."
+    },
+    "nowPlaying": "Now playing",
+    "schedule": {
+      "title": "Weekly Schedule",
+      "loading": "Loading schedule...",
+      "timezone": "(PT)"
+    },
+    "info": {
+      "highQuality": "High Quality",
+      "bitrate": "192kbps",
+      "alwaysOn": "Always On",
+      "twentyFourSeven": "24/7",
+      "background": "Background",
+      "active": "Active"
+    },
+    "social": {
+      "visitWebsite": "Visit Website",
+      "followUs": "Follow Us",
+      "followOnSocial": "Follow us on social media",
+      "communityText": "We are more than a radio station - we are a community. Each program is designed to bring value to your day, whether through practical health tips, inspiration for your goals, or simply good conversations to unwind."
+    }
+  },
+  "notifications": {
+    "reminderRemoved": {
+      "title": "Reminder removed",
+      "message": "The reminder for \"{{show}}\" has been disabled."
+    },
+    "reminderActivated": {
+      "title": "Reminder activated",
+      "message": "You will receive a notification {{minutes}} minutes before \"{{show}}\" starts.\n\nThe time will be automatically adjusted to your timezone."
+    },
+    "permissionRequired": {
+      "title": "Permission required",
+      "message": "Please allow notifications in your device settings to receive reminders."
+    },
+    "permissionsRequired": {
+      "title": "Permissions Required",
+      "message": "To receive show reminders, you need to allow notifications in your device settings."
+    },
+    "activeReminders": {
+      "title": "Active Reminders",
+      "message": "You have {{count}} active reminder(s):\n\n{{shows}}\n\nYou receive notifications {{minutes}} minutes before each show (Portugal times, adjusted to your timezone)."
+    },
+    "noActiveReminders": {
+      "title": "No Active Reminders",
+      "message": "You can activate reminders by tapping the bell icon next to each show in the list below."
+    },
+    "programReminders": "Show reminders",
+    "receiveNotifications": "Receive notifications before shows",
+    "warnBefore": "Warn before:",
+    "timezoneInfo": "Times in Portugal (PT). We automatically adjust to your timezone.",
+    "activePrograms": "Shows with active reminder:"
+  },
+  "weather": {
+    "feelsLike": "Feels like: {{temp}}°C",
+    "humidity": "Humidity",
+    "wind": "Wind",
+    "precipitation": "Precipitation",
+    "today": "Today",
+    "tomorrow": "Tomorrow",
+    "now": "Now",
+    "hourlyForecast": "Hourly Forecast",
+    "weeklyForecast": "Weekly Forecast",
+    "loading": "Loading weather data...",
+    "errorTitle": "Error Loading",
+    "permissionRequired": {
+      "title": "Permission Required",
+      "message": "To get weather data for your location, you need to allow location access in your device settings."
+    },
+    "useLisbon": "Use Lisbon",
+    "lisbonDefault": "Lisbon (default)",
+    "currentLocation": "Current location",
+    "locationBanner": "Showing data for Lisbon. Tap to enable location."
+  },
+  "news": {
+    "title": "News",
+    "subtitle": "The latest news for you",
+    "searchPlaceholder": "Search news...",
+    "noResults": "No news found.",
+    "clearFilters": "Clear filters",
+    "clear": "Clear",
+    "loading": "Loading news...",
+    "source": "Source: {{source}}",
+    "accessibility": {
+      "newsItem": "News: {{title}}. Category: {{category}}. Published on {{date}}",
+      "tapToRead": "Tap to read the full article"
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "appearance": {
+      "title": "Appearance",
+      "chooseTheme": "Choose theme",
+      "light": "Light",
+      "system": "System",
+      "dark": "Dark"
+    },
+    "language": {
+      "title": "Language",
+      "chooseLanguage": "Choose language"
+    },
+    "radio": {
+      "title": "Radio",
+      "backgroundPlayback": "Background playback",
+      "backgroundPlaybackDesc": "Continue playing with screen off",
+      "autoReconnect": "Auto reconnect",
+      "autoReconnectDesc": "Reconnect if connection is lost",
+      "autoPlay": "Auto play",
+      "autoPlayDesc": "Start radio when opening the app",
+      "stopOnClose": "Stop on close",
+      "stopOnCloseDesc": "Radio stops when closing the app"
+    },
+    "premium": {
+      "title": "Premium",
+      "youArePremium": "You are Premium!",
+      "thankYou": "Thank you for supporting Olha que Duas. Enjoy the ad-free experience.",
+      "removeAds": "Remove Ads",
+      "removeAdsDesc": "Support Olha que Duas and remove all ads with a one-time payment.",
+      "oneTimePayment": "one-time payment",
+      "restorePurchase": "Restore previous purchase"
+    },
+    "privacy": {
+      "title": "Privacy",
+      "adPreferences": "Ad preferences",
+      "privacyPolicy": "Privacy Policy",
+      "termsOfUse": "Terms of Use"
+    },
+    "about": {
+      "title": "About",
+      "aboutRadio": "About the Radio",
+      "description": "Olha que Duas is a Portuguese online radio that combines entertainment, wellness, and authentic conversations. With diverse programming ranging from nutrition and motivation to relaxed debates, we are on air 24 hours a day to keep you company.",
+      "featuredPrograms": "Featured programs"
+    },
+    "app": {
+      "title": "Application",
+      "exitApp": "Exit Application",
+      "exitAppAndroid": "Completely close the app",
+      "exitAppIOS": "See instructions to close"
+    },
+    "debug": {
+      "title": "Debug"
+    }
+  },
+  "purchase": {
+    "unavailable": {
+      "title": "Unavailable",
+      "message": "Purchases are not available in this test version."
+    },
+    "success": {
+      "title": "Purchase completed!",
+      "message": "Thank you for supporting Olha que Duas! Ads have been removed."
+    },
+    "error": {
+      "title": "Purchase error",
+      "message": "Could not complete the purchase. Please try again."
+    },
+    "restored": {
+      "title": "Purchase restored!",
+      "message": "Your purchase has been successfully restored."
+    },
+    "notFound": {
+      "title": "No purchase found",
+      "message": "We could not find any previous purchase associated with your account."
+    }
+  },
+  "consent": {
+    "title": "Your privacy",
+    "description": "We use cookies and similar technologies to display ads. You can choose how your data is used:",
+    "personalizedTitle": "Personalized ads",
+    "personalizedDesc": "Ads based on your interests and browsing history. Data is processed by Google AdMob.",
+    "nonPersonalizedTitle": "Non-personalized ads",
+    "nonPersonalizedDesc": "Generic ads that do not use your personal data for personalization.",
+    "readPrivacyPolicy": "Read full Privacy Policy",
+    "acceptAll": "Accept all",
+    "acceptNonPersonalized": "Non-personalized ads only",
+    "reset": {
+      "title": "Reset preferences",
+      "message": "Do you want to reset your ad preferences? The consent dialog will be shown again.",
+      "button": "Reset"
+    },
+    "resetSuccess": {
+      "title": "Preferences reset",
+      "message": "Restart the app to see the consent dialog again."
+    },
+    "personalized": "Personalized ads",
+    "nonPersonalized": "Non-personalized ads",
+    "notSet": "Not set"
+  },
+  "exitApp": {
+    "android": {
+      "title": "Exit application",
+      "message": "Are you sure you want to exit?",
+      "button": "Exit"
+    },
+    "ios": {
+      "title": "Information",
+      "message": "On iOS, swipe up from the bottom of the screen and drag the app up to close it."
+    }
+  },
+  "ads": {
+    "title": "Advertisement",
+    "unavailableExpoGo": "Ads unavailable in Expo Go",
+    "loadingAd": "Loading ad...",
+    "closeIn": "{{seconds}}s",
+    "close": "Close",
+    "helpKeepFree": "Ads help keep the app free"
+  }
+}

@@ -36,8 +36,11 @@ export function useLocation(): UseLocationResult {
     try {
       const { status } = await Location.getForegroundPermissionsAsync();
       const mappedStatus: PermissionStatus =
-        status === Location.PermissionStatus.GRANTED ? 'granted' :
-        status === Location.PermissionStatus.DENIED ? 'denied' : 'undetermined';
+        status === Location.PermissionStatus.GRANTED
+          ? 'granted'
+          : status === Location.PermissionStatus.DENIED
+            ? 'denied'
+            : 'undetermined';
       setPermissionStatus(mappedStatus);
       return mappedStatus;
     } catch (err) {

@@ -1,0 +1,240 @@
+{
+  "common": {
+    "ok": "OK",
+    "cancel": "Cancelar",
+    "close": "Fechar",
+    "yes": "Sim",
+    "no": "Não",
+    "active": "Ativo",
+    "inactive": "Desativado",
+    "unavailable": "Indisponível",
+    "loading": "A carregar...",
+    "error": "Erro",
+    "retry": "Tentar Novamente",
+    "settings": "Definições",
+    "openSettings": "Abrir Definições",
+    "viewSettings": "Ver Definições",
+    "manageInSettings": "Gerir nas Definições",
+    "version": "Versão {{version}}"
+  },
+  "radio": {
+    "status": {
+      "reconnecting": "A reconectar... ({{attempt}}/10)",
+      "loading": "A carregar...",
+      "onAir": "No Ar",
+      "offline": "Offline"
+    },
+    "controls": {
+      "play": "Reproduzir rádio",
+      "pause": "Pausar rádio",
+      "notificationsActive": "Notificações ativas: {{count}} programas",
+      "configureNotifications": "Configurar notificações de programas",
+      "expoGoWarning": "Áudio disponível apenas no build nativo."
+    },
+    "nowPlaying": "A tocar agora",
+    "schedule": {
+      "title": "Programação Semanal",
+      "loading": "Carregando programação...",
+      "timezone": "(PT)"
+    },
+    "info": {
+      "highQuality": "Alta Qualidade",
+      "bitrate": "192kbps",
+      "alwaysOn": "Sempre no Ar",
+      "twentyFourSeven": "24/7",
+      "background": "Background",
+      "active": "Ativo"
+    },
+    "social": {
+      "visitWebsite": "Visitar Website",
+      "followUs": "Siga-nos",
+      "followOnSocial": "Siga-nos nas redes",
+      "communityText": "Somos mais do que uma rádio - somos uma comunidade. Cada programa é pensado para trazer valor ao seu dia, seja através de dicas práticas de saúde, inspiração para os seus objetivos ou simplesmente boas conversas para descontrair."
+    }
+  },
+  "notifications": {
+    "reminderRemoved": {
+      "title": "Lembrete removido",
+      "message": "O lembrete para \"{{show}}\" foi desativado."
+    },
+    "reminderActivated": {
+      "title": "Lembrete ativado",
+      "message": "Receberá uma notificação {{minutes}} minutos antes de \"{{show}}\" começar.\n\nO horário será ajustado automaticamente ao seu fuso horário."
+    },
+    "permissionRequired": {
+      "title": "Permissão necessária",
+      "message": "Por favor, permita as notificações nas definições do dispositivo para receber lembretes."
+    },
+    "permissionsRequired": {
+      "title": "Permissões Necessárias",
+      "message": "Para receber lembretes dos programas, precisa permitir notificações nas definições do dispositivo."
+    },
+    "activeReminders": {
+      "title": "Lembretes Ativos",
+      "message": "Tem {{count}} lembrete(s) ativo(s):\n\n{{shows}}\n\nRecebe notificações {{minutes}} minutos antes de cada programa (horários de Portugal, ajustados ao seu fuso)."
+    },
+    "noActiveReminders": {
+      "title": "Sem Lembretes Ativos",
+      "message": "Pode ativar lembretes tocando no sininho ao lado de cada programa na lista abaixo."
+    },
+    "programReminders": "Lembretes de programas",
+    "receiveNotifications": "Receber notificações antes dos programas",
+    "warnBefore": "Avisar antes:",
+    "timezoneInfo": "Horários em Portugal (PT). Ajustamos automaticamente ao seu fuso horário.",
+    "activePrograms": "Programas com lembrete ativo:"
+  },
+  "weather": {
+    "feelsLike": "Sensação térmica: {{temp}}°C",
+    "humidity": "Humidade",
+    "wind": "Vento",
+    "precipitation": "Precipitação",
+    "today": "Hoje",
+    "tomorrow": "Amanhã",
+    "now": "Agora",
+    "hourlyForecast": "Previsão Horária",
+    "weeklyForecast": "Previsão Semanal",
+    "loading": "A carregar dados meteorológicos...",
+    "errorTitle": "Erro ao Carregar",
+    "permissionRequired": {
+      "title": "Permissão Necessária",
+      "message": "Para obter dados meteorológicos da sua localização, precisa permitir o acesso à localização nas definições do dispositivo."
+    },
+    "useLisbon": "Usar Lisboa",
+    "lisbonDefault": "Lisboa (padrão)",
+    "currentLocation": "Localização atual",
+    "locationBanner": "A mostrar dados de Lisboa. Toque para ativar a localização."
+  },
+  "news": {
+    "title": "Notícias",
+    "subtitle": "As últimas notícias para si",
+    "searchPlaceholder": "Pesquisar notícias...",
+    "noResults": "Nenhuma notícia encontrada.",
+    "clearFilters": "Limpar filtros",
+    "clear": "Limpar",
+    "loading": "A carregar notícias...",
+    "source": "Fonte: {{source}}",
+    "accessibility": {
+      "newsItem": "Notícia: {{title}}. Categoria: {{category}}. Publicado em {{date}}",
+      "tapToRead": "Toque para ler a notícia completa"
+    }
+  },
+  "settings": {
+    "title": "Definições",
+    "appearance": {
+      "title": "Aparência",
+      "chooseTheme": "Escolha o tema",
+      "light": "Claro",
+      "system": "Sistema",
+      "dark": "Escuro"
+    },
+    "language": {
+      "title": "Idioma",
+      "chooseLanguage": "Escolha o idioma"
+    },
+    "radio": {
+      "title": "Rádio",
+      "backgroundPlayback": "Reprodução em segundo plano",
+      "backgroundPlaybackDesc": "Continuar a tocar com o ecrã desligado",
+      "autoReconnect": "Reconexão automática",
+      "autoReconnectDesc": "Reconectar se a ligação for perdida",
+      "autoPlay": "Reprodução automática",
+      "autoPlayDesc": "Iniciar a rádio ao abrir a aplicação",
+      "stopOnClose": "Parar ao fechar aplicação",
+      "stopOnCloseDesc": "A rádio para quando fechar a aplicação"
+    },
+    "premium": {
+      "title": "Premium",
+      "youArePremium": "Você é Premium!",
+      "thankYou": "Obrigado por apoiar o Olha que Duas. Aproveite a experiência sem anúncios.",
+      "removeAds": "Remover Anúncios",
+      "removeAdsDesc": "Apoie o Olha que Duas e remova todos os anúncios com um pagamento único.",
+      "oneTimePayment": "pagamento único",
+      "restorePurchase": "Restaurar compra anterior"
+    },
+    "privacy": {
+      "title": "Privacidade",
+      "adPreferences": "Preferências de anúncios",
+      "privacyPolicy": "Política de Privacidade",
+      "termsOfUse": "Termos de Utilização"
+    },
+    "about": {
+      "title": "Sobre",
+      "aboutRadio": "Sobre a Rádio",
+      "description": "O Olha que Duas é uma rádio online portuguesa que une entretenimento, bem-estar e conversas autênticas. Com uma programação diversificada que vai desde nutrição e motivação até debates descontraídos, estamos no ar 24 horas por dia para lhe fazer companhia.",
+      "featuredPrograms": "Programas em destaque"
+    },
+    "app": {
+      "title": "Aplicação",
+      "exitApp": "Sair da Aplicação",
+      "exitAppAndroid": "Fechar completamente a app",
+      "exitAppIOS": "Ver instruções para fechar"
+    },
+    "debug": {
+      "title": "Debug"
+    }
+  },
+  "purchase": {
+    "unavailable": {
+      "title": "Indisponível",
+      "message": "As compras não estão disponíveis nesta versão de teste."
+    },
+    "success": {
+      "title": "Compra realizada!",
+      "message": "Obrigado por apoiar o Olha que Duas! Os anúncios foram removidos."
+    },
+    "error": {
+      "title": "Erro na compra",
+      "message": "Não foi possível completar a compra. Tente novamente."
+    },
+    "restored": {
+      "title": "Compra restaurada!",
+      "message": "A sua compra foi restaurada com sucesso."
+    },
+    "notFound": {
+      "title": "Nenhuma compra encontrada",
+      "message": "Não encontrámos nenhuma compra anterior associada à sua conta."
+    }
+  },
+  "consent": {
+    "title": "A sua privacidade",
+    "description": "Utilizamos cookies e tecnologias semelhantes para exibir anúncios. Pode escolher como pretende que os seus dados sejam utilizados:",
+    "personalizedTitle": "Anúncios personalizados",
+    "personalizedDesc": "Anúncios baseados nos seus interesses e histórico de navegação. Os dados são processados pelo Google AdMob.",
+    "nonPersonalizedTitle": "Anúncios não personalizados",
+    "nonPersonalizedDesc": "Anúncios genéricos que não utilizam os seus dados pessoais para personalização.",
+    "readPrivacyPolicy": "Ler Política de Privacidade completa",
+    "acceptAll": "Aceitar todos",
+    "acceptNonPersonalized": "Apenas anúncios não personalizados",
+    "reset": {
+      "title": "Redefinir preferências",
+      "message": "Pretende redefinir as suas preferências de anúncios? O diálogo de consentimento será mostrado novamente.",
+      "button": "Redefinir"
+    },
+    "resetSuccess": {
+      "title": "Preferências redefinidas",
+      "message": "Reinicie a aplicação para ver o diálogo de consentimento novamente."
+    },
+    "personalized": "Anúncios personalizados",
+    "nonPersonalized": "Anúncios não personalizados",
+    "notSet": "Não definido"
+  },
+  "exitApp": {
+    "android": {
+      "title": "Sair da aplicação",
+      "message": "Tem a certeza que pretende sair?",
+      "button": "Sair"
+    },
+    "ios": {
+      "title": "Informação",
+      "message": "No iOS, deslize para cima a partir do fundo do ecrã e arraste a app para cima para a fechar."
+    }
+  },
+  "ads": {
+    "title": "Publicidade",
+    "unavailableExpoGo": "Anúncios indisponíveis no Expo Go",
+    "loadingAd": "A carregar anúncio...",
+    "closeIn": "{{seconds}}s",
+    "close": "Fechar",
+    "helpKeepFree": "Os anúncios ajudam a manter a app gratuita"
+  }
+}

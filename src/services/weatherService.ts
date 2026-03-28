@@ -3,12 +3,59 @@
  * https://open-meteo.com/en/docs
  */
 
-import { WeatherData, LocationCoords, CurrentWeather, HourlyForecast, DailyForecast } from '../types/weather';
+import {
+  WeatherData,
+  LocationCoords,
+  CurrentWeather,
+  HourlyForecast,
+  DailyForecast,
+} from '../types/weather';
 import { logger } from '../utils/logger';
 import { fetchWithTimeout } from '../utils/fetchWithTimeout';
 import { TIMING } from '../config/constants';
 
 const OPEN_METEO_BASE_URL = 'https://api.open-meteo.com/v1/forecast';
+
+/**
+ * Cache for weather data to prevent excessive API calls
+ * Weather data is cached for 10 minutes
+ */
+interface CacheEntry {
+  data: WeatherData;
+  timestamp: number;
+}
+
+const weatherCache = new Map<string, CacheEntry>();
+const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
+
+/**
+ * Generate cache key from coordinates (rounded to 2 decimal places for nearby locations)
+ */
+function getCacheKey(coords: LocationCoords): string {
+  const lat = coords.latitude.toFixed(2);
+  const lon = coords.longitude.toFixed(2);
+  return `${lat},${lon}`;
+}
+
+/**
+ * Clean expired cache entries
+ */
+function cleanExpiredCache(): void {
+  const now = Date.now();
+  for (const [key, entry] of weatherCache.entries()) {
+    if (now - entry.timestamp > CACHE_DURATION) {
+      weatherCache.delete(key);
+    }
+  }
+}
+
+/**
+ * Invalidate weather cache (useful for manual refresh)
+ */
+export function invalidateWeatherCache(): void {
+  weatherCache.clear();
+  logger.log('Weather cache invalidated');
+}
 
 interface OpenMeteoResponse {
   latitude: number;
@@ -43,13 +90,35 @@ interface OpenMeteoResponse {
 }
 
 /**
- * Fetch weather data from Open-Meteo API
+ * Fetch weather data from Open-Meteo API with caching
+ * @param coords Location coordinates
+ * @param forceRefresh If true, bypasses cache and fetches fresh data
  */
-export async function fetchWeatherData(coords: LocationCoords): Promise<WeatherData> {
+export async function fetchWeatherData(
+  coords: LocationCoords,
+  forceRefresh: boolean = false
+): Promise<WeatherData> {
+  const cacheKey = getCacheKey(coords);
+
+  // Check cache first (unless forcing refresh)
+  if (!forceRefresh) {
+    const cached = weatherCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+      logger.log('Weather cache hit:', cacheKey);
+      return cached.data;
+    }
+  }
+
+  // Clean expired cache periodically
+  if (weatherCache.size > 10) {
+    cleanExpiredCache();
+  }
+
   const params = new URLSearchParams({
     latitude: coords.latitude.toString(),
     longitude: coords.longitude.toString(),
-    current: 'temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,precipitation,weather_code,is_day',
+    current:
+      'temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,precipitation,weather_code,is_day',
     hourly: 'temperature_2m,weather_code,precipitation,precipitation_probability',
     daily: 'temperature_2m_max,temperature_2m_min,weather_code,precipitation_sum,sunrise,sunset',
     timezone: 'Europe/Lisbon',
@@ -58,7 +127,7 @@ export async function fetchWeatherData(coords: LocationCoords): Promise<WeatherD
 
   const url = `${OPEN_METEO_BASE_URL}?${params.toString()}`;
 
-  logger.log('Fetching weather data');
+  logger.log('Fetching weather data from API');
 
   const response = await fetchWithTimeout(url, { timeout: TIMING.FETCH_TIMEOUT });
 
@@ -68,7 +137,12 @@ export async function fetchWeatherData(coords: LocationCoords): Promise<WeatherD
 
   const data: OpenMeteoResponse = await response.json();
 
-  return transformWeatherData(data);
+  const weatherData = transformWeatherData(data);
+
+  // Store in cache
+  weatherCache.set(cacheKey, { data: weatherData, timestamp: Date.now() });
+
+  return weatherData;
 }
 
 /**

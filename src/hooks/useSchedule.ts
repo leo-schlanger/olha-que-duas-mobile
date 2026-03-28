@@ -39,8 +39,8 @@ const DAYS_MAP: Record<number, string> = {
 
 // Fallback icons (Ionicons) por nome de programa
 const FALLBACK_ICONS: Record<string, string> = {
-  'Nutrição': 'leaf-outline',
-  'Motivar': 'bulb-outline',
+  Nutrição: 'leaf-outline',
+  Motivar: 'bulb-outline',
   'Prazer Feminino': 'heart-outline',
   'Companheiros de Caminhada': 'walk-outline',
   'Dizem que...': 'chatbubbles-outline',
@@ -50,7 +50,9 @@ const FALLBACK_ICONS: Record<string, string> = {
 // Fallback schedule from config
 const fallbackSchedule: GroupedSchedule[] = siteConfig.radio.schedule.map((item) => ({
   day: item.day,
-  dayNumber: ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'].indexOf(item.day),
+  dayNumber: ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'].indexOf(
+    item.day
+  ),
   show: item.show,
   times: item.times,
   iconUrl: '',
@@ -73,13 +75,15 @@ export function useSchedule() {
       try {
         const { data, error: fetchError } = await supabase
           .from('schedule')
-          .select(`
+          .select(
+            `
             id,
             event_id,
             day_of_week,
             time,
             event:events(id, name, description, icon_url)
-          `)
+          `
+          )
           .eq('is_active', true)
           .order('day_of_week', { ascending: true })
           .order('time', { ascending: true });

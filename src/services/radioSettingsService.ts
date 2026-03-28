@@ -27,7 +27,7 @@ const DEFAULT_SETTINGS: RadioSettings = {
 class RadioSettingsService {
   private settings: RadioSettings = { ...DEFAULT_SETTINGS };
   private isLoaded: boolean = false;
-  private listeners: Set<(settings: RadioSettings) => void> = new Set();
+  private listeners: Set<(_settings: RadioSettings) => void> = new Set();
 
   /**
    * Load settings from storage
@@ -104,7 +104,7 @@ class RadioSettingsService {
   /**
    * Subscribe to settings changes
    */
-  subscribe(listener: (settings: RadioSettings) => void): () => void {
+  subscribe(listener: (_settings: RadioSettings) => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   }

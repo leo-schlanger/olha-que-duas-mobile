@@ -1,5 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
-import { fetchNews, fetchNewsById, fetchCategories, fetchRegions } from '../services/newsApi';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import {
+  fetchNews,
+  fetchNewsById,
+  fetchCategories,
+  fetchRegions,
+  invalidateNewsCache,
+} from '../services/newsApi';
 import { BlogPost, BlogFilters } from '../types/blog';
 import { logger } from '../utils/logger';
 
@@ -15,21 +21,27 @@ export function useNews(initialFilters: BlogFilters = {}) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // useRef para evitar dependency loops e garantir acesso ao valor mais recente
+  const filtersRef = useRef(filters);
+  filtersRef.current = filters;
+
   const loadNews = useCallback(async (pageNum: number = 1, refresh: boolean = false) => {
     try {
       if (refresh) {
         setIsRefreshing(true);
+        // Invalidar cache no refresh para garantir dados frescos
+        invalidateNewsCache();
       } else {
         setIsLoading(true);
       }
       setError(null);
 
-      const result = await fetchNews(filters, pageNum);
+      const result = await fetchNews(filtersRef.current, pageNum);
 
       if (pageNum === 1) {
         setPosts(result.posts);
       } else {
-        setPosts(prev => [...prev, ...result.posts]);
+        setPosts((prev) => [...prev, ...result.posts]);
       }
       setTotal(result.total);
       setPage(pageNum);
@@ -40,7 +52,7 @@ export function useNews(initialFilters: BlogFilters = {}) {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [filters]);
+  }, []); // Sem dependencies - usa filtersRef para acesso ao valor atual
 
   const loadMore = useCallback(() => {
     if (!isLoading && posts.length < total) {
@@ -57,9 +69,10 @@ export function useNews(initialFilters: BlogFilters = {}) {
     setPage(1);
   }, []);
 
+  // Recarregar quando filtros mudam
   useEffect(() => {
     loadNews(1);
-  }, [filters, loadNews]);
+  }, [filters]);
 
   return {
     posts,

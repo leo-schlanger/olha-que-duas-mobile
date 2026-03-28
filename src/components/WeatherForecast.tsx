@@ -1,11 +1,13 @@
 /**
  * Weather forecast components for hourly and daily forecasts
+ * Optimized with FlatList and memoization
  */
 
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import React, { memo, useCallback, useMemo } from 'react';
+import { View, Text, StyleSheet, FlatList } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { useTheme } from '../context/ThemeContext';
+import { useTranslation } from 'react-i18next';
+import { useTheme, ThemeColors } from '../context/ThemeContext';
 import { HourlyForecast, DailyForecast, getWeatherIcon } from '../types/weather';
 
 interface HourlyForecastSectionProps {
@@ -27,20 +29,25 @@ function formatHour(isoString: string): string {
 /**
  * Format date from ISO string to weekday name
  */
-function formatWeekday(isoString: string): string {
+function formatWeekday(
+  isoString: string,
+  todayLabel: string,
+  tomorrowLabel: string,
+  locale: string
+): string {
   const date = new Date(isoString);
   const today = new Date();
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
 
   if (date.toDateString() === today.toDateString()) {
-    return 'Hoje';
+    return todayLabel;
   }
   if (date.toDateString() === tomorrow.toDateString()) {
-    return 'Amanhã';
+    return tomorrowLabel;
   }
 
-  return date.toLocaleDateString('pt-PT', { weekday: 'short' });
+  return date.toLocaleDateString(locale, { weekday: 'short' });
 }
 
 /**
@@ -51,96 +58,159 @@ function isDayTime(isoString: string): boolean {
   return hour >= 7 && hour < 20;
 }
 
-export function HourlyForecastSection({ hourly }: HourlyForecastSectionProps) {
+// Memoized hourly item component
+interface HourlyItemProps {
+  item: HourlyForecast;
+  index: number;
+  colors: ThemeColors;
+  nowLabel: string;
+}
+
+const HourlyItem = memo(function HourlyItem({ item, index, colors, nowLabel }: HourlyItemProps) {
+  const iconName = useMemo(
+    () => getWeatherIcon(item.weatherCode, isDayTime(item.time)),
+    [item.weatherCode, item.time]
+  );
+
+  return (
+    <View style={styles.hourlyItem}>
+      <Text style={[styles.hourlyTime, { color: colors.textSecondary }]}>
+        {index === 0 ? nowLabel : formatHour(item.time)}
+      </Text>
+      <MaterialCommunityIcons
+        name={iconName as keyof typeof MaterialCommunityIcons.glyphMap}
+        size={28}
+        color={colors.secondary}
+      />
+      <Text style={[styles.hourlyTemp, { color: colors.text }]}>{item.temperature}°</Text>
+      {item.precipitationProbability > 0 && (
+        <Text style={[styles.hourlyPrecip, { color: colors.primary }]}>
+          {item.precipitationProbability}%
+        </Text>
+      )}
+    </View>
+  );
+});
+
+export const HourlyForecastSection = memo(function HourlyForecastSection({
+  hourly,
+}: HourlyForecastSectionProps) {
+  const { t } = useTranslation();
   const { colors } = useTheme();
+  const nowLabel = t('weather.now');
+
+  const renderItem = useCallback(
+    ({ item, index }: { item: HourlyForecast; index: number }) => (
+      <HourlyItem item={item} index={index} colors={colors} nowLabel={nowLabel} />
+    ),
+    [colors, nowLabel]
+  );
+
+  const keyExtractor = useCallback((_item: HourlyForecast, index: number) => index.toString(), []);
 
   return (
     <View style={[styles.section, { backgroundColor: colors.card }]}>
       <Text style={[styles.sectionTitle, { color: colors.text }]}>
-        Previsão Horária
+        {t('weather.hourlyForecast')}
       </Text>
-      <ScrollView
+      <FlatList
+        data={hourly}
+        renderItem={renderItem}
+        keyExtractor={keyExtractor}
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.hourlyScrollContent}
-      >
-        {hourly.map((item, index) => {
-          const iconName = getWeatherIcon(item.weatherCode, isDayTime(item.time));
-          return (
-            <View key={index} style={styles.hourlyItem}>
-              <Text style={[styles.hourlyTime, { color: colors.textSecondary }]}>
-                {index === 0 ? 'Agora' : formatHour(item.time)}
-              </Text>
-              <MaterialCommunityIcons
-                name={iconName as any}
-                size={28}
-                color={colors.secondary}
-              />
-              <Text style={[styles.hourlyTemp, { color: colors.text }]}>
-                {item.temperature}°
-              </Text>
-              {item.precipitationProbability > 0 && (
-                <Text style={[styles.hourlyPrecip, { color: colors.primary }]}>
-                  {item.precipitationProbability}%
-                </Text>
-              )}
-            </View>
-          );
-        })}
-      </ScrollView>
+        removeClippedSubviews={true}
+        initialNumToRender={8}
+        maxToRenderPerBatch={5}
+        windowSize={3}
+      />
     </View>
   );
+});
+
+// Memoized daily item component
+interface DailyItemProps {
+  item: DailyForecast;
+  isLast: boolean;
+  colors: ThemeColors;
+  todayLabel: string;
+  tomorrowLabel: string;
+  locale: string;
 }
 
-export function DailyForecastSection({ daily }: DailyForecastSectionProps) {
+const DailyItem = memo(function DailyItem({
+  item,
+  isLast,
+  colors,
+  todayLabel,
+  tomorrowLabel,
+  locale,
+}: DailyItemProps) {
+  const iconName = useMemo(() => getWeatherIcon(item.weatherCode, true), [item.weatherCode]);
+
+  return (
+    <View
+      style={[
+        styles.dailyItem,
+        !isLast && { borderBottomWidth: 1, borderBottomColor: colors.border },
+      ]}
+    >
+      <Text style={[styles.dailyDay, { color: colors.text }]}>
+        {formatWeekday(item.date, todayLabel, tomorrowLabel, locale)}
+      </Text>
+
+      <View style={styles.dailyIconContainer}>
+        <MaterialCommunityIcons
+          name={iconName as keyof typeof MaterialCommunityIcons.glyphMap}
+          size={28}
+          color={colors.secondary}
+        />
+        {item.precipitationSum > 0 && (
+          <Text style={[styles.dailyPrecip, { color: colors.primary }]}>
+            {item.precipitationSum.toFixed(1)} mm
+          </Text>
+        )}
+      </View>
+
+      <View style={styles.dailyTemps}>
+        <Text style={[styles.dailyTempMax, { color: colors.text }]}>{item.temperatureMax}°</Text>
+        <Text style={[styles.dailyTempMin, { color: colors.textSecondary }]}>
+          {item.temperatureMin}°
+        </Text>
+      </View>
+    </View>
+  );
+});
+
+export const DailyForecastSection = memo(function DailyForecastSection({
+  daily,
+}: DailyForecastSectionProps) {
+  const { t, i18n } = useTranslation();
   const { colors } = useTheme();
+  const todayLabel = t('weather.today');
+  const tomorrowLabel = t('weather.tomorrow');
+  const locale = i18n.language === 'en' ? 'en-US' : 'pt-PT';
 
   return (
     <View style={[styles.section, { backgroundColor: colors.card }]}>
       <Text style={[styles.sectionTitle, { color: colors.text }]}>
-        Previsão Semanal
+        {t('weather.weeklyForecast')}
       </Text>
-      {daily.map((item, index) => {
-        const iconName = getWeatherIcon(item.weatherCode, true);
-        return (
-          <View
-            key={index}
-            style={[
-              styles.dailyItem,
-              index < daily.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border },
-            ]}
-          >
-            <Text style={[styles.dailyDay, { color: colors.text }]}>
-              {formatWeekday(item.date)}
-            </Text>
-
-            <View style={styles.dailyIconContainer}>
-              <MaterialCommunityIcons
-                name={iconName as any}
-                size={28}
-                color={colors.secondary}
-              />
-              {item.precipitationSum > 0 && (
-                <Text style={[styles.dailyPrecip, { color: colors.primary }]}>
-                  {item.precipitationSum.toFixed(1)} mm
-                </Text>
-              )}
-            </View>
-
-            <View style={styles.dailyTemps}>
-              <Text style={[styles.dailyTempMax, { color: colors.text }]}>
-                {item.temperatureMax}°
-              </Text>
-              <Text style={[styles.dailyTempMin, { color: colors.textSecondary }]}>
-                {item.temperatureMin}°
-              </Text>
-            </View>
-          </View>
-        );
-      })}
+      {daily.map((item, index) => (
+        <DailyItem
+          key={index}
+          item={item}
+          isLast={index === daily.length - 1}
+          colors={colors}
+          todayLabel={todayLabel}
+          tomorrowLabel={tomorrowLabel}
+          locale={locale}
+        />
+      ))}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   section: {

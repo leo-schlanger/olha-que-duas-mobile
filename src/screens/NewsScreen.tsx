@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,16 +10,23 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { useTranslation } from 'react-i18next';
 import { NewsCard } from '../components/NewsCard';
 import { BannerAd } from '../components/BannerAd';
 import { useNews } from '../hooks/useNews';
 import { BlogPost, BlogFilters, getCategoryColor, categoryLabels } from '../types/blog';
 import { useTheme, getContrastTextColor } from '../context/ThemeContext';
+
+const { width } = Dimensions.get('window');
+const CARD_WIDTH = width - 32;
+// Altura estimada do NewsCard: 16 padding + (CARD_WIDTH * 9/16) imagem + ~160 conteúdo
+const ITEM_HEIGHT = Math.round((CARD_WIDTH * 9) / 16) + 176;
 
 type RootStackParamList = {
   NewsList: undefined;
@@ -35,6 +42,7 @@ const CATEGORIES = Object.keys(categoryLabels);
  * News list screen with search, filters, pull-to-refresh and infinite scroll
  */
 export function NewsScreen() {
+  const { t } = useTranslation();
   const { colors, isDark } = useTheme();
   const navigation = useNavigation<NavigationProp>();
   const [searchText, setSearchText] = useState('');
@@ -53,28 +61,47 @@ export function NewsScreen() {
     filters,
   } = useNews();
 
-  const handlePressNews = (post: BlogPost) => {
-    navigation.navigate('NewsDetail', { slug: post.slug });
-  };
+  // Ref para controlar debounce do loadMore
+  const lastLoadMoreTime = useRef(0);
+  const loadMoreDebounced = useCallback(() => {
+    const now = Date.now();
+    if (now - lastLoadMoreTime.current > 500) {
+      lastLoadMoreTime.current = now;
+      loadMore();
+    }
+  }, [loadMore]);
 
-  const handleSearch = useCallback((text: string) => {
-    setSearchText(text);
-    const newFilters: BlogFilters = {
-      ...filters,
-      search: text.trim() || undefined,
-    };
-    updateFilters(newFilters);
-  }, [filters, updateFilters]);
+  const handlePressNews = useCallback(
+    (post: BlogPost) => {
+      navigation.navigate('NewsDetail', { slug: post.slug });
+    },
+    [navigation]
+  );
 
-  const handleCategoryPress = useCallback((category: string) => {
-    const newCategory = activeCategory === category ? null : category;
-    setActiveCategory(newCategory);
-    const newFilters: BlogFilters = {
-      ...filters,
-      category: newCategory || undefined,
-    };
-    updateFilters(newFilters);
-  }, [activeCategory, filters, updateFilters]);
+  const handleSearch = useCallback(
+    (text: string) => {
+      setSearchText(text);
+      const newFilters: BlogFilters = {
+        ...filters,
+        search: text.trim() || undefined,
+      };
+      updateFilters(newFilters);
+    },
+    [filters, updateFilters]
+  );
+
+  const handleCategoryPress = useCallback(
+    (category: string) => {
+      const newCategory = activeCategory === category ? null : category;
+      setActiveCategory(newCategory);
+      const newFilters: BlogFilters = {
+        ...filters,
+        category: newCategory || undefined,
+      };
+      updateFilters(newFilters);
+    },
+    [activeCategory, filters, updateFilters]
+  );
 
   const handleClearFilters = useCallback(() => {
     setSearchText('');
@@ -84,9 +111,26 @@ export function NewsScreen() {
 
   const hasActiveFilters = searchText.trim() !== '' || activeCategory !== null;
 
-  const renderItem = ({ item }: { item: BlogPost }) => (
-    <NewsCard post={item} onPress={() => handlePressNews(item)} />
+  // Memoizar renderItem para evitar recriações
+  const renderItem = useCallback(
+    ({ item }: { item: BlogPost }) => (
+      <NewsCard post={item} onPress={() => handlePressNews(item)} />
+    ),
+    [handlePressNews]
   );
+
+  // Otimização do FlatList: calcula layout fixo
+  const getItemLayout = useCallback(
+    (_data: ArrayLike<BlogPost> | null | undefined, index: number) => ({
+      length: ITEM_HEIGHT,
+      offset: ITEM_HEIGHT * index,
+      index,
+    }),
+    []
+  );
+
+  // Memoizar keyExtractor
+  const keyExtractor = useCallback((item: BlogPost) => `${item.id}-${item.slug}`, []);
 
   const renderFooter = () => {
     if (!hasMore) return null;
@@ -107,14 +151,14 @@ export function NewsScreen() {
           color={colors.textSecondary}
         />
         <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-          {error || 'Nenhuma noticia encontrada.'}
+          {error || t('news.noResults')}
         </Text>
         {hasActiveFilters && (
           <TouchableOpacity
             style={[styles.clearFiltersButton, { backgroundColor: colors.primary }]}
             onPress={handleClearFilters}
           >
-            <Text style={styles.clearFiltersButtonText}>Limpar filtros</Text>
+            <Text style={styles.clearFiltersButtonText}>{t('news.clearFilters')}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -151,7 +195,10 @@ export function NewsScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={['top']}
+    >
       <StatusBar
         barStyle={isDark ? 'light-content' : 'dark-content'}
         backgroundColor={colors.background}
@@ -161,9 +208,9 @@ export function NewsScreen() {
       <View style={[styles.header, { borderBottomColor: colors.muted }]}>
         <View style={styles.headerTop}>
           <View>
-            <Text style={[styles.headerTitle, { color: colors.text }]}>Noticias</Text>
+            <Text style={[styles.headerTitle, { color: colors.text }]}>{t('news.title')}</Text>
             <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
-              As ultimas noticias para si
+              {t('news.subtitle')}
             </Text>
           </View>
           <TouchableOpacity
@@ -180,15 +227,16 @@ export function NewsScreen() {
 
         {/* Search Bar */}
         {showFilters && (
-          <View style={[styles.searchContainer, { backgroundColor: colors.backgroundCard, borderColor: colors.muted }]}>
-            <MaterialCommunityIcons
-              name="magnify"
-              size={20}
-              color={colors.textSecondary}
-            />
+          <View
+            style={[
+              styles.searchContainer,
+              { backgroundColor: colors.backgroundCard, borderColor: colors.muted },
+            ]}
+          >
+            <MaterialCommunityIcons name="magnify" size={20} color={colors.textSecondary} />
             <TextInput
               style={[styles.searchInput, { color: colors.text }]}
-              placeholder="Pesquisar noticias..."
+              placeholder={t('news.searchPlaceholder')}
               placeholderTextColor={colors.textSecondary}
               value={searchText}
               onChangeText={handleSearch}
@@ -228,7 +276,7 @@ export function NewsScreen() {
               >
                 <MaterialCommunityIcons name="close" size={14} color={colors.vermelho} />
                 <Text style={[styles.clearChipText, { color: colors.vermelho }]}>
-                  Limpar
+                  {t('news.clear')}
                 </Text>
               </TouchableOpacity>
             )}
@@ -242,20 +290,27 @@ export function NewsScreen() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-            A carregar noticias...
+            {t('news.loading')}
           </Text>
         </View>
       ) : (
         <FlatList
           data={posts}
           renderItem={renderItem}
-          keyExtractor={(item) => item.id.toString()}
+          keyExtractor={keyExtractor}
+          getItemLayout={getItemLayout}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
-          onEndReached={loadMore}
+          onEndReached={loadMoreDebounced}
           onEndReachedThreshold={0.5}
           ListFooterComponent={renderFooter}
           ListEmptyComponent={renderEmpty}
+          // Otimizações de performance
+          maxToRenderPerBatch={10}
+          updateCellsBatchingPeriod={50}
+          initialNumToRender={10}
+          removeClippedSubviews={true}
+          windowSize={5}
           refreshControl={
             <RefreshControl
               refreshing={isRefreshing}

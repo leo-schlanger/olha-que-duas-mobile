@@ -66,7 +66,11 @@ class AdService {
       await mobileAds().initialize();
 
       this.isInitialized = true;
-      logger.log('AdService: SDK initialized successfully (personalized:', this.personalizedAds, ')');
+      logger.log(
+        'AdService: SDK initialized successfully (personalized:',
+        this.personalizedAds,
+        ')'
+      );
     } catch (error) {
       logger.error('AdService: Initialization error:', error);
       // Reset promise so it can be retried

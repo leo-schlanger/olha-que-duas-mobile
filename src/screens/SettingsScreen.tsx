@@ -15,12 +15,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { useTranslation } from 'react-i18next';
 import { usePremium } from '../context/PremiumContext';
-import { useTheme, ThemeMode } from '../context/ThemeContext';
-import {
-  resetGDPRConsent,
-  getGDPRConsentStatus,
-} from '../components/GDPRConsent';
+import { useTheme, ThemeMode, ThemeColors } from '../context/ThemeContext';
+import { resetGDPRConsent, getGDPRConsentStatus } from '../components/GDPRConsent';
 import { useRadioSettings } from '../hooks/useRadioSettings';
 import { useNotifications } from '../hooks/useNotifications';
 import { useSchedule } from '../hooks/useSchedule';
@@ -28,6 +26,7 @@ import { ReminderTime } from '../services/notificationService';
 import { environment } from '../config/environment';
 import { siteConfig } from '../config/site';
 import { logger } from '../utils/logger';
+import { LANGUAGES, LanguageCode, changeLanguage, getCurrentLanguage } from '../i18n';
 
 const PRIVACY_POLICY_URL = 'https://olhaqueduas.com/privacidade';
 const TERMS_URL = 'https://olhaqueduas.com/termos';
@@ -40,11 +39,15 @@ const REMINDER_OPTIONS: { value: ReminderTime; label: string }[] = [
   { value: 60, label: '1 hora' },
 ];
 
-let purchaseService: any = null;
+interface PurchaseServiceType {
+  getFormattedPrice: () => Promise<string>;
+}
+
+let purchaseService: PurchaseServiceType | null = null;
 if (environment.canUseNativeModules) {
   try {
     purchaseService = require('../services/purchaseService').purchaseService;
-  } catch (error) {
+  } catch (_error) {
     logger.log('Purchase service not available');
   }
 }
@@ -59,8 +62,8 @@ function ThemeOption({
 }: {
   mode: ThemeMode;
   currentMode: ThemeMode;
-  onSelect: (mode: ThemeMode) => void;
-  colors: any;
+  onSelect: (_mode: ThemeMode) => void;
+  colors: ThemeColors;
   icon: string;
   label: string;
 }) {
@@ -79,16 +82,11 @@ function ThemeOption({
       activeOpacity={0.7}
     >
       <MaterialCommunityIcons
-        name={icon as any}
+        name={icon as keyof typeof MaterialCommunityIcons.glyphMap}
         size={22}
         color={isSelected ? colors.white : colors.text}
       />
-      <Text
-        style={[
-          styles.themeOptionText,
-          { color: isSelected ? colors.white : colors.text },
-        ]}
-      >
+      <Text style={[styles.themeOptionText, { color: isSelected ? colors.white : colors.text }]}>
         {label}
       </Text>
     </TouchableOpacity>
@@ -96,9 +94,10 @@ function ThemeOption({
 }
 
 export function SettingsScreen() {
+  const { t } = useTranslation();
   const { colors, isDark, themeMode, setThemeMode } = useTheme();
-  const { isPremium, isLoading, purchasePremium, restorePurchases } =
-    usePremium();
+  const { isPremium, isLoading, purchasePremium, restorePurchases } = usePremium();
+  const [currentLang, setCurrentLang] = useState<LanguageCode>(getCurrentLanguage());
   const {
     settings: radioSettings,
     updateSetting: updateRadioSetting,
@@ -107,7 +106,6 @@ export function SettingsScreen() {
   const {
     preferences: notificationPrefs,
     isLoading: notificationLoading,
-    hasPermission: notificationPermission,
     setEnabled: setNotificationsEnabled,
     setReminderMinutes,
   } = useNotifications();
@@ -142,11 +140,9 @@ export function SettingsScreen() {
 
   async function handlePurchase() {
     if (!environment.features.purchases) {
-      Alert.alert(
-        'Indisponível',
-        'As compras não estão disponíveis nesta versão de teste.',
-        [{ text: 'OK' }]
-      );
+      Alert.alert(t('purchase.unavailable.title'), t('purchase.unavailable.message'), [
+        { text: t('common.ok') },
+      ]);
       return;
     }
 
@@ -154,17 +150,13 @@ export function SettingsScreen() {
     const success = await purchasePremium();
 
     if (success) {
-      Alert.alert(
-        'Compra realizada!',
-        'Obrigado por apoiar o Olha que Duas! Os anúncios foram removidos.',
-        [{ text: 'OK' }]
-      );
+      Alert.alert(t('purchase.success.title'), t('purchase.success.message'), [
+        { text: t('common.ok') },
+      ]);
     } else {
-      Alert.alert(
-        'Erro na compra',
-        'Não foi possível completar a compra. Tente novamente.',
-        [{ text: 'OK' }]
-      );
+      Alert.alert(t('purchase.error.title'), t('purchase.error.message'), [
+        { text: t('common.ok') },
+      ]);
     }
 
     setIsProcessing(false);
@@ -172,11 +164,9 @@ export function SettingsScreen() {
 
   async function handleRestore() {
     if (!environment.features.purchases) {
-      Alert.alert(
-        'Indisponível',
-        'As compras não estão disponíveis nesta versão de teste.',
-        [{ text: 'OK' }]
-      );
+      Alert.alert(t('purchase.unavailable.title'), t('purchase.unavailable.message'), [
+        { text: t('common.ok') },
+      ]);
       return;
     }
 
@@ -184,42 +174,32 @@ export function SettingsScreen() {
     const success = await restorePurchases();
 
     if (success) {
-      Alert.alert(
-        'Compra restaurada!',
-        'A sua compra foi restaurada com sucesso.',
-        [{ text: 'OK' }]
-      );
+      Alert.alert(t('purchase.restored.title'), t('purchase.restored.message'), [
+        { text: t('common.ok') },
+      ]);
     } else {
-      Alert.alert(
-        'Nenhuma compra encontrada',
-        'Não encontrámos nenhuma compra anterior associada à sua conta.',
-        [{ text: 'OK' }]
-      );
+      Alert.alert(t('purchase.notFound.title'), t('purchase.notFound.message'), [
+        { text: t('common.ok') },
+      ]);
     }
 
     setIsProcessing(false);
   }
 
   async function handleResetAdsConsent() {
-    Alert.alert(
-      'Redefinir preferências',
-      'Pretende redefinir as suas preferências de anúncios? O diálogo de consentimento será mostrado novamente.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Redefinir',
-          onPress: async () => {
-            await resetGDPRConsent();
-            setAdsConsentStatus(null);
-            Alert.alert(
-              'Preferências redefinidas',
-              'Reinicie a aplicação para ver o diálogo de consentimento novamente.',
-              [{ text: 'OK' }]
-            );
-          },
+    Alert.alert(t('consent.reset.title'), t('consent.reset.message'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('consent.reset.button'),
+        onPress: async () => {
+          await resetGDPRConsent();
+          setAdsConsentStatus(null);
+          Alert.alert(t('consent.resetSuccess.title'), t('consent.resetSuccess.message'), [
+            { text: t('common.ok') },
+          ]);
         },
-      ]
-    );
+      },
+    ]);
   }
 
   function openPrivacyPolicy() {
@@ -231,37 +211,33 @@ export function SettingsScreen() {
   }
 
   function getConsentLabel() {
-    if (adsConsentStatus === 'personalized') return 'Anúncios personalizados';
-    if (adsConsentStatus === 'non_personalized')
-      return 'Anúncios não personalizados';
-    return 'Não definido';
+    if (adsConsentStatus === 'personalized') return t('consent.personalized');
+    if (adsConsentStatus === 'non_personalized') return t('consent.nonPersonalized');
+    return t('consent.notSet');
+  }
+
+  async function handleLanguageChange(lang: LanguageCode) {
+    await changeLanguage(lang);
+    setCurrentLang(lang);
+  }
+
+  function openSocialLink(url: string) {
+    Linking.openURL(url);
   }
 
   function handleExitApp() {
     if (Platform.OS === 'android') {
-      Alert.alert(
-        'Sair da aplicação',
-        'Tem a certeza que pretende sair?',
-        [
-          { text: 'Cancelar', style: 'cancel' },
-          { text: 'Sair', onPress: () => BackHandler.exitApp() },
-        ]
-      );
+      Alert.alert(t('exitApp.android.title'), t('exitApp.android.message'), [
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('exitApp.android.button'), onPress: () => BackHandler.exitApp() },
+      ]);
     } else {
-      Alert.alert(
-        'Informação',
-        'No iOS, deslize para cima a partir do fundo do ecrã e arraste a app para cima para a fechar.',
-        [{ text: 'OK' }]
-      );
+      Alert.alert(t('exitApp.ios.title'), t('exitApp.ios.message'), [{ text: t('common.ok') }]);
     }
   }
 
   function openWebsite() {
     Linking.openURL(WEBSITE_URL);
-  }
-
-  function openSocialLink(url: string) {
-    Linking.openURL(url);
   }
 
   const dynamicStyles = createDynamicStyles(colors, isDark);
@@ -274,24 +250,19 @@ export function SettingsScreen() {
       />
 
       <View style={dynamicStyles.header}>
-        <Text style={dynamicStyles.headerTitle}>Definições</Text>
+        <Text style={dynamicStyles.headerTitle}>{t('settings.title')}</Text>
       </View>
 
-      <ScrollView
-        style={dynamicStyles.content}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView style={dynamicStyles.content} showsVerticalScrollIndicator={false}>
         <View style={dynamicStyles.section}>
-          <Text style={dynamicStyles.sectionTitle}>Aparência</Text>
+          <Text style={dynamicStyles.sectionTitle}>{t('settings.appearance.title')}</Text>
 
           <View style={dynamicStyles.themeCard}>
             <View style={dynamicStyles.themeHeader}>
-              <MaterialCommunityIcons
-                name="palette-outline"
-                size={22}
-                color={colors.text}
-              />
-              <Text style={dynamicStyles.themeHeaderText}>Escolha o tema</Text>
+              <MaterialCommunityIcons name="palette-outline" size={22} color={colors.text} />
+              <Text style={dynamicStyles.themeHeaderText}>
+                {t('settings.appearance.chooseTheme')}
+              </Text>
             </View>
 
             <View style={dynamicStyles.themeOptions}>
@@ -301,7 +272,7 @@ export function SettingsScreen() {
                 onSelect={setThemeMode}
                 colors={colors}
                 icon="white-balance-sunny"
-                label="Claro"
+                label={t('settings.appearance.light')}
               />
               <ThemeOption
                 mode="system"
@@ -309,7 +280,7 @@ export function SettingsScreen() {
                 onSelect={setThemeMode}
                 colors={colors}
                 icon="theme-light-dark"
-                label="Sistema"
+                label={t('settings.appearance.system')}
               />
               <ThemeOption
                 mode="dark"
@@ -317,65 +288,97 @@ export function SettingsScreen() {
                 onSelect={setThemeMode}
                 colors={colors}
                 icon="weather-night"
-                label="Escuro"
+                label={t('settings.appearance.dark')}
               />
             </View>
           </View>
         </View>
 
         <View style={dynamicStyles.section}>
-          <Text style={dynamicStyles.sectionTitle}>Rádio</Text>
+          <Text style={dynamicStyles.sectionTitle}>{t('settings.language.title')}</Text>
+
+          <View style={dynamicStyles.themeCard}>
+            <View style={dynamicStyles.themeHeader}>
+              <MaterialCommunityIcons name="translate" size={22} color={colors.text} />
+              <Text style={dynamicStyles.themeHeaderText}>
+                {t('settings.language.chooseLanguage')}
+              </Text>
+            </View>
+
+            <View style={dynamicStyles.themeOptions}>
+              {(Object.keys(LANGUAGES) as LanguageCode[]).map((langCode) => (
+                <TouchableOpacity
+                  key={langCode}
+                  style={[
+                    styles.themeOption,
+                    {
+                      backgroundColor:
+                        currentLang === langCode ? colors.primary : colors.background,
+                      borderColor: currentLang === langCode ? colors.primary : colors.muted,
+                    },
+                  ]}
+                  onPress={() => handleLanguageChange(langCode)}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.themeOptionText,
+                      { color: currentLang === langCode ? colors.white : colors.text },
+                    ]}
+                  >
+                    {LANGUAGES[langCode].nativeName}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+
+        <View style={dynamicStyles.section}>
+          <Text style={dynamicStyles.sectionTitle}>{t('settings.radio.title')}</Text>
 
           <View style={dynamicStyles.menuCard}>
             <SettingRow
               icon="play-circle-outline"
               iconColor={colors.primary}
-              title="Reprodução em segundo plano"
-              subtitle="Continuar a tocar com o ecrã desligado"
+              title={t('settings.radio.backgroundPlayback')}
+              subtitle={t('settings.radio.backgroundPlaybackDesc')}
               colors={colors}
               value={radioSettings?.backgroundPlayback ?? true}
-              onValueChange={(value) =>
-                updateRadioSetting('backgroundPlayback', value)
-              }
+              onValueChange={(value) => updateRadioSetting('backgroundPlayback', value)}
               disabled={radioSettingsLoading}
             />
 
             <SettingRow
               icon="autorenew"
               iconColor={colors.success}
-              title="Reconexão automática"
-              subtitle="Reconectar se a ligação for perdida"
+              title={t('settings.radio.autoReconnect')}
+              subtitle={t('settings.radio.autoReconnectDesc')}
               colors={colors}
               value={radioSettings?.autoReconnect ?? true}
-              onValueChange={(value) =>
-                updateRadioSetting('autoReconnect', value)
-              }
+              onValueChange={(value) => updateRadioSetting('autoReconnect', value)}
               disabled={radioSettingsLoading}
             />
 
             <SettingRow
               icon="flash-outline"
               iconColor={colors.amarelo}
-              title="Reprodução automática"
-              subtitle="Iniciar a rádio ao abrir a aplicação"
+              title={t('settings.radio.autoPlay')}
+              subtitle={t('settings.radio.autoPlayDesc')}
               colors={colors}
               value={radioSettings?.autoPlayOnStart ?? false}
-              onValueChange={(value) =>
-                updateRadioSetting('autoPlayOnStart', value)
-              }
+              onValueChange={(value) => updateRadioSetting('autoPlayOnStart', value)}
               disabled={radioSettingsLoading}
             />
 
             <SettingRow
               icon="close-circle-outline"
               iconColor={colors.error}
-              title="Parar ao fechar aplicação"
-              subtitle="A rádio para quando fechar a aplicação"
+              title={t('settings.radio.stopOnClose')}
+              subtitle={t('settings.radio.stopOnCloseDesc')}
               colors={colors}
               value={radioSettings?.stopOnClose ?? false}
-              onValueChange={(value) =>
-                updateRadioSetting('stopOnClose', value)
-              }
+              onValueChange={(value) => updateRadioSetting('stopOnClose', value)}
               disabled={radioSettingsLoading}
               isLast
             />
@@ -383,7 +386,7 @@ export function SettingsScreen() {
         </View>
 
         <View style={dynamicStyles.section}>
-          <Text style={dynamicStyles.sectionTitle}>Premium</Text>
+          <Text style={dynamicStyles.sectionTitle}>{t('settings.premium.title')}</Text>
 
           <View style={dynamicStyles.premiumCard}>
             <View
@@ -404,35 +407,28 @@ export function SettingsScreen() {
             {isPremium ? (
               <>
                 <Text style={dynamicStyles.premiumTitle}>
-                  Você é Premium!
+                  {t('settings.premium.youArePremium')}
                 </Text>
                 <Text style={dynamicStyles.premiumDescription}>
-                  Obrigado por apoiar o Olha que Duas. Aproveite a experiência
-                  sem anúncios.
+                  {t('settings.premium.thankYou')}
                 </Text>
               </>
             ) : (
               <>
-                <Text style={dynamicStyles.premiumTitle}>Remover Anúncios</Text>
+                <Text style={dynamicStyles.premiumTitle}>{t('settings.premium.removeAds')}</Text>
                 <Text style={dynamicStyles.premiumDescription}>
-                  Apoie o Olha que Duas e remova todos os anúncios com um
-                  pagamento único.
+                  {t('settings.premium.removeAdsDesc')}
                 </Text>
 
                 <View style={dynamicStyles.priceTag}>
-                  <Text style={dynamicStyles.priceText}>
-                    {price ?? '...'}
-                  </Text>
+                  <Text style={dynamicStyles.priceText}>{price ?? '...'}</Text>
                   <Text style={dynamicStyles.priceSubtext}>
-                    pagamento único
+                    {t('settings.premium.oneTimePayment')}
                   </Text>
                 </View>
 
                 <TouchableOpacity
-                  style={[
-                    dynamicStyles.purchaseButton,
-                    { backgroundColor: colors.primary },
-                  ]}
+                  style={[dynamicStyles.purchaseButton, { backgroundColor: colors.primary }]}
                   onPress={handlePurchase}
                   disabled={isLoading || isProcessing}
                   activeOpacity={0.8}
@@ -441,13 +437,9 @@ export function SettingsScreen() {
                     <ActivityIndicator color={colors.white} />
                   ) : (
                     <>
-                      <MaterialCommunityIcons
-                        name="heart-outline"
-                        size={20}
-                        color={colors.white}
-                      />
+                      <MaterialCommunityIcons name="heart-outline" size={20} color={colors.white} />
                       <Text style={dynamicStyles.purchaseButtonText}>
-                        Remover Anúncios
+                        {t('settings.premium.removeAds')}
                       </Text>
                     </>
                   )}
@@ -459,7 +451,7 @@ export function SettingsScreen() {
                   disabled={isLoading || isProcessing}
                 >
                   <Text style={dynamicStyles.restoreButtonText}>
-                    Restaurar compra anterior
+                    {t('settings.premium.restorePurchase')}
                   </Text>
                 </TouchableOpacity>
               </>
@@ -468,13 +460,13 @@ export function SettingsScreen() {
         </View>
 
         <View style={dynamicStyles.section}>
-          <Text style={dynamicStyles.sectionTitle}>Privacidade</Text>
+          <Text style={dynamicStyles.sectionTitle}>{t('settings.privacy.title')}</Text>
 
           <View style={dynamicStyles.menuCard}>
             {!isPremium && (
               <MenuItem
                 icon="eye-outline"
-                title="Preferências de anúncios"
+                title={t('settings.privacy.adPreferences')}
                 subtitle={getConsentLabel()}
                 colors={colors}
                 onPress={handleResetAdsConsent}
@@ -483,7 +475,7 @@ export function SettingsScreen() {
 
             <MenuItem
               icon="shield-check-outline"
-              title="Política de Privacidade"
+              title={t('settings.privacy.privacyPolicy')}
               colors={colors}
               onPress={openPrivacyPolicy}
               showExternal
@@ -491,7 +483,7 @@ export function SettingsScreen() {
 
             <MenuItem
               icon="file-document-outline"
-              title="Termos de Utilização"
+              title={t('settings.privacy.termsOfUse')}
               colors={colors}
               onPress={openTerms}
               showExternal
@@ -501,14 +493,14 @@ export function SettingsScreen() {
         </View>
 
         <View style={dynamicStyles.section}>
-          <Text style={dynamicStyles.sectionTitle}>Notificações</Text>
+          <Text style={dynamicStyles.sectionTitle}>{t('notifications.programReminders')}</Text>
 
           <View style={dynamicStyles.menuCard}>
             <SettingRow
               icon="bell-outline"
               iconColor={colors.secondary}
-              title="Lembretes de programas"
-              subtitle="Receber notificações antes dos programas"
+              title={t('notifications.programReminders')}
+              subtitle={t('notifications.receiveNotifications')}
               colors={colors}
               value={notificationPrefs.enabled}
               onValueChange={setNotificationsEnabled}
@@ -516,7 +508,12 @@ export function SettingsScreen() {
             />
 
             {notificationPrefs.enabled && (
-              <View style={[styles.reminderTimeRow, { borderTopColor: colors.background, borderTopWidth: 1 }]}>
+              <View
+                style={[
+                  styles.reminderTimeRow,
+                  { borderTopColor: colors.background, borderTopWidth: 1 },
+                ]}
+              >
                 <View style={styles.reminderTimeHeader}>
                   <MaterialCommunityIcons
                     name="clock-outline"
@@ -524,7 +521,7 @@ export function SettingsScreen() {
                     color={colors.textSecondary}
                   />
                   <Text style={[styles.reminderTimeLabel, { color: colors.text }]}>
-                    Avisar antes:
+                    {t('notifications.warnBefore')}
                   </Text>
                 </View>
                 <View style={styles.reminderTimeOptions}>
@@ -564,13 +561,9 @@ export function SettingsScreen() {
                   ))}
                 </View>
                 <View style={styles.timezoneInfo}>
-                  <MaterialCommunityIcons
-                    name="earth"
-                    size={14}
-                    color={colors.textSecondary}
-                  />
+                  <MaterialCommunityIcons name="earth" size={14} color={colors.textSecondary} />
                   <Text style={[styles.timezoneInfoText, { color: colors.textSecondary }]}>
-                    Horários em Portugal (PT). Ajustamos automaticamente ao seu fuso horário.
+                    {t('notifications.timezoneInfo')}
                   </Text>
                 </View>
               </View>
@@ -581,7 +574,7 @@ export function SettingsScreen() {
             <View style={[dynamicStyles.menuCard, { marginTop: 10 }]}>
               <View style={styles.enabledShowsHeader}>
                 <Text style={[styles.enabledShowsTitle, { color: colors.textSecondary }]}>
-                  Programas com lembrete ativo:
+                  {t('notifications.activePrograms')}
                 </Text>
               </View>
               {notificationPrefs.enabledShows.map((show, index) => (
@@ -590,7 +583,8 @@ export function SettingsScreen() {
                   style={[
                     styles.enabledShowItem,
                     { borderBottomColor: colors.background },
-                    index === notificationPrefs.enabledShows.length - 1 && styles.enabledShowItemLast,
+                    index === notificationPrefs.enabledShows.length - 1 &&
+                      styles.enabledShowItemLast,
                   ]}
                 >
                   <MaterialCommunityIcons
@@ -598,9 +592,7 @@ export function SettingsScreen() {
                     size={16}
                     color={colors.secondary}
                   />
-                  <Text style={[styles.enabledShowName, { color: colors.text }]}>
-                    {show}
-                  </Text>
+                  <Text style={[styles.enabledShowName, { color: colors.text }]}>{show}</Text>
                 </View>
               ))}
             </View>
@@ -608,22 +600,16 @@ export function SettingsScreen() {
         </View>
 
         <View style={dynamicStyles.section}>
-          <Text style={dynamicStyles.sectionTitle}>Sobre</Text>
+          <Text style={dynamicStyles.sectionTitle}>{t('settings.about.title')}</Text>
 
           <View style={dynamicStyles.aboutCard}>
-            <MaterialCommunityIcons
-              name="radio"
-              size={40}
-              color={colors.primary}
-            />
+            <MaterialCommunityIcons name="radio" size={40} color={colors.primary} />
             <Text style={[dynamicStyles.aboutTitle, { marginTop: 24 }]}>Olha que Duas</Text>
-            <Text style={dynamicStyles.aboutText}>
-              O Olha que Duas é uma rádio online portuguesa que une entretenimento, bem-estar e conversas autênticas. Com uma programação diversificada que vai desde nutrição e motivação até debates descontraídos, estamos no ar 24 horas por dia para lhe fazer companhia.
-            </Text>
+            <Text style={dynamicStyles.aboutText}>{t('settings.about.description')}</Text>
 
             <View style={dynamicStyles.programsCard}>
               <Text style={[dynamicStyles.programsTitle, { color: colors.text }]}>
-                Programas em destaque
+                {t('settings.about.featuredPrograms')}
               </Text>
               {scheduleLoading ? (
                 <ActivityIndicator size="small" color={colors.secondary} style={{ padding: 10 }} />
@@ -645,7 +631,7 @@ export function SettingsScreen() {
             </View>
 
             <Text style={[dynamicStyles.aboutText, { marginTop: 16 }]}>
-              Somos mais do que uma rádio - somos uma comunidade. Cada programa é pensado para trazer valor ao seu dia, seja através de dicas práticas de saúde, inspiração para os seus objetivos ou simplesmente boas conversas para descontrair.
+              {t('radio.social.communityText')}
             </Text>
 
             <TouchableOpacity
@@ -654,7 +640,7 @@ export function SettingsScreen() {
               activeOpacity={0.8}
             >
               <MaterialCommunityIcons name="web" size={20} color={colors.white} />
-              <Text style={dynamicStyles.websiteButtonText}>Visitar Website</Text>
+              <Text style={dynamicStyles.websiteButtonText}>{t('radio.social.visitWebsite')}</Text>
             </TouchableOpacity>
 
             <View style={dynamicStyles.socialLinks}>
@@ -671,10 +657,17 @@ export function SettingsScreen() {
                 <MaterialCommunityIcons name="facebook" size={22} color={colors.white} />
               </TouchableOpacity>
               <TouchableOpacity
-                style={[dynamicStyles.socialButton, { backgroundColor: isDark ? '#FFFFFF' : '#000000' }]}
+                style={[
+                  dynamicStyles.socialButton,
+                  { backgroundColor: isDark ? '#FFFFFF' : '#000000' },
+                ]}
                 onPress={() => openSocialLink(siteConfig.social.tiktok)}
               >
-                <MaterialCommunityIcons name="music-note" size={22} color={isDark ? '#000000' : '#FFFFFF'} />
+                <MaterialCommunityIcons
+                  name="music-note"
+                  size={22}
+                  color={isDark ? '#000000' : '#FFFFFF'}
+                />
               </TouchableOpacity>
               <TouchableOpacity
                 style={[dynamicStyles.socialButton, { backgroundColor: '#FF0000' }]}
@@ -685,19 +678,25 @@ export function SettingsScreen() {
             </View>
 
             <View style={dynamicStyles.versionBadge}>
-              <Text style={dynamicStyles.versionText}>Versão 1.0.0</Text>
+              <Text style={dynamicStyles.versionText}>
+                {t('common.version', { version: '1.0.0' })}
+              </Text>
             </View>
           </View>
         </View>
 
         <View style={dynamicStyles.section}>
-          <Text style={dynamicStyles.sectionTitle}>Aplicação</Text>
+          <Text style={dynamicStyles.sectionTitle}>{t('settings.app.title')}</Text>
 
           <View style={dynamicStyles.menuCard}>
             <MenuItem
               icon="exit-to-app"
-              title="Sair da Aplicação"
-              subtitle={Platform.OS === 'android' ? 'Fechar completamente a app' : 'Ver instruções para fechar'}
+              title={t('settings.app.exitApp')}
+              subtitle={
+                Platform.OS === 'android'
+                  ? t('settings.app.exitAppAndroid')
+                  : t('settings.app.exitAppIOS')
+              }
               colors={colors}
               onPress={handleExitApp}
               isLast
@@ -707,7 +706,7 @@ export function SettingsScreen() {
 
         {environment.isDevelopment && (
           <View style={dynamicStyles.section}>
-            <Text style={dynamicStyles.sectionTitle}>Debug</Text>
+            <Text style={dynamicStyles.sectionTitle}>{t('settings.debug.title')}</Text>
             <View style={dynamicStyles.debugCard}>
               <DebugRow
                 label="Expo Go"
@@ -726,21 +725,11 @@ export function SettingsScreen() {
               />
               <DebugRow
                 label="Purchases"
-                value={
-                  environment.features.purchases ? 'Activo' : 'Desactivado'
-                }
+                value={environment.features.purchases ? 'Activo' : 'Desactivado'}
                 colors={colors}
               />
-              <DebugRow
-                label="Theme Mode"
-                value={themeMode}
-                colors={colors}
-              />
-              <DebugRow
-                label="Is Dark"
-                value={isDark ? 'Sim' : 'Não'}
-                colors={colors}
-              />
+              <DebugRow label="Theme Mode" value={themeMode} colors={colors} />
+              <DebugRow label="Is Dark" value={isDark ? 'Sim' : 'Não'} colors={colors} />
             </View>
           </View>
         )}
@@ -766,9 +755,9 @@ function SettingRow({
   iconColor: string;
   title: string;
   subtitle: string;
-  colors: any;
+  colors: ThemeColors;
   value: boolean;
-  onValueChange: (value: boolean) => void;
+  onValueChange: (_value: boolean) => void;
   disabled?: boolean;
   isLast?: boolean;
 }) {
@@ -780,23 +769,16 @@ function SettingRow({
         isLast && styles.settingRowLast,
       ]}
     >
-      <View
-        style={[
-          styles.settingIconBox,
-          { backgroundColor: iconColor + '15' },
-        ]}
-      >
-        <MaterialCommunityIcons name={icon as any} size={20} color={iconColor} />
+      <View style={[styles.settingIconBox, { backgroundColor: iconColor + '15' }]}>
+        <MaterialCommunityIcons
+          name={icon as keyof typeof MaterialCommunityIcons.glyphMap}
+          size={20}
+          color={iconColor}
+        />
       </View>
       <View style={styles.settingContent}>
-        <Text style={[styles.settingTitle, { color: colors.text }]}>
-          {title}
-        </Text>
-        <Text
-          style={[styles.settingSubtitle, { color: colors.textSecondary }]}
-        >
-          {subtitle}
-        </Text>
+        <Text style={[styles.settingTitle, { color: colors.text }]}>{title}</Text>
+        <Text style={[styles.settingSubtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
       </View>
       <Switch
         value={value}
@@ -821,7 +803,7 @@ function MenuItem({
   icon: string;
   title: string;
   subtitle?: string;
-  colors: any;
+  colors: ThemeColors;
   onPress: () => void;
   showExternal?: boolean;
   isLast?: boolean;
@@ -836,24 +818,17 @@ function MenuItem({
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <View
-        style={[
-          styles.menuIconBox,
-          { backgroundColor: colors.muted },
-        ]}
-      >
-        <MaterialCommunityIcons name={icon as any} size={20} color={colors.text} />
+      <View style={[styles.menuIconBox, { backgroundColor: colors.muted }]}>
+        <MaterialCommunityIcons
+          name={icon as keyof typeof MaterialCommunityIcons.glyphMap}
+          size={20}
+          color={colors.text}
+        />
       </View>
       <View style={styles.menuContent}>
-        <Text style={[styles.menuTitle, { color: colors.text }]}>
-          {title}
-        </Text>
+        <Text style={[styles.menuTitle, { color: colors.text }]}>{title}</Text>
         {subtitle && (
-          <Text
-            style={[styles.menuSubtitle, { color: colors.textSecondary }]}
-          >
-            {subtitle}
-          </Text>
+          <Text style={[styles.menuSubtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
         )}
       </View>
       <MaterialCommunityIcons
@@ -865,23 +840,11 @@ function MenuItem({
   );
 }
 
-function DebugRow({
-  label,
-  value,
-  colors,
-}: {
-  label: string;
-  value: string;
-  colors: any;
-}) {
+function DebugRow({ label, value, colors }: { label: string; value: string; colors: ThemeColors }) {
   return (
     <View style={styles.debugRow}>
-      <Text style={[styles.debugLabel, { color: colors.textSecondary }]}>
-        {label}
-      </Text>
-      <Text style={[styles.debugValue, { color: colors.text }]}>
-        {value}
-      </Text>
+      <Text style={[styles.debugLabel, { color: colors.textSecondary }]}>{label}</Text>
+      <Text style={[styles.debugValue, { color: colors.text }]}>{value}</Text>
     </View>
   );
 }
@@ -1036,7 +999,7 @@ const styles = StyleSheet.create({
   },
 });
 
-function createDynamicStyles(colors: any, isDark: boolean) {
+function createDynamicStyles(colors: ThemeColors, _isDark: boolean) {
   return StyleSheet.create({
     container: {
       flex: 1,

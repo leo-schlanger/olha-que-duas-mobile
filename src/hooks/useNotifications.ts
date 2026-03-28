@@ -11,13 +11,21 @@ interface UseNotificationsReturn {
   isLoading: boolean;
   hasPermission: boolean | null;
   error: string | null;
-  setEnabled: (enabled: boolean) => Promise<boolean>;
-  setReminderMinutes: (minutes: ReminderTime) => Promise<boolean>;
-  toggleShowReminder: (showName: string) => Promise<boolean>;
-  scheduleReminder: (showName: string, dayOfWeek: number, time: string) => Promise<string | null>;
-  scheduleAllTimesForShow: (showName: string, dayOfWeek: number, times: string[]) => Promise<boolean>;
-  cancelShowReminders: (showName: string) => Promise<boolean>;
-  isShowEnabled: (showName: string) => boolean;
+  setEnabled: (_enabled: boolean) => Promise<boolean>;
+  setReminderMinutes: (_minutes: ReminderTime) => Promise<boolean>;
+  toggleShowReminder: (_showName: string) => Promise<boolean>;
+  scheduleReminder: (
+    _showName: string,
+    _dayOfWeek: number,
+    _time: string
+  ) => Promise<string | null>;
+  scheduleAllTimesForShow: (
+    _showName: string,
+    _dayOfWeek: number,
+    _times: string[]
+  ) => Promise<boolean>;
+  cancelShowReminders: (_showName: string) => Promise<boolean>;
+  isShowEnabled: (_showName: string) => boolean;
   requestPermissions: () => Promise<boolean>;
   forceSync: () => Promise<void>;
   isOperationPending: () => boolean;
@@ -191,7 +199,11 @@ export function useNotifications(): UseNotificationsReturn {
       setError(null);
 
       try {
-        const result = await notificationService.scheduleAllTimesForShow(showName, dayOfWeek, times);
+        const result = await notificationService.scheduleAllTimesForShow(
+          showName,
+          dayOfWeek,
+          times
+        );
 
         if (isMountedRef.current) {
           if (!result.success) {

@@ -1,8 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import {
-  radioSettingsService,
-  RadioSettings,
-} from '../services/radioSettingsService';
+import { radioSettingsService, RadioSettings } from '../services/radioSettingsService';
 import { logger } from '../utils/logger';
 
 export function useRadioSettings() {

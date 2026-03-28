@@ -1,5 +1,11 @@
 import React from 'react';
-import { NavigationContainer, DefaultTheme, DarkTheme, LinkingOptions, createNavigationContainerRef } from '@react-navigation/native';
+import {
+  NavigationContainer,
+  DefaultTheme,
+  DarkTheme,
+  LinkingOptions,
+  createNavigationContainerRef,
+} from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
@@ -8,15 +14,17 @@ import * as Linking from 'expo-linking';
 // Navigation ref for use outside of React components (e.g., notification handlers)
 export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
-export function navigate(name: keyof RootStackParamList, params?: any) {
+export function navigate(name: keyof RootStackParamList, params?: object) {
   if (navigationRef.isReady()) {
+    // @ts-expect-error - navigation params are dynamic
     navigationRef.navigate(name, params);
   }
 }
 
 export function navigateToTab(tabName: keyof MainTabParamList) {
   if (navigationRef.isReady()) {
-    navigationRef.navigate('MainTabs', { screen: tabName } as any);
+    // @ts-expect-error - navigation params are dynamic
+    navigationRef.navigate('MainTabs', { screen: tabName });
   }
 }
 
@@ -68,7 +76,7 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 
 function MainTabs() {
   const insets = useSafeAreaInsets();
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
 
   return (
     <Tab.Navigator
@@ -97,6 +105,7 @@ function MainTabs() {
         component={RadioScreen}
         options={{
           tabBarLabel: 'Radio',
+          tabBarAccessibilityLabel: 'Rádio - ouvir em direto',
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="radio" size={size} color={color} />
           ),
@@ -107,6 +116,7 @@ function MainTabs() {
         component={NewsScreen}
         options={{
           tabBarLabel: 'Noticias',
+          tabBarAccessibilityLabel: 'Notícias - ver últimas notícias',
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="newspaper-variant-outline" size={size} color={color} />
           ),
@@ -117,6 +127,7 @@ function MainTabs() {
         component={WeatherScreen}
         options={{
           tabBarLabel: 'Clima',
+          tabBarAccessibilityLabel: 'Clima - ver previsão do tempo',
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="weather-partly-cloudy" size={size} color={color} />
           ),
@@ -127,6 +138,7 @@ function MainTabs() {
         component={SettingsScreen}
         options={{
           tabBarLabel: 'Definicoes',
+          tabBarAccessibilityLabel: 'Definições - configurações da aplicação',
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="cog-outline" size={size} color={color} />
           ),
@@ -141,29 +153,29 @@ export function AppNavigator() {
 
   const navigationTheme = isDark
     ? {
-      ...DarkTheme,
-      colors: {
-        ...DarkTheme.colors,
-        primary: colors.primary,
-        background: colors.background,
-        card: colors.card,
-        text: colors.text,
-        border: colors.border,
-        notification: colors.notification,
-      },
-    }
+        ...DarkTheme,
+        colors: {
+          ...DarkTheme.colors,
+          primary: colors.primary,
+          background: colors.background,
+          card: colors.card,
+          text: colors.text,
+          border: colors.border,
+          notification: colors.notification,
+        },
+      }
     : {
-      ...DefaultTheme,
-      colors: {
-        ...DefaultTheme.colors,
-        primary: colors.primary,
-        background: colors.background,
-        card: colors.card,
-        text: colors.text,
-        border: colors.border,
-        notification: colors.notification,
-      },
-    };
+        ...DefaultTheme,
+        colors: {
+          ...DefaultTheme.colors,
+          primary: colors.primary,
+          background: colors.background,
+          card: colors.card,
+          text: colors.text,
+          border: colors.border,
+          notification: colors.notification,
+        },
+      };
 
   return (
     <NavigationContainer ref={navigationRef} theme={navigationTheme} linking={linking}>

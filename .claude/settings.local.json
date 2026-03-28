@@ -44,7 +44,23 @@
       "Bash(./gradlew clean:*)",
       "Bash(cmd /c \"rd /s /q D:\\\\Projetos\\\\olha-que-duas-mobile\\\\android\")",
       "Bash(powershell -Command \"Remove-Item -Path ''D:\\\\Projetos\\\\olha-que-duas-mobile\\\\android'' -Recurse -Force\")",
-      "Bash(eas build:*)"
+      "Bash(eas build:*)",
+      "Bash(grep:*)",
+      "Bash(powershell -Command \"Remove-Item -Recurse -Force ''D:\\\\Projetos\\\\olha-que-duas-mobile\\\\android''\")",
+      "Bash(powershell -Command \"takeown /F ''D:\\\\Projetos\\\\olha-que-duas-mobile\\\\android'' /R /D Y; icacls ''D:\\\\Projetos\\\\olha-que-duas-mobile\\\\android'' /grant Everyone:F /T; Remove-Item -Recurse -Force ''D:\\\\Projetos\\\\olha-que-duas-mobile\\\\android''\")",
+      "Bash(find:*)",
+      "Bash(git add:*)",
+      "Bash(cmd //c \"taskkill /F /IM java.exe\")",
+      "Bash(npm audit:*)",
+      "Bash(npm ls:*)",
+      "Bash(npm test:*)",
+      "Bash(npm run lint:*)",
+      "Bash(npm run lint:fix:*)",
+      "Bash(npx eslint:*)",
+      "Bash(wc:*)",
+      "Bash(python:*)",
+      "Bash(npm run test)",
+      "Bash(npm run format:*)"
     ]
   }
 }

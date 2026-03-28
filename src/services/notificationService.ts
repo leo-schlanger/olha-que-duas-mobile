@@ -30,7 +30,7 @@ interface OperationResult<T = void> {
   error?: string;
 }
 
-type PreferencesListener = (prefs: NotificationPreferences) => void;
+type PreferencesListener = (_prefs: NotificationPreferences) => void;
 
 // ============================================================================
 // CONSTANTS
@@ -39,7 +39,7 @@ type PreferencesListener = (prefs: NotificationPreferences) => void;
 const STORAGE_KEY = STORAGE_KEYS.NOTIFICATION_PREFS;
 const SCHEDULED_NOTIFICATIONS_KEY = STORAGE_KEYS.SCHEDULED_NOTIFICATIONS;
 const NOTIFICATION_CHANNEL_ID = 'program-reminders';
-const OPERATION_TIMEOUT = 10000; // 10 seconds
+const _OPERATION_TIMEOUT = 10000; // 10 seconds - reserved for future use
 const DEBOUNCE_DELAY = 300; // 300ms
 const PORTUGAL_TIMEZONE = 'Europe/Lisbon';
 
@@ -70,8 +70,11 @@ function getTimezoneOffsetMinutes(): number {
       hour12: false,
     });
     const portugalParts = portugalFormatter.formatToParts(now);
-    const portugalHour = parseInt(portugalParts.find(p => p.type === 'hour')?.value || '0', 10);
-    const portugalMinute = parseInt(portugalParts.find(p => p.type === 'minute')?.value || '0', 10);
+    const portugalHour = parseInt(portugalParts.find((p) => p.type === 'hour')?.value || '0', 10);
+    const portugalMinute = parseInt(
+      portugalParts.find((p) => p.type === 'minute')?.value || '0',
+      10
+    );
     const portugalTotalMinutes = portugalHour * 60 + portugalMinute;
 
     // Obter hora atual no dispositivo (local)
@@ -81,8 +84,8 @@ function getTimezoneOffsetMinutes(): number {
       hour12: false,
     });
     const localParts = localFormatter.formatToParts(now);
-    const localHour = parseInt(localParts.find(p => p.type === 'hour')?.value || '0', 10);
-    const localMinute = parseInt(localParts.find(p => p.type === 'minute')?.value || '0', 10);
+    const localHour = parseInt(localParts.find((p) => p.type === 'hour')?.value || '0', 10);
+    const localMinute = parseInt(localParts.find((p) => p.type === 'minute')?.value || '0', 10);
     const localTotalMinutes = localHour * 60 + localMinute;
 
     // Calcular diferença
@@ -96,7 +99,9 @@ function getTimezoneOffsetMinutes(): number {
       offset += 1440;
     }
 
-    logger.log(`Timezone offset: ${offset} minutes (device is ${offset >= 0 ? 'ahead of' : 'behind'} Portugal)`);
+    logger.log(
+      `Timezone offset: ${offset} minutes (device is ${offset >= 0 ? 'ahead of' : 'behind'} Portugal)`
+    );
     return offset;
   } catch (error) {
     logger.error('Error calculating timezone offset:', error);
@@ -127,9 +132,9 @@ function isValidTime(time: string): boolean {
   if (parts.length < 2) return false;
   const hours = parseInt(parts[0], 10);
   const minutes = parseInt(parts[1], 10);
-  return !isNaN(hours) && !isNaN(minutes) &&
-         hours >= 0 && hours <= 23 &&
-         minutes >= 0 && minutes <= 59;
+  return (
+    !isNaN(hours) && !isNaN(minutes) && hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59
+  );
 }
 
 function isValidDayOfWeek(day: number): boolean {
@@ -139,19 +144,23 @@ function isValidDayOfWeek(day: number): boolean {
 function isValidPreferences(data: unknown): data is NotificationPreferences {
   if (!data || typeof data !== 'object') return false;
   const obj = data as Record<string, unknown>;
-  return typeof obj.enabled === 'boolean' &&
-         [5, 15, 30, 60].includes(obj.reminderMinutes as number) &&
-         Array.isArray(obj.enabledShows) &&
-         obj.enabledShows.every((s: unknown) => typeof s === 'string');
+  return (
+    typeof obj.enabled === 'boolean' &&
+    [5, 15, 30, 60].includes(obj.reminderMinutes as number) &&
+    Array.isArray(obj.enabledShows) &&
+    obj.enabledShows.every((s: unknown) => typeof s === 'string')
+  );
 }
 
 function isValidScheduledNotification(data: unknown): data is ScheduledNotification {
   if (!data || typeof data !== 'object') return false;
   const obj = data as Record<string, unknown>;
-  return typeof obj.showName === 'string' &&
-         typeof obj.dayOfWeek === 'number' &&
-         typeof obj.time === 'string' &&
-         typeof obj.notificationId === 'string';
+  return (
+    typeof obj.showName === 'string' &&
+    typeof obj.dayOfWeek === 'number' &&
+    typeof obj.time === 'string' &&
+    typeof obj.notificationId === 'string'
+  );
 }
 
 // ============================================================================
@@ -238,11 +247,14 @@ class NotificationService {
       clearInterval(this.syncInterval);
     }
     // Sync every 5 minutes
-    this.syncInterval = setInterval(() => {
-      this.syncWithSystem().catch(err => {
-        logger.error('Periodic sync failed:', err);
-      });
-    }, 5 * 60 * 1000);
+    this.syncInterval = setInterval(
+      () => {
+        this.syncWithSystem().catch((err) => {
+          logger.error('Periodic sync failed:', err);
+        });
+      },
+      5 * 60 * 1000
+    );
   }
 
   cleanup(): void {
@@ -254,7 +266,7 @@ class NotificationService {
       this.appStateSubscription.remove();
       this.appStateSubscription = null;
     }
-    this.debounceTimers.forEach(timer => clearTimeout(timer));
+    this.debounceTimers.forEach((timer) => clearTimeout(timer));
     this.debounceTimers.clear();
     this.listeners.clear();
     this.operationQueue = [];
@@ -304,10 +316,13 @@ class NotificationService {
     if (existing) {
       clearTimeout(existing);
     }
-    this.debounceTimers.set(key, setTimeout(() => {
-      this.debounceTimers.delete(key);
-      fn();
-    }, delay));
+    this.debounceTimers.set(
+      key,
+      setTimeout(() => {
+        this.debounceTimers.delete(key);
+        fn();
+      }, delay)
+    );
   }
 
   isOperationPending(): boolean {
@@ -440,18 +455,16 @@ class NotificationService {
   async syncWithSystem(): Promise<void> {
     try {
       const systemNotifications = await Notifications.getAllScheduledNotificationsAsync();
-      const systemIds = new Set(systemNotifications.map(n => n.identifier));
-      const localIds = new Set(this.scheduledNotifications.map(n => n.notificationId));
+      const systemIds = new Set(systemNotifications.map((n) => n.identifier));
+      const localIds = new Set(this.scheduledNotifications.map((n) => n.notificationId));
 
       // Find notifications that exist only locally (orphans in our state)
       const localOrphans = this.scheduledNotifications.filter(
-        n => !systemIds.has(n.notificationId)
+        (n) => !systemIds.has(n.notificationId)
       );
 
       // Find notifications that exist only in system (orphans in system)
-      const systemOrphans = systemNotifications.filter(
-        n => !localIds.has(n.identifier)
-      );
+      const systemOrphans = systemNotifications.filter((n) => !localIds.has(n.identifier));
 
       // Cancel system orphans
       for (const orphan of systemOrphans) {
@@ -465,30 +478,32 @@ class NotificationService {
 
       // Remove local orphans from state
       if (localOrphans.length > 0) {
-        this.scheduledNotifications = this.scheduledNotifications.filter(
-          n => systemIds.has(n.notificationId)
+        this.scheduledNotifications = this.scheduledNotifications.filter((n) =>
+          systemIds.has(n.notificationId)
         );
         await this.saveScheduledNotifications();
         logger.log(`Removed ${localOrphans.length} local orphan(s)`);
       }
 
       // Sync enabledShows with actual scheduled notifications
-      const scheduledShowNames = new Set(this.scheduledNotifications.map(n => n.showName));
+      const scheduledShowNames = new Set(this.scheduledNotifications.map((n) => n.showName));
       const enabledShowsNeedUpdate = this.preferences.enabledShows.some(
-        show => !scheduledShowNames.has(show)
+        (show) => !scheduledShowNames.has(show)
       );
 
       if (enabledShowsNeedUpdate) {
         // Remove shows from enabledShows that have no scheduled notifications
-        this.preferences.enabledShows = this.preferences.enabledShows.filter(
-          show => scheduledShowNames.has(show)
+        this.preferences.enabledShows = this.preferences.enabledShows.filter((show) =>
+          scheduledShowNames.has(show)
         );
         await this.savePreferences();
         this.notifyListeners();
       }
 
       if (systemOrphans.length > 0 || localOrphans.length > 0 || enabledShowsNeedUpdate) {
-        logger.log(`Sync complete: ${systemOrphans.length} system orphans, ${localOrphans.length} local orphans removed`);
+        logger.log(
+          `Sync complete: ${systemOrphans.length} system orphans, ${localOrphans.length} local orphans removed`
+        );
       }
     } catch (error) {
       logger.error('Error syncing with system:', error);
@@ -506,7 +521,7 @@ class NotificationService {
   getPreferences(): NotificationPreferences {
     return {
       ...this.preferences,
-      enabledShows: [...this.preferences.enabledShows]
+      enabledShows: [...this.preferences.enabledShows],
     };
   }
 
@@ -521,7 +536,7 @@ class NotificationService {
 
       this.preferences = { ...this.preferences, enabled };
 
-      if (!await this.savePreferences()) {
+      if (!(await this.savePreferences())) {
         throw new Error('Failed to save preferences');
       }
 
@@ -530,8 +545,9 @@ class NotificationService {
       }
 
       this.notifyListeners();
-    }).then(() => ({ success: true }))
-      .catch(error => ({ success: false, error: error.message }));
+    })
+      .then(() => ({ success: true }))
+      .catch((error) => ({ success: false, error: error.message }));
   }
 
   async setReminderMinutes(minutes: ReminderTime): Promise<OperationResult> {
@@ -539,7 +555,7 @@ class NotificationService {
       const oldMinutes = this.preferences.reminderMinutes;
       this.preferences = { ...this.preferences, reminderMinutes: minutes };
 
-      if (!await this.savePreferences()) {
+      if (!(await this.savePreferences())) {
         // Rollback
         this.preferences = { ...this.preferences, reminderMinutes: oldMinutes };
         throw new Error('Failed to save preferences');
@@ -548,8 +564,9 @@ class NotificationService {
       // Reschedule all notifications with new reminder time
       await this.rescheduleAllNotifications();
       this.notifyListeners();
-    }).then(() => ({ success: true }))
-      .catch(error => ({ success: false, error: error.message }));
+    })
+      .then(() => ({ success: true }))
+      .catch((error) => ({ success: false, error: error.message }));
   }
 
   // ==========================================================================
@@ -573,7 +590,7 @@ class NotificationService {
               await this.cancelShowNotificationsInternal(showName);
               this.preferences = {
                 ...this.preferences,
-                enabledShows: this.preferences.enabledShows.filter(s => s !== showName)
+                enabledShows: this.preferences.enabledShows.filter((s) => s !== showName),
               };
             } else {
               // Enable - will be scheduled when scheduleShowReminder is called
@@ -586,11 +603,11 @@ class NotificationService {
               }
               this.preferences = {
                 ...this.preferences,
-                enabledShows: [...this.preferences.enabledShows, showName]
+                enabledShows: [...this.preferences.enabledShows, showName],
               };
             }
 
-            if (!await this.savePreferences()) {
+            if (!(await this.savePreferences())) {
               throw new Error('Failed to save preferences');
             }
 
@@ -635,20 +652,22 @@ class NotificationService {
 
       // Check for existing notification
       const existing = this.scheduledNotifications.find(
-        n => n.showName === showName && n.dayOfWeek === dayOfWeek && n.time === normalizedTime
+        (n) => n.showName === showName && n.dayOfWeek === dayOfWeek && n.time === normalizedTime
       );
 
       if (existing) {
         // Verify it exists in system
         const systemNotifications = await Notifications.getAllScheduledNotificationsAsync();
-        const existsInSystem = systemNotifications.some(n => n.identifier === existing.notificationId);
+        const existsInSystem = systemNotifications.some(
+          (n) => n.identifier === existing.notificationId
+        );
 
         if (existsInSystem) {
           return existing.notificationId;
         }
         // If not in system, remove from local state and reschedule
         this.scheduledNotifications = this.scheduledNotifications.filter(
-          n => n.notificationId !== existing.notificationId
+          (n) => n.notificationId !== existing.notificationId
         );
       }
 
@@ -694,7 +713,9 @@ class NotificationService {
       // expo-notifications: 1=Sunday, 2=Monday, ..., 7=Saturday
       const expoWeekday = reminderDayOfWeek === 0 ? 1 : reminderDayOfWeek + 1;
 
-      logger.log(`Scheduling: ${showName} at ${normalizedTime} PT → ${String(reminderHours).padStart(2, '0')}:${String(reminderMins).padStart(2, '0')} local (day ${reminderDayOfWeek})`);
+      logger.log(
+        `Scheduling: ${showName} at ${normalizedTime} PT → ${String(reminderHours).padStart(2, '0')}:${String(reminderMins).padStart(2, '0')} local (day ${reminderDayOfWeek})`
+      );
 
       const trigger: Notifications.WeeklyTriggerInput = {
         type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
@@ -725,11 +746,11 @@ class NotificationService {
 
       this.scheduledNotifications = [...this.scheduledNotifications, notification];
 
-      if (!await this.saveScheduledNotifications()) {
+      if (!(await this.saveScheduledNotifications())) {
         // Rollback - cancel the scheduled notification
         await Notifications.cancelScheduledNotificationAsync(notificationId);
         this.scheduledNotifications = this.scheduledNotifications.filter(
-          n => n.notificationId !== notificationId
+          (n) => n.notificationId !== notificationId
         );
         throw new Error('Failed to save notification');
       }
@@ -738,7 +759,7 @@ class NotificationService {
       if (!this.preferences.enabledShows.includes(showName)) {
         this.preferences = {
           ...this.preferences,
-          enabledShows: [...this.preferences.enabledShows, showName]
+          enabledShows: [...this.preferences.enabledShows, showName],
         };
         await this.savePreferences();
         this.notifyListeners();
@@ -746,8 +767,9 @@ class NotificationService {
 
       logger.log(`Scheduled notification for ${showName} on day ${dayOfWeek} at ${normalizedTime}`);
       return notificationId;
-    }).then(data => ({ success: true, data: data as string }))
-      .catch(error => ({ success: false, error: error.message }));
+    })
+      .then((data) => ({ success: true, data: data as string }))
+      .catch((error) => ({ success: false, error: error.message }));
   }
 
   async scheduleAllTimesForShow(
@@ -783,16 +805,17 @@ class NotificationService {
       // Remove from enabledShows
       this.preferences = {
         ...this.preferences,
-        enabledShows: this.preferences.enabledShows.filter(s => s !== showName)
+        enabledShows: this.preferences.enabledShows.filter((s) => s !== showName),
       };
       await this.savePreferences();
       this.notifyListeners();
-    }).then(() => ({ success: true }))
-      .catch(error => ({ success: false, error: error.message }));
+    })
+      .then(() => ({ success: true }))
+      .catch((error) => ({ success: false, error: error.message }));
   }
 
   private async cancelShowNotificationsInternal(showName: string): Promise<void> {
-    const toCancel = this.scheduledNotifications.filter(n => n.showName === showName);
+    const toCancel = this.scheduledNotifications.filter((n) => n.showName === showName);
     const cancelledIds: string[] = [];
 
     for (const notification of toCancel) {
@@ -807,7 +830,7 @@ class NotificationService {
     }
 
     this.scheduledNotifications = this.scheduledNotifications.filter(
-      n => !cancelledIds.includes(n.notificationId)
+      (n) => !cancelledIds.includes(n.notificationId)
     );
     await this.saveScheduledNotifications();
   }
@@ -818,12 +841,13 @@ class NotificationService {
 
       this.preferences = {
         ...this.preferences,
-        enabledShows: []
+        enabledShows: [],
       };
       await this.savePreferences();
       this.notifyListeners();
-    }).then(() => ({ success: true }))
-      .catch(error => ({ success: false, error: error.message }));
+    })
+      .then(() => ({ success: true }))
+      .catch((error) => ({ success: false, error: error.message }));
   }
 
   private async cancelAllNotificationsInternal(): Promise<void> {
@@ -835,7 +859,7 @@ class NotificationService {
       for (const notification of this.scheduledNotifications) {
         try {
           await Notifications.cancelScheduledNotificationAsync(notification.notificationId);
-        } catch (innerError) {
+        } catch (_innerError) {
           // Ignore individual errors
         }
       }
@@ -877,7 +901,7 @@ class NotificationService {
   }
 
   getScheduledNotificationsForShow(showName: string): ScheduledNotification[] {
-    return this.scheduledNotifications.filter(n => n.showName === showName);
+    return this.scheduledNotifications.filter((n) => n.showName === showName);
   }
 
   isReady(): boolean {
@@ -897,7 +921,7 @@ class NotificationService {
 
   private notifyListeners(): void {
     const prefs = this.getPreferences();
-    this.listeners.forEach(listener => {
+    this.listeners.forEach((listener) => {
       try {
         listener(prefs);
       } catch (error) {
