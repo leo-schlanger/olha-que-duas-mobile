@@ -73,8 +73,8 @@ class RadioService {
 
     try {
       // Read status directly from player properties (expo-audio SDK 54+)
-      const playerPlaying = this.player.playing;
-      const playerBuffering = this.player.isBuffering;
+      const playerPlaying = this.player.playing ?? false;
+      const playerBuffering = this.player.isBuffering ?? false;
 
       // Re-check after reading player state (may have changed during read)
       if (this.isIntentionallyStopped) {
@@ -84,8 +84,20 @@ class RadioService {
       const wasPlaying = this.isPlaying;
       const wasBuffering = this.isBuffering;
 
-      this.isPlaying = playerPlaying ?? false;
-      this.isBuffering = playerBuffering ?? false;
+      // Detect external pause (e.g., from lock screen controls)
+      // If we were playing and now we're not (without buffering), it's an external pause
+      if (wasPlaying && !playerPlaying && !playerBuffering) {
+        logger.log('Polling: External pause detected');
+        this.isIntentionallyStopped = true;
+        this.isPlaying = false;
+        this.isBuffering = false;
+        this.stopStatusPolling();
+        this.emitStatus(false);
+        return;
+      }
+
+      this.isPlaying = playerPlaying;
+      this.isBuffering = playerBuffering;
 
       const isLoading = !this.isPlaying && !this.isIntentionallyStopped;
 
@@ -328,8 +340,23 @@ class RadioService {
     const wasBuffering = this.isBuffering;
 
     // expo-audio reports playing status
-    this.isPlaying = status.isPlaying ?? status.playing ?? false;
-    this.isBuffering = status.isBuffering ?? status.buffering ?? false;
+    const newIsPlaying = status.isPlaying ?? status.playing ?? false;
+    const newIsBuffering = status.isBuffering ?? status.buffering ?? false;
+
+    // Detect external pause (e.g., from lock screen controls)
+    // If we were playing and now we're not (without error), it's an external pause
+    if (wasPlaying && !newIsPlaying && !newIsBuffering) {
+      logger.log('External pause detected (lock screen or system)');
+      this.isIntentionallyStopped = true;
+      this.isPlaying = false;
+      this.isBuffering = false;
+      this.stopStatusPolling();
+      this.emitStatus(false);
+      return;
+    }
+
+    this.isPlaying = newIsPlaying;
+    this.isBuffering = newIsBuffering;
 
     // Loading is finished when playback has started
     // We consider it playing if isPlaying is true, regardless of buffering

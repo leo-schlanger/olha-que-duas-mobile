@@ -34,7 +34,7 @@
     },
     "android": {
       "package": "com.olhaqueduas.app",
-      "versionCode": 33,
+      "versionCode": 34,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#d6402e"
