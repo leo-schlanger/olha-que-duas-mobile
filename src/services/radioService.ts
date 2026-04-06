@@ -284,10 +284,9 @@ class RadioService {
       }, 200);
 
       // Subscribe to now-playing updates for lock screen metadata
-      // Only subscribe if not already subscribed (prevents duplicate listeners on reconnect)
-      if (!this.nowPlayingUnsubscribe) {
-        this.subscribeToNowPlaying();
-      }
+      // Always unsubscribe first to prevent duplicate listeners on reconnect
+      this.unsubscribeFromNowPlaying();
+      this.subscribeToNowPlaying();
 
       // Start polling as fallback for playbackStatusUpdate (which may not fire for live streams)
       this.startStatusPolling();

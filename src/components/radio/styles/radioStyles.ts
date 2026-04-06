@@ -287,17 +287,23 @@ export function createScheduleStyles(colors: ThemeColors, isDark: boolean) {
     // Schedule item styles
     item: {
       flexDirection: 'row',
-      padding: 15,
+      padding: 14,
+      paddingVertical: 12,
       borderBottomWidth: 1,
       alignItems: 'flex-start',
+      borderLeftWidth: 0,
     },
     itemLast: {
       borderBottomWidth: 0,
     },
+    itemToday: {
+      borderLeftWidth: 3,
+      backgroundColor: isDark ? colors.secondary + '08' : colors.secondary + '06',
+    },
     iconContainer: {
-      width: 40,
-      height: 40,
-      borderRadius: 8,
+      width: 46,
+      height: 46,
+      borderRadius: 10,
       alignItems: 'center',
       justifyContent: 'center',
       marginRight: 12,
@@ -308,7 +314,7 @@ export function createScheduleStyles(colors: ThemeColors, isDark: boolean) {
     iconImage: {
       width: '100%',
       height: '100%',
-      borderRadius: 6,
+      borderRadius: 8,
     },
     info: {
       flex: 1,
@@ -320,14 +326,40 @@ export function createScheduleStyles(colors: ThemeColors, isDark: boolean) {
       marginBottom: 4,
     },
     showName: {
-      fontSize: 14,
+      fontSize: 15,
       fontWeight: '700',
       flex: 1,
     },
+    dayRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      marginBottom: 6,
+    },
     day: {
+      fontSize: 12,
+      fontWeight: '500',
+    },
+    liveBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 10,
+      gap: 4,
+      marginLeft: 8,
+    },
+    liveDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: '#FFFFFF',
+    },
+    liveText: {
+      color: '#FFFFFF',
       fontSize: 10,
-      fontWeight: '600',
-      textTransform: 'uppercase',
+      fontWeight: '800',
+      letterSpacing: 0.5,
     },
     times: {
       flexDirection: 'row',
@@ -338,20 +370,20 @@ export function createScheduleStyles(colors: ThemeColors, isDark: boolean) {
     timeBadge: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: 6,
-      paddingVertical: 2,
-      borderRadius: 4,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 6,
       borderWidth: 1,
       gap: 4,
     },
     timeText: {
-      fontSize: 10,
+      fontSize: 11,
       fontFamily: 'monospace',
     },
     reminderButton: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
+      width: 38,
+      height: 38,
+      borderRadius: 19,
       borderWidth: 1,
       alignItems: 'center',
       justifyContent: 'center',

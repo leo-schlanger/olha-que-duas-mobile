@@ -6,6 +6,7 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Localization from 'expo-localization';
+import { logger } from '../utils/logger';
 
 import pt from './locales/pt.json';
 import en from './locales/en.json';
@@ -50,7 +51,7 @@ export async function loadSavedLanguage(): Promise<void> {
       await i18n.changeLanguage(savedLanguage);
     }
   } catch (error) {
-    console.warn('Failed to load saved language:', error);
+    logger.error('Failed to load saved language:', error);
   }
 }
 
@@ -60,7 +61,7 @@ export async function changeLanguage(lang: LanguageCode): Promise<void> {
     await i18n.changeLanguage(lang);
     await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, lang);
   } catch (error) {
-    console.warn('Failed to change language:', error);
+    logger.error('Failed to change language:', error);
   }
 }
 

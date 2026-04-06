@@ -15,7 +15,9 @@
     "openSettings": "Open Settings",
     "viewSettings": "View Settings",
     "manageInSettings": "Manage in Settings",
-    "version": "Version {{version}}"
+    "version": "Version {{version}}",
+    "offline": "No internet connection",
+    "initError": "Error starting the application"
   },
   "radio": {
     "status": {
@@ -35,7 +37,10 @@
     "schedule": {
       "title": "Weekly Schedule",
       "loading": "Loading schedule...",
-      "timezone": "(PT)"
+      "timezone": "(PT)",
+      "liveNow": "LIVE",
+      "today": "Today",
+      "noPrograms": "No schedule available"
     },
     "info": {
       "highQuality": "High Quality",

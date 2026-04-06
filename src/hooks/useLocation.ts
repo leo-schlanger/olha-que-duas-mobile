@@ -1,8 +1,10 @@
 /**
  * Hook for managing device location with expo-location
+ * Re-checks permission when app returns to foreground
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 import * as Location from 'expo-location';
 import { LocationCoords } from '../types/weather';
 import { logger } from '../utils/logger';
@@ -31,6 +33,7 @@ export function useLocation(): UseLocationResult {
   const [error, setError] = useState<string | null>(null);
   const [permissionStatus, setPermissionStatus] = useState<PermissionStatus>('undetermined');
   const [isUsingDefaultLocation, setIsUsingDefaultLocation] = useState(false);
+  const lastPermissionRef = useRef<PermissionStatus>('undetermined');
 
   const checkPermission = useCallback(async (): Promise<PermissionStatus> => {
     try {
@@ -42,29 +45,11 @@ export function useLocation(): UseLocationResult {
             ? 'denied'
             : 'undetermined';
       setPermissionStatus(mappedStatus);
+      lastPermissionRef.current = mappedStatus;
       return mappedStatus;
     } catch (err) {
       logger.error('Error checking location permission:', err);
       return 'undetermined';
-    }
-  }, []);
-
-  const requestPermission = useCallback(async (): Promise<boolean> => {
-    try {
-      setError(null);
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      const granted = status === Location.PermissionStatus.GRANTED;
-      setPermissionStatus(granted ? 'granted' : 'denied');
-
-      if (granted) {
-        await fetchLocation();
-      }
-
-      return granted;
-    } catch (err) {
-      logger.error('Error requesting location permission:', err);
-      setError('Erro ao solicitar permissão de localização');
-      return false;
     }
   }, []);
 
@@ -84,10 +69,16 @@ export function useLocation(): UseLocationResult {
         accuracy: Location.Accuracy.Balanced,
       });
 
-      setLocation({
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-      });
+      // Validate coordinates
+      const lat = position.coords.latitude;
+      const lon = position.coords.longitude;
+      if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
+        logger.error('Invalid coordinates received:', { lat, lon });
+        useDefaultLocation();
+        return;
+      }
+
+      setLocation({ latitude: lat, longitude: lon });
       setIsUsingDefaultLocation(false);
     } catch (err) {
       logger.error('Error getting location, using default:', err);
@@ -97,6 +88,26 @@ export function useLocation(): UseLocationResult {
     }
   }, [useDefaultLocation]);
 
+  const requestPermission = useCallback(async (): Promise<boolean> => {
+    try {
+      setError(null);
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      const granted = status === Location.PermissionStatus.GRANTED;
+      setPermissionStatus(granted ? 'granted' : 'denied');
+      lastPermissionRef.current = granted ? 'granted' : 'denied';
+
+      if (granted) {
+        await fetchLocation();
+      }
+
+      return granted;
+    } catch (err) {
+      logger.error('Error requesting location permission:', err);
+      setError('Erro ao solicitar permissão de localização');
+      return false;
+    }
+  }, [fetchLocation]);
+
   const refreshLocation = useCallback(async () => {
     const status = await checkPermission();
     if (status === 'granted') {
@@ -104,19 +115,38 @@ export function useLocation(): UseLocationResult {
     }
   }, [checkPermission, fetchLocation]);
 
+  // Initial load
   useEffect(() => {
     const initialize = async () => {
       const status = await checkPermission();
       if (status === 'granted') {
         await fetchLocation();
       } else {
-        // Usar localização padrão quando permissão negada ou não determinada
         useDefaultLocation();
       }
     };
 
     initialize();
   }, [checkPermission, fetchLocation, useDefaultLocation]);
+
+  // Re-check permission when app returns to foreground
+  // This handles the case where user enables location in system Settings
+  useEffect(() => {
+    const handleAppState = async (nextState: AppStateStatus) => {
+      if (nextState === 'active') {
+        const newStatus = await checkPermission();
+        // If permission changed from denied/undetermined to granted, fetch location
+        if (newStatus === 'granted' && lastPermissionRef.current !== 'granted') {
+          lastPermissionRef.current = newStatus;
+          await fetchLocation();
+        }
+        lastPermissionRef.current = newStatus;
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppState);
+    return () => subscription.remove();
+  }, [checkPermission, fetchLocation]);
 
   return {
     location,

@@ -4,6 +4,9 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppNavigator, navigateToTab } from "./src/navigation/AppNavigator";
 import { PremiumProvider } from "./src/context/PremiumContext";
 import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
+import { NetworkProvider } from "./src/context/NetworkContext";
+import { ErrorBoundary } from "./src/components/ErrorBoundary";
+import { OfflineBanner } from "./src/components/OfflineBanner";
 import { GDPRConsent } from "./src/components/GDPRConsent";
 import { AnimatedSplash } from "./src/components/AnimatedSplash";
 import { environment } from "./src/config/environment";
@@ -43,10 +46,12 @@ if (environment.canUseNativeModules) {
   }
 }
 
+type InitState = 'loading' | 'ready' | 'failed';
+
 function AppContent() {
   const { isDark } = useTheme();
   const [adsConsent, setAdsConsent] = useState<boolean | null>(null);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [initState, setInitState] = useState<InitState>('loading');
   const [splashDone, setSplashDone] = useState(false);
 
   // Ref to store notification response listener subscription
@@ -71,10 +76,11 @@ function AppContent() {
           await purchaseService.initialize();
         }
 
-        setIsInitialized(true);
+        setInitState('ready');
       } catch (error) {
         logger.error("Error initializing services:", error);
-        setIsInitialized(true);
+        // Still allow app to render - some services may work
+        setInitState('failed');
       }
     }
 
@@ -96,7 +102,6 @@ function AppContent() {
       }
 
       // Stop radio explicitly first to remove notification, then cleanup
-      // Use finally to ensure cleanup runs even if stop fails
       radioService
         .stop()
         .catch((e) => logger.error('Error stopping radio:', e))
@@ -119,6 +124,8 @@ function AppContent() {
     setAdsConsent(personalizedAds);
   }
 
+  const isInitialized = initState !== 'loading';
+
   return (
     <>
       <StatusBar style={isDark ? "light" : "dark"} />
@@ -128,6 +135,7 @@ function AppContent() {
           onAnimationEnd={() => setSplashDone(true)}
         />
       )}
+      <OfflineBanner />
       <AppNavigator />
       <GDPRConsent onConsentGiven={handleGDPRConsent} />
     </>
@@ -136,25 +144,29 @@ function AppContent() {
 
 export default function App() {
   return (
-    <SafeAreaProvider>
-      <PaperProvider
-        theme={theme}
-        settings={{
-          icon: (props) => (
-            <MaterialCommunityIcons
-              name={props.name as any}
-              size={props.size ?? 24}
-              color={props.color}
-            />
-          ),
-        }}
-      >
-        <ThemeProvider>
-          <PremiumProvider>
-            <AppContent />
-          </PremiumProvider>
-        </ThemeProvider>
-      </PaperProvider>
-    </SafeAreaProvider>
+    <ErrorBoundary>
+      <SafeAreaProvider>
+        <PaperProvider
+          theme={theme}
+          settings={{
+            icon: (props) => (
+              <MaterialCommunityIcons
+                name={props.name as any}
+                size={props.size ?? 24}
+                color={props.color}
+              />
+            ),
+          }}
+        >
+          <NetworkProvider>
+            <ThemeProvider>
+              <PremiumProvider>
+                <AppContent />
+              </PremiumProvider>
+            </ThemeProvider>
+          </NetworkProvider>
+        </PaperProvider>
+      </SafeAreaProvider>
+    </ErrorBoundary>
   );
 }

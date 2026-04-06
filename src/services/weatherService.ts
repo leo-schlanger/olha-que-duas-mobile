@@ -98,6 +98,16 @@ export async function fetchWeatherData(
   coords: LocationCoords,
   forceRefresh: boolean = false
 ): Promise<WeatherData> {
+  // Validate coordinates
+  if (
+    !Number.isFinite(coords.latitude) ||
+    !Number.isFinite(coords.longitude) ||
+    Math.abs(coords.latitude) > 90 ||
+    Math.abs(coords.longitude) > 180
+  ) {
+    throw new Error('Invalid coordinates');
+  }
+
   const cacheKey = getCacheKey(coords);
 
   // Check cache first (unless forcing refresh)

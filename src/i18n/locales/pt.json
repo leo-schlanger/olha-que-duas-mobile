@@ -15,7 +15,9 @@
     "openSettings": "Abrir Definições",
     "viewSettings": "Ver Definições",
     "manageInSettings": "Gerir nas Definições",
-    "version": "Versão {{version}}"
+    "version": "Versão {{version}}",
+    "offline": "Sem ligação à internet",
+    "initError": "Erro ao iniciar a aplicação"
   },
   "radio": {
     "status": {
@@ -35,7 +37,10 @@
     "schedule": {
       "title": "Programação Semanal",
       "loading": "Carregando programação...",
-      "timezone": "(PT)"
+      "timezone": "(PT)",
+      "liveNow": "AO VIVO",
+      "today": "Hoje",
+      "noPrograms": "Sem programação disponível"
     },
     "info": {
       "highQuality": "Alta Qualidade",

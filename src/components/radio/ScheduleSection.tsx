@@ -1,5 +1,6 @@
 /**
  * Schedule section component showing weekly programming
+ * Features: today highlighting, live indicator, improved layout
  */
 
 import React, { memo, useMemo } from 'react';
@@ -15,6 +16,8 @@ const scheduleIconMap: Record<string, string> = {
   'bulb-outline': 'lightbulb-on-outline',
   'walk-outline': 'walk',
   'chatbubbles-outline': 'chat-outline',
+  'heart-outline': 'heart-outline',
+  'people-outline': 'account-group',
 };
 
 interface ScheduleItemProps {
@@ -40,14 +43,24 @@ const ScheduleItem = memo(function ScheduleItem({
   timezone,
   onToggleReminder,
 }: ScheduleItemProps) {
+  const { t } = useTranslation();
   const iconName = scheduleIconMap[item.icon] ?? (item.icon as string);
 
   return (
-    <View style={[styles.item, { borderBottomColor: colors.muted }, isLast && styles.itemLast]}>
+    <View
+      style={[
+        styles.item,
+        { borderBottomColor: colors.muted },
+        isLast && styles.itemLast,
+        item.isToday && styles.itemToday,
+        item.isToday && { borderLeftColor: colors.secondary },
+      ]}
+    >
       <View
         style={[
           styles.iconContainer,
           { backgroundColor: colors.background, borderColor: colors.muted },
+          item.isLive && { borderColor: colors.primary, backgroundColor: colors.primary + '10' },
         ]}
       >
         {item.iconUrl && !item.iconUrl.includes('placehold.co') ? (
@@ -55,15 +68,41 @@ const ScheduleItem = memo(function ScheduleItem({
         ) : (
           <MaterialCommunityIcons
             name={iconName as keyof typeof MaterialCommunityIcons.glyphMap}
-            size={22}
-            color={colors.secondary}
+            size={24}
+            color={item.isLive ? colors.primary : colors.secondary}
           />
         )}
       </View>
       <View style={styles.info}>
         <View style={styles.row}>
-          <Text style={[styles.showName, { color: colors.text }]}>{item.show}</Text>
-          <Text style={[styles.day, { color: colors.textSecondary }]}>{item.day}</Text>
+          <Text
+            style={[
+              styles.showName,
+              { color: colors.text },
+              item.isLive && { color: colors.primary },
+            ]}
+            numberOfLines={1}
+          >
+            {item.show}
+          </Text>
+          {item.isLive && (
+            <View style={[styles.liveBadge, { backgroundColor: colors.primary }]}>
+              <View style={styles.liveDot} />
+              <Text style={styles.liveText}>{t('radio.schedule.liveNow')}</Text>
+            </View>
+          )}
+        </View>
+        <View style={styles.dayRow}>
+          <MaterialCommunityIcons name="calendar" size={12} color={colors.textSecondary} />
+          <Text
+            style={[
+              styles.day,
+              { color: colors.textSecondary },
+              item.isToday && { color: colors.secondary, fontWeight: '700' },
+            ]}
+          >
+            {item.isToday ? t('radio.schedule.today') : item.day}
+          </Text>
         </View>
         <View style={styles.times}>
           {item.times.map((time) => (
@@ -74,7 +113,7 @@ const ScheduleItem = memo(function ScheduleItem({
                 { backgroundColor: colors.background, borderColor: colors.muted },
               ]}
             >
-              <MaterialCommunityIcons name="clock-outline" size={10} color={colors.textSecondary} />
+              <MaterialCommunityIcons name="clock-outline" size={11} color={colors.textSecondary} />
               <Text style={[styles.timeText, { color: colors.text }]}>
                 {time} <Text style={{ fontSize: 9, color: colors.textSecondary }}>{timezone}</Text>
               </Text>
@@ -139,6 +178,10 @@ export const ScheduleSection = memo(function ScheduleSection({
           <View style={styles.loading}>
             <ActivityIndicator size="small" color={colors.secondary} />
             <Text style={styles.loadingText}>{t('radio.schedule.loading')}</Text>
+          </View>
+        ) : schedule.length === 0 ? (
+          <View style={styles.loading}>
+            <Text style={styles.loadingText}>{t('radio.schedule.noPrograms')}</Text>
           </View>
         ) : (
           schedule.map((item, index) => (

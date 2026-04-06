@@ -1,6 +1,8 @@
 // Site configuration for the mobile app
 // Contains all constants used across the application
 
+import { logger } from '../utils/logger';
+
 export const siteConfig = {
   contact: {
     email: 'olhaqueduas.assessoria@gmail.com',
@@ -20,26 +22,29 @@ export const siteConfig = {
     tagline: 'A sua companhia, 24 horas por dia',
     quality: '192kbps',
     schedule: [
-      { day: 'Segunda', show: 'Nutrição', times: ['12:00', '19:00'], icon: 'leaf-outline' },
-      { day: 'Terça', show: 'Motivar', times: ['12:00', '19:00'], icon: 'bulb-outline' },
-      { day: 'Quarta', show: 'Prazer Feminino', times: ['21:00', '00:00'], icon: 'heart-outline' },
+      { day: 'Segunda', show: 'Nutrição', times: ['12:00', '19:00'], icon: 'leaf-outline', isActive: true },
+      { day: 'Terça', show: 'Motivar', times: ['12:00', '19:00'], icon: 'bulb-outline', isActive: true },
+      { day: 'Quarta', show: 'Prazer Feminino', times: ['21:00', '00:00'], icon: 'heart-outline', isActive: true },
       {
         day: 'Quinta',
         show: 'Companheiros de Caminhada',
         times: ['12:00', '19:00'],
         icon: 'walk-outline',
+        isActive: true,
       },
       {
         day: 'Sexta',
         show: 'Dizem que...',
         times: ['12:00', '19:00'],
         icon: 'chatbubbles-outline',
+        isActive: true,
       },
       {
         day: 'Sábado',
         show: 'Olha que Duas!',
         times: ['11:00', '19:00', '00:00'],
         icon: 'people-outline',
+        isActive: true,
       },
     ],
   },
@@ -47,13 +52,13 @@ export const siteConfig = {
     url:
       process.env.EXPO_PUBLIC_SUPABASE_URL ||
       (() => {
-        if (__DEV__) console.warn('EXPO_PUBLIC_SUPABASE_URL is not set!');
+        if (__DEV__) logger.error('EXPO_PUBLIC_SUPABASE_URL is not set!');
         return '';
       })(),
     anonKey:
       process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
       (() => {
-        if (__DEV__) console.warn('EXPO_PUBLIC_SUPABASE_ANON_KEY is not set!');
+        if (__DEV__) logger.error('EXPO_PUBLIC_SUPABASE_ANON_KEY is not set!');
         return '';
       })(),
   },

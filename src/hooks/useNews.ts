@@ -25,7 +25,12 @@ export function useNews(initialFilters: BlogFilters = {}) {
   const filtersRef = useRef(filters);
   filtersRef.current = filters;
 
+  // Request ID tracking to prevent stale responses from overwriting fresh data
+  const requestIdRef = useRef(0);
+
   const loadNews = useCallback(async (pageNum: number = 1, refresh: boolean = false) => {
+    const currentRequestId = ++requestIdRef.current;
+
     try {
       if (refresh) {
         setIsRefreshing(true);
@@ -38,6 +43,9 @@ export function useNews(initialFilters: BlogFilters = {}) {
 
       const result = await fetchNews(filtersRef.current, pageNum);
 
+      // Discard result if a newer request has been made
+      if (currentRequestId !== requestIdRef.current) return;
+
       if (pageNum === 1) {
         setPosts(result.posts);
       } else {
@@ -46,11 +54,15 @@ export function useNews(initialFilters: BlogFilters = {}) {
       setTotal(result.total);
       setPage(pageNum);
     } catch (err) {
+      // Only set error if this is still the latest request
+      if (currentRequestId !== requestIdRef.current) return;
       setError('Erro ao carregar notícias. Tente novamente.');
       logger.error('Error loading news:', err);
     } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
+      if (currentRequestId === requestIdRef.current) {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
     }
   }, []); // Sem dependencies - usa filtersRef para acesso ao valor atual
 
