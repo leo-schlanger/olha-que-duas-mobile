@@ -34,6 +34,9 @@
       "expoGoWarning": "Audio only available in native build."
     },
     "nowPlaying": "Now playing",
+    "dailySchedule": {
+      "title": "Your Daily Soundtrack"
+    },
     "schedule": {
       "title": "Weekly Schedule",
       "loading": "Loading schedule...",
@@ -49,6 +52,12 @@
       "twentyFourSeven": "24/7",
       "background": "Background",
       "active": "Active"
+    },
+    "exitApp": "Close application",
+    "exitAppConfirm": {
+      "title": "Close application",
+      "message": "The radio will be stopped and the app will be closed. Do you want to continue?",
+      "button": "Close"
     },
     "social": {
       "visitWebsite": "Visit Website",

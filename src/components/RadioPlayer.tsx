@@ -3,13 +3,25 @@
  */
 
 import React, { useState, useMemo, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Linking } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  Alert,
+  Linking,
+  Platform,
+  BackHandler,
+} from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useTranslation } from 'react-i18next';
 import { useRadio } from '../hooks/useRadio';
+import { radioService } from '../services/radioService';
 import { useNowPlaying } from '../hooks/useNowPlaying';
 import { useTheme, ThemeColors } from '../context/ThemeContext';
 import { useSchedule, GroupedSchedule } from '../hooks/useSchedule';
+import { useDailySchedule, getCurrentPeriod } from '../hooks/useDailySchedule';
 import { useNotifications } from '../hooks/useNotifications';
 import { navigateToTab } from '../navigation/AppNavigator';
 import { environment } from '../config/environment';
@@ -21,6 +33,7 @@ import {
   NowPlaying,
   RadioVisualizer,
   ScheduleSection,
+  DailyScheduleSection,
   SocialLinks,
   RadioInfoCards,
 } from './radio';
@@ -42,6 +55,8 @@ export function RadioPlayer() {
   } = useRadio();
 
   const { schedule, loading: scheduleLoading } = useSchedule();
+  const { schedule: dailySchedule, loading: dailyLoading } = useDailySchedule();
+  const currentPeriod = useMemo(() => getCurrentPeriod(), []);
   const nowPlaying = useNowPlaying(isPlaying);
   const {
     preferences: notificationPrefs,
@@ -184,6 +199,22 @@ export function RadioPlayer() {
     t,
   ]);
 
+  const handleExitApp = useCallback(() => {
+    if (Platform.OS === 'android') {
+      Alert.alert(t('radio.exitAppConfirm.title'), t('radio.exitAppConfirm.message'), [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('radio.exitAppConfirm.button'),
+          style: 'destructive',
+          onPress: async () => {
+            await radioService.stop();
+            BackHandler.exitApp();
+          },
+        },
+      ]);
+    }
+  }, [t]);
+
   const handleRefresh = useCallback(() => {
     forceReconnect();
   }, [forceReconnect]);
@@ -224,13 +255,31 @@ export function RadioPlayer() {
             <Text style={[styles.statusText, { color: statusInfo.color }]}>{statusInfo.text}</Text>
           </View>
 
-          <TouchableOpacity
-            style={styles.infoButton}
-            onPress={() => setShowAboutSheet(true)}
-            activeOpacity={0.7}
-          >
-            <MaterialCommunityIcons name="information-outline" size={22} color={colors.secondary} />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.infoButton}
+              onPress={() => setShowAboutSheet(true)}
+              activeOpacity={0.7}
+            >
+              <MaterialCommunityIcons
+                name="information-outline"
+                size={22}
+                color={colors.secondary}
+              />
+            </TouchableOpacity>
+
+            {Platform.OS === 'android' && (
+              <TouchableOpacity
+                style={[styles.infoButton, styles.exitButton]}
+                onPress={handleExitApp}
+                activeOpacity={0.7}
+                accessibilityLabel={t('radio.exitApp')}
+                accessibilityRole="button"
+              >
+                <MaterialCommunityIcons name="power" size={22} color={colors.error} />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
 
         {/* Now Playing or Radio Name */}
@@ -267,7 +316,16 @@ export function RadioPlayer() {
         {/* Info Cards */}
         <RadioInfoCards colors={colors} />
 
-        {/* Schedule Section */}
+        {/* Daily Schedule - Soundtrack do Dia */}
+        <DailyScheduleSection
+          schedule={dailySchedule}
+          currentPeriod={currentPeriod}
+          loading={dailyLoading}
+          colors={colors}
+          isDark={isDark}
+        />
+
+        {/* Weekly Schedule Section */}
         <ScheduleSection
           schedule={schedule}
           loading={scheduleLoading}
@@ -307,6 +365,11 @@ function createStyles(colors: ThemeColors) {
       width: '100%',
       marginBottom: 20,
     },
+    headerActions: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: 8,
+    },
     infoButton: {
       width: 40,
       height: 40,
@@ -316,6 +379,9 @@ function createStyles(colors: ThemeColors) {
       borderColor: colors.muted,
       alignItems: 'center',
       justifyContent: 'center',
+    },
+    exitButton: {
+      borderColor: colors.error + '40',
     },
     statusBadge: {
       flexDirection: 'row',

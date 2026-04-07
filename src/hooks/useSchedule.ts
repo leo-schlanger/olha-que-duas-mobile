@@ -180,10 +180,11 @@ export function useSchedule() {
             event_id,
             day_of_week,
             time,
-            event:events(id, name, description, icon_url)
+            event:events!inner(id, name, description, icon_url, is_active)
           `
           )
           .eq('is_active', true)
+          .eq('events.is_active', true)
           .order('day_of_week', { ascending: true })
           .order('time', { ascending: true });
 

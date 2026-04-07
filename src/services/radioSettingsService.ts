@@ -21,7 +21,7 @@ const DEFAULT_SETTINGS: RadioSettings = {
   autoPlayOnStart: false,
   autoReconnect: true,
   volume: 1.0,
-  stopOnClose: false,
+  stopOnClose: true,
 };
 
 class RadioSettingsService {

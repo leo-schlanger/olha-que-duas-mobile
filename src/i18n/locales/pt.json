@@ -34,6 +34,9 @@
       "expoGoWarning": "Áudio disponível apenas no build nativo."
     },
     "nowPlaying": "A tocar agora",
+    "dailySchedule": {
+      "title": "A Tua Soundtrack do Dia"
+    },
     "schedule": {
       "title": "Programação Semanal",
       "loading": "Carregando programação...",
@@ -49,6 +52,12 @@
       "twentyFourSeven": "24/7",
       "background": "Background",
       "active": "Ativo"
+    },
+    "exitApp": "Fechar aplicação",
+    "exitAppConfirm": {
+      "title": "Fechar aplicação",
+      "message": "A rádio será parada e a aplicação será fechada. Deseja continuar?",
+      "button": "Fechar"
     },
     "social": {
       "visitWebsite": "Visitar Website",
