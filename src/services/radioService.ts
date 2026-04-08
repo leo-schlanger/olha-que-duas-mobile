@@ -110,14 +110,14 @@ class RadioService {
     }
   }
 
-  async initialize() {
+  async initialize(preloadedSettings?: RadioSettings) {
     if (this.isInitialized) {
       return;
     }
 
     try {
-      // Load settings
-      this.settings = await radioSettingsService.load();
+      // Use preloaded settings or load fresh
+      this.settings = preloadedSettings ?? (await radioSettingsService.load());
       this.volume = this.settings.volume;
 
       // Subscribe to settings changes
@@ -144,7 +144,7 @@ class RadioService {
       }
     } catch (error) {
       logger.error('Error initializing RadioService:', error);
-      this.isInitialized = true;
+      // Leave isInitialized = false so init can be retried on next play()
     }
   }
 
@@ -153,7 +153,7 @@ class RadioService {
     this.appStateSubscription = AppState.addEventListener('change', this.handleAppStateChange);
   }
 
-  private handleAppStateChange = (nextAppState: AppStateStatus): void => {
+  private handleAppStateChange = async (nextAppState: AppStateStatus): Promise<void> => {
     logger.log('AppState changed:', this.lastAppState, '->', nextAppState);
 
     // App coming back to active from background/inactive
@@ -176,7 +176,7 @@ class RadioService {
       // Note: This handles the case when user swipes app from recent apps
       if (this.settings?.stopOnClose && this.isPlaying) {
         logger.log('Stopping radio due to stopOnClose setting');
-        this.stop();
+        await this.stop();
       }
     }
 
@@ -495,8 +495,15 @@ class RadioService {
         logger.error('Error deactivating lock screen:', e);
       }
       this.removePlayerListener();
-      this.player.release();
-      this.player = null;
+
+      // Small delay to allow lock screen deactivation to propagate on Android
+      // before releasing the player, preventing orphaned notifications
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      if (this.player) {
+        this.player.release();
+        this.player = null;
+      }
     }
 
     // Now safe to cleanup
@@ -569,7 +576,18 @@ class RadioService {
     }
     this.stopStatusPolling();
     this.unsubscribeFromNowPlaying();
+
+    // Ensure lock screen is deactivated even if stop() partially failed before
+    if (this.player) {
+      try {
+        this.player.setActiveForLockScreen(false);
+      } catch {
+        // Ignore if already released
+      }
+    }
+
     await this.stop();
+    this.isInitialized = false;
   }
 }
 

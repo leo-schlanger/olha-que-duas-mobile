@@ -11,6 +11,8 @@ import {
   TouchableOpacity,
   ScrollView,
   Dimensions,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -195,6 +197,10 @@ export function NewsScreen() {
   };
 
   return (
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
       edges={['top']}
@@ -216,6 +222,8 @@ export function NewsScreen() {
           <TouchableOpacity
             style={[styles.filterToggle, { backgroundColor: colors.backgroundCard }]}
             onPress={() => setShowFilters(!showFilters)}
+            accessibilityLabel={t('news.toggleFilters')}
+            accessibilityRole="button"
           >
             <MaterialCommunityIcons
               name={showFilters ? 'filter-off' : 'filter'}
@@ -325,6 +333,7 @@ export function NewsScreen() {
       {/* Banner Ad */}
       <BannerAd />
     </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -353,9 +362,9 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   filterToggle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },

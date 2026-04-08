@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { AppState } from 'react-native';
 import { supabase } from '../services/supabase';
 import { siteConfig } from '../config/site';
 import { logger } from '../utils/logger';
@@ -160,7 +161,17 @@ export function useSchedule() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const currentDay = useMemo(() => getCurrentPtDayNumber(), []);
+  const [currentDay, setCurrentDay] = useState(() => getCurrentPtDayNumber());
+
+  // Update currentDay when app returns to foreground (handles midnight crossover)
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        setCurrentDay(getCurrentPtDayNumber());
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     async function fetchSchedule() {

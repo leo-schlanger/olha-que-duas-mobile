@@ -2,7 +2,7 @@
  * Hook for fetching and managing weather data
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { fetchWeatherData } from '../services/weatherService';
 import { WeatherData, LocationCoords } from '../types/weather';
 import { logger } from '../utils/logger';
@@ -20,6 +20,13 @@ export function useWeather(location: LocationCoords | null): UseWeatherResult {
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const loadWeather = useCallback(async (coords: LocationCoords, refreshing = false) => {
     try {
@@ -32,13 +39,17 @@ export function useWeather(location: LocationCoords | null): UseWeatherResult {
 
       // Force refresh bypasses cache
       const data = await fetchWeatherData(coords, refreshing);
+      if (!mountedRef.current) return;
       setWeather(data);
     } catch (err) {
       logger.error('Error loading weather:', err);
+      if (!mountedRef.current) return;
       setError('Erro ao carregar dados meteorológicos. Tente novamente.');
     } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
+      if (mountedRef.current) {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
     }
   }, []);
 

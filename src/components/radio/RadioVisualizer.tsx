@@ -2,8 +2,8 @@
  * Audio visualizer component for radio playback
  */
 
-import React, { memo, useEffect, useRef, useMemo } from 'react';
-import { View, Animated } from 'react-native';
+import React, { memo, useEffect, useRef, useMemo, useState } from 'react';
+import { View, Animated, AccessibilityInfo } from 'react-native';
 import { RadioVisualizerProps } from './types';
 import { createVisualizerStyles } from './styles/radioStyles';
 
@@ -15,8 +15,15 @@ export const RadioVisualizer = memo(function RadioVisualizer({
 }: RadioVisualizerProps) {
   const visualizerScales = useRef([...Array(BAR_COUNT)].map(() => new Animated.Value(0.2))).current;
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [reduceMotion, setReduceMotion] = useState(false);
 
   const styles = useMemo(() => createVisualizerStyles(colors), [colors]);
+
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     // Clear previous interval
@@ -29,15 +36,22 @@ export const RadioVisualizer = memo(function RadioVisualizer({
     visualizerScales.forEach((scale) => scale.stopAnimation());
 
     if (isPlaying) {
-      intervalRef.current = setInterval(() => {
-        visualizerScales.forEach((scale) => {
-          Animated.timing(scale, {
-            toValue: Math.random() * 0.8 + 0.2, // 0.2 to 1.0
-            duration: 150,
-            useNativeDriver: true,
-          }).start();
+      if (reduceMotion) {
+        // Static bars at fixed heights when reduce motion is enabled
+        visualizerScales.forEach((scale, i) => {
+          scale.setValue(0.3 + (i % 3) * 0.2);
         });
-      }, 150);
+      } else {
+        intervalRef.current = setInterval(() => {
+          visualizerScales.forEach((scale) => {
+            Animated.timing(scale, {
+              toValue: Math.random() * 0.8 + 0.2, // 0.2 to 1.0
+              duration: 150,
+              useNativeDriver: true,
+            }).start();
+          });
+        }, 150);
+      }
     } else {
       // Animate back to initial state
       visualizerScales.forEach((scale) => {
@@ -56,7 +70,7 @@ export const RadioVisualizer = memo(function RadioVisualizer({
       }
       visualizerScales.forEach((scale) => scale.stopAnimation());
     };
-  }, [isPlaying, visualizerScales]);
+  }, [isPlaying, reduceMotion, visualizerScales]);
 
   return (
     <View style={styles.container}>

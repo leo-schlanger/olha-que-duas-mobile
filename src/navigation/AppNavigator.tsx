@@ -10,6 +10,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import * as Linking from 'expo-linking';
+import { ScreenErrorBoundary } from '../components/ScreenErrorBoundary';
 
 // Navigation ref for use outside of React components (e.g., notification handlers)
 export const navigationRef = createNavigationContainerRef<RootStackParamList>();
@@ -33,6 +34,28 @@ import { NewsScreen } from '../screens/NewsScreen';
 import { NewsDetailScreen } from '../screens/NewsDetailScreen';
 import { WeatherScreen } from '../screens/WeatherScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
+
+// Wrap screens in ScreenErrorBoundary for per-screen error isolation
+const SafeRadioScreen = () => (
+  <ScreenErrorBoundary>
+    <RadioScreen />
+  </ScreenErrorBoundary>
+);
+const SafeNewsScreen = () => (
+  <ScreenErrorBoundary>
+    <NewsScreen />
+  </ScreenErrorBoundary>
+);
+const SafeWeatherScreen = () => (
+  <ScreenErrorBoundary>
+    <WeatherScreen />
+  </ScreenErrorBoundary>
+);
+const SafeSettingsScreen = () => (
+  <ScreenErrorBoundary>
+    <SettingsScreen />
+  </ScreenErrorBoundary>
+);
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 
@@ -49,7 +72,7 @@ const linking: LinkingOptions<RootStackParamList> = {
       NewsDetail: 'noticias/:slug',
       MainTabs: {
         screens: {
-          Radio: '',
+          Radio: { path: '', exact: true },
           News: 'noticias',
           Weather: 'clima',
           Settings: 'definicoes',
@@ -102,7 +125,7 @@ function MainTabs() {
     >
       <Tab.Screen
         name="Radio"
-        component={RadioScreen}
+        component={SafeRadioScreen}
         options={{
           tabBarLabel: 'Radio',
           tabBarAccessibilityLabel: 'Rádio - ouvir em direto',
@@ -113,7 +136,7 @@ function MainTabs() {
       />
       <Tab.Screen
         name="News"
-        component={NewsScreen}
+        component={SafeNewsScreen}
         options={{
           tabBarLabel: 'Noticias',
           tabBarAccessibilityLabel: 'Notícias - ver últimas notícias',
@@ -124,7 +147,7 @@ function MainTabs() {
       />
       <Tab.Screen
         name="Weather"
-        component={WeatherScreen}
+        component={SafeWeatherScreen}
         options={{
           tabBarLabel: 'Clima',
           tabBarAccessibilityLabel: 'Clima - ver previsão do tempo',
@@ -135,7 +158,7 @@ function MainTabs() {
       />
       <Tab.Screen
         name="Settings"
-        component={SettingsScreen}
+        component={SafeSettingsScreen}
         options={{
           tabBarLabel: 'Definicoes',
           tabBarAccessibilityLabel: 'Definições - configurações da aplicação',

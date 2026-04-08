@@ -58,14 +58,14 @@ export function NetworkProvider({ children }: { children: ReactNode }) {
 
     const subscription = AppState.addEventListener('change', handleAppState);
 
-    // Poll every 10 seconds when connected, every 3 seconds when disconnected
-    const interval = setInterval(checkNetwork, state.isConnected ? 10000 : 3000);
+    // Poll every 10 seconds (consistent interval to avoid battery drain)
+    const interval = setInterval(checkNetwork, 10000);
 
     return () => {
       subscription.remove();
       clearInterval(interval);
     };
-  }, [checkNetwork, state.isConnected]);
+  }, [checkNetwork]);
 
   return <NetworkContext.Provider value={state}>{children}</NetworkContext.Provider>;
 }

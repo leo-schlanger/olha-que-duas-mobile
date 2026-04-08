@@ -1,3 +1,9 @@
+/**
+ * TECH DEBT: Premium status is stored as plaintext in AsyncStorage and
+ * IAP purchases lack server-side receipt validation. For production
+ * hardening, implement server-side validation to prevent local tampering.
+ * AsyncStorage values should be treated as a local cache only.
+ */
 import React, {
   createContext,
   useContext,
@@ -71,12 +77,12 @@ export function PremiumProvider({ children }: PremiumProviderProps) {
               if (!mounted) return;
               return purchaseService.checkPurchaseStatus();
             })
-            .then((hasValidPurchase) => {
+            .then(async (hasValidPurchase) => {
               if (hasValidPurchase === undefined) return;
               if (!mounted) return;
               if (hasValidPurchase) {
                 setIsPremium(true);
-                AsyncStorage.setItem(PREMIUM_STORAGE_KEY, 'true');
+                await AsyncStorage.setItem(PREMIUM_STORAGE_KEY, 'true');
               }
             })
             .catch((error: Error) => {

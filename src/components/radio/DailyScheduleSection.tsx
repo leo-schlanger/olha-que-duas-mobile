@@ -31,11 +31,13 @@ const PeriodCard = memo(function PeriodCard({
   isCurrent,
   colors,
   isDark,
+  nowLabel,
 }: {
   period: DailyPeriod;
   isCurrent: boolean;
   colors: ThemeColors;
   isDark: boolean;
+  nowLabel: string;
 }) {
   const icon = PERIOD_ICONS[period.period] || 'music';
   const styles = useMemo(
@@ -48,7 +50,7 @@ const PeriodCard = memo(function PeriodCard({
       {isCurrent && (
         <View style={styles.nowBadge}>
           <View style={styles.nowDot} />
-          <Text style={styles.nowText}>AGORA</Text>
+          <Text style={styles.nowText}>{nowLabel}</Text>
         </View>
       )}
 
@@ -121,6 +123,7 @@ export const DailyScheduleSection = memo(function DailyScheduleSection({
                 isCurrent={currentPeriod === period.period}
                 colors={colors}
                 isDark={isDark}
+                nowLabel={t('radio.dailySchedule.now')}
               />
             ))}
           </View>
@@ -179,8 +182,6 @@ function createSectionStyles(colors: ThemeColors, isDark: boolean) {
       alignItems: 'center',
     },
     grid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
       gap: 10,
     },
   });
@@ -189,9 +190,9 @@ function createSectionStyles(colors: ThemeColors, isDark: boolean) {
 function createCardStyles(colors: ThemeColors, isDark: boolean, isCurrent: boolean) {
   return StyleSheet.create({
     card: {
-      width: '48.5%' as unknown as number,
+      width: '100%',
       borderRadius: 12,
-      padding: 12,
+      padding: 14,
       borderWidth: 1,
       backgroundColor: isCurrent
         ? colors.primary + '12'
@@ -227,7 +228,7 @@ function createCardStyles(colors: ThemeColors, isDark: boolean, isCurrent: boole
     cardHeader: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 8,
+      gap: 10,
       marginBottom: 10,
     },
     iconBox: {
@@ -251,12 +252,14 @@ function createCardStyles(colors: ThemeColors, isDark: boolean, isCurrent: boole
       color: colors.textSecondary,
     },
     slots: {
-      gap: 5,
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 6,
     },
     slotRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 8,
+      gap: 6,
     },
     slotTime: {
       fontSize: 11,

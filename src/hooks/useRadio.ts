@@ -17,20 +17,27 @@ export function useRadio() {
   const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
+    let mounted = true;
+
     const init = async () => {
       try {
         await radioService.initialize();
-        radioService.setStatusCallback(setStatus);
-        setIsInitialized(true);
+        if (mounted) {
+          radioService.setStatusCallback((s) => {
+            if (mounted) setStatus(s);
+          });
+          setIsInitialized(true);
+        }
       } catch (error) {
         logger.error('Failed to initialize radio:', error);
-        setIsInitialized(true);
+        if (mounted) setIsInitialized(true);
       }
     };
 
     init();
 
     return () => {
+      mounted = false;
       radioService.setStatusCallback(() => {});
     };
   }, []);

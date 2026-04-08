@@ -85,7 +85,7 @@ export function InterstitialAdOverlay({ visible, onClose }: InterstitialAdOverla
           if (checkInterval) clearInterval(checkInterval);
           if (timeoutId) clearTimeout(timeoutId);
         }
-      }, 500);
+      }, 1000);
 
       // Timeout after 5 seconds
       timeoutId = setTimeout(() => {

@@ -49,6 +49,33 @@ export async function fetchWithTimeout(
 }
 
 /**
+ * Fetch com retry automático e backoff exponencial
+ * Faz retry apenas em erros de rede ou server errors (5xx)
+ */
+export async function fetchWithRetry(
+  url: string,
+  options: FetchWithTimeoutOptions & { maxRetries?: number } = {}
+): Promise<Response> {
+  const { maxRetries = 2, ...fetchOpts } = options;
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetchWithTimeout(url, fetchOpts);
+      // Don't retry client errors (4xx), only server errors (5xx)
+      if (response.ok || response.status < 500) return response;
+      lastError = new Error(`HTTP ${response.status}`);
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+    }
+    if (attempt < maxRetries) {
+      await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
+    }
+  }
+  throw lastError!;
+}
+
+/**
  * Cria um AbortController com timeout automático
  * Útil para gerenciar múltiplos requests ou cancelamento manual
  */

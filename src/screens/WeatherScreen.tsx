@@ -159,6 +159,8 @@ export function WeatherScreen() {
             style={[styles.refreshButton, { backgroundColor: colors.card }]}
             onPress={handleRefresh}
             disabled={isRefreshing}
+            accessibilityLabel={t('common.retry')}
+            accessibilityRole="button"
           >
             <MaterialCommunityIcons
               name="refresh"
@@ -240,9 +242,9 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
   refreshButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },

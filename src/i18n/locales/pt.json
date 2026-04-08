@@ -35,7 +35,8 @@
     },
     "nowPlaying": "A tocar agora",
     "dailySchedule": {
-      "title": "A Tua Soundtrack do Dia"
+      "title": "A Tua Soundtrack do Dia",
+      "now": "AGORA"
     },
     "schedule": {
       "title": "Programação Semanal",
@@ -125,7 +126,11 @@
     "noResults": "Nenhuma notícia encontrada.",
     "clearFilters": "Limpar filtros",
     "clear": "Limpar",
+    "toggleFilters": "Alternar filtros",
     "loading": "A carregar notícias...",
+    "notFound": "Notícia não encontrada",
+    "back": "Voltar",
+    "viewOriginalSource": "Ver fonte original",
     "source": "Fonte: {{source}}",
     "accessibility": {
       "newsItem": "Notícia: {{title}}. Categoria: {{category}}. Publicado em {{date}}",
@@ -230,7 +235,8 @@
     },
     "personalized": "Anúncios personalizados",
     "nonPersonalized": "Anúncios não personalizados",
-    "notSet": "Não definido"
+    "notSet": "Não definido",
+    "mustChoose": "Por favor, escolha uma opção de consentimento para continuar."
   },
   "exitApp": {
     "android": {

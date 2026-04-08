@@ -2,7 +2,7 @@
  * Main RadioPlayer component - orchestrates all radio sub-components
  */
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
   Linking,
   Platform,
   BackHandler,
+  AppState,
 } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useTranslation } from 'react-i18next';
@@ -56,7 +57,17 @@ export function RadioPlayer() {
 
   const { schedule, loading: scheduleLoading } = useSchedule();
   const { schedule: dailySchedule, loading: dailyLoading } = useDailySchedule();
-  const currentPeriod = useMemo(() => getCurrentPeriod(), []);
+  const [currentPeriod, setCurrentPeriod] = useState(() => getCurrentPeriod());
+
+  // Update currentPeriod when app returns to foreground
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        setCurrentPeriod(getCurrentPeriod());
+      }
+    });
+    return () => sub.remove();
+  }, []);
   const nowPlaying = useNowPlaying(isPlaying);
   const {
     preferences: notificationPrefs,
@@ -371,9 +382,9 @@ function createStyles(colors: ThemeColors) {
       gap: 8,
     },
     infoButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
       backgroundColor: colors.backgroundCard,
       borderWidth: 1,
       borderColor: colors.muted,

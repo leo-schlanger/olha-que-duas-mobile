@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { logger } from '../utils/logger';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { useTranslation } from 'react-i18next';
 import { useNewsDetail } from '../hooks/useNews';
 import { getCategoryColor, categoryLabels } from '../types/blog';
 import { useTheme, getContrastTextColor } from '../context/ThemeContext';
@@ -30,6 +31,7 @@ type RootStackParamList = {
 type NewsDetailRouteProp = RouteProp<RootStackParamList, 'NewsDetail'>;
 
 export function NewsDetailScreen() {
+  const { t } = useTranslation();
   const { colors, isDark } = useTheme();
   const route = useRoute<NewsDetailRouteProp>();
   const navigation = useNavigation();
@@ -65,7 +67,10 @@ export function NewsDetailScreen() {
 
   const handleOpenSource = () => {
     if (post?.source_url) {
-      Linking.openURL(post.source_url);
+      const url = post.source_url;
+      if (url.startsWith('https://') || url.startsWith('http://')) {
+        Linking.openURL(url);
+      }
     }
   };
 
@@ -81,7 +86,7 @@ export function NewsDetailScreen() {
         />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>A carregar...</Text>
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>{t('common.loading')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -104,7 +109,7 @@ export function NewsDetailScreen() {
             color={colors.textSecondary}
           />
           <Text style={[styles.errorText, { color: colors.textSecondary }]}>
-            {error || 'Noticia nao encontrada'}
+            {error || t('news.notFound')}
           </Text>
           <TouchableOpacity
             style={[
@@ -113,7 +118,7 @@ export function NewsDetailScreen() {
             ]}
             onPress={() => navigation.goBack()}
           >
-            <Text style={[styles.backButtonText, { color: colors.text }]}>Voltar</Text>
+            <Text style={[styles.backButtonText, { color: colors.text }]}>{t('news.back')}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -122,7 +127,7 @@ export function NewsDetailScreen() {
 
   const categoryColor = getCategoryColor(post.category, isDark);
   const categoryLabel = categoryLabels[post.category] || post.category;
-  const paragraphs = post.content.split('\n\n').filter(Boolean);
+  const paragraphs = (post.content ?? '').split('\n\n').filter(Boolean);
 
   let tags: string[] = [];
   if (post.tags) {
@@ -151,7 +156,7 @@ export function NewsDetailScreen() {
         <TouchableOpacity
           style={styles.headerButton}
           onPress={() => navigation.goBack()}
-          accessibilityLabel="Voltar"
+          accessibilityLabel={t('news.back')}
           accessibilityRole="button"
         >
           <MaterialCommunityIcons name="arrow-left" size={24} color={colors.text} />
@@ -265,7 +270,7 @@ export function NewsDetailScreen() {
           >
             <MaterialCommunityIcons name="open-in-new" size={18} color={colors.primary} />
             <Text style={[styles.sourceButtonText, { color: colors.primary }]}>
-              Ver fonte original
+              {t('news.viewOriginalSource')}
             </Text>
           </TouchableOpacity>
         </View>

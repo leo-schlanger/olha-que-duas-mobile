@@ -1,5 +1,6 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { StatusBar } from "expo-status-bar";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppNavigator, navigateToTab } from "./src/navigation/AppNavigator";
 import { PremiumProvider } from "./src/context/PremiumContext";
@@ -16,6 +17,7 @@ import * as Notifications from "expo-notifications";
 // i18n initialization
 import "./src/i18n";
 import { loadSavedLanguage } from "./src/i18n";
+import { useTranslation } from "react-i18next";
 
 import {
   Provider as PaperProvider,
@@ -48,8 +50,11 @@ if (environment.canUseNativeModules) {
 
 type InitState = 'loading' | 'ready' | 'failed';
 
+const INIT_TIMEOUT_MS = 8000;
+
 function AppContent() {
-  const { isDark } = useTheme();
+  const { t } = useTranslation();
+  const { isDark, colors } = useTheme();
   const [adsConsent, setAdsConsent] = useState<boolean | null>(null);
   const [initState, setInitState] = useState<InitState>('loading');
   const [splashDone, setSplashDone] = useState(false);
@@ -57,15 +62,18 @@ function AppContent() {
   // Ref to store notification response listener subscription
   const notificationResponseListener = useRef<Notifications.EventSubscription | null>(null);
 
-  useEffect(() => {
-    async function initializeServices() {
-      try {
+  const initializeServices = useCallback(async () => {
+    try {
+      setInitState('loading');
+
+      const initPromise = (async () => {
         // Load saved language preference
         await loadSavedLanguage();
         logger.log("Language loaded");
 
-        await radioSettingsService.load();
-        await radioService.initialize();
+        // Load settings first, then pass to radioService to avoid double-load
+        const settings = await radioSettingsService.load();
+        await radioService.initialize(settings);
         logger.log("Radio service initialized");
 
         // Initialize notification service
@@ -75,15 +83,23 @@ function AppContent() {
         if (environment.canUseNativeModules && purchaseService) {
           await purchaseService.initialize();
         }
+      })();
 
-        setInitState('ready');
-      } catch (error) {
-        logger.error("Error initializing services:", error);
-        // Still allow app to render - some services may work
-        setInitState('failed');
-      }
+      // Race against timeout to prevent infinite splash
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Init timeout')), INIT_TIMEOUT_MS)
+      );
+
+      await Promise.race([initPromise, timeoutPromise]);
+      setInitState('ready');
+    } catch (error) {
+      logger.error("Error initializing services:", error);
+      // Still allow app to render - some services may work
+      setInitState('failed');
     }
+  }, []);
 
+  useEffect(() => {
     initializeServices();
 
     // Handle notification taps - navigate to Radio tab when user taps a notification
@@ -101,18 +117,15 @@ function AppContent() {
         notificationResponseListener.current.remove();
       }
 
-      // Stop radio explicitly first to remove notification, then cleanup
+      // Cleanup radio service (stops playback, removes lock screen, releases resources)
       radioService
-        .stop()
-        .catch((e) => logger.error('Error stopping radio:', e))
-        .finally(() => {
-          radioService.cleanup();
-        });
+        .cleanup()
+        .catch((e) => logger.error('Error cleaning up radio:', e));
 
       purchaseService?.disconnect();
       notificationService.cleanup();
     };
-  }, []);
+  }, [initializeServices]);
 
   useEffect(() => {
     if (adsConsent !== null && environment.canUseNativeModules && adService) {
@@ -125,6 +138,7 @@ function AppContent() {
   }
 
   const isInitialized = initState !== 'loading';
+  const initFailed = initState === 'failed';
 
   return (
     <>
@@ -135,12 +149,43 @@ function AppContent() {
           onAnimationEnd={() => setSplashDone(true)}
         />
       )}
+      {splashDone && initFailed && (
+        <View style={[initErrorStyles.banner, { backgroundColor: colors.backgroundCard }]}>
+          <Text style={[initErrorStyles.text, { color: colors.textSecondary }]}>
+            {t('common.initError')}
+          </Text>
+          <TouchableOpacity
+            onPress={initializeServices}
+            style={[initErrorStyles.retryButton, { backgroundColor: colors.secondary }]}
+          >
+            <Text style={initErrorStyles.retryText}>{t('common.retry')}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
       <OfflineBanner />
       <AppNavigator />
       <GDPRConsent onConsentGiven={handleGDPRConsent} />
     </>
   );
 }
+
+const initErrorStyles = StyleSheet.create({
+  banner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  text: { fontSize: 13 },
+  retryButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  retryText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+});
 
 export default function App() {
   return (

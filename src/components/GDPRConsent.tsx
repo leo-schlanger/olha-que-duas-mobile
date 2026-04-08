@@ -1,5 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, Linking, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Modal,
+  Linking,
+  ScrollView,
+  Platform,
+  ToastAndroid,
+} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../context/ThemeContext';
@@ -69,7 +79,16 @@ export function GDPRConsent({ onConsentGiven }: GDPRConsentProps) {
   }
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={() => {}}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={() => {
+        if (Platform.OS === 'android') {
+          ToastAndroid.show(t('consent.mustChoose'), ToastAndroid.SHORT);
+        }
+      }}
+    >
       <View style={styles.overlay}>
         <View style={[styles.container, { backgroundColor: colors.card }]}>
           <ScrollView showsVerticalScrollIndicator={false}>

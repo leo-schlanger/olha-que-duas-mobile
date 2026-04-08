@@ -83,6 +83,8 @@ export const RadioControls = memo(function RadioControls({
           onPress={onRefresh}
           activeOpacity={0.7}
           disabled={isLoading || isReconnecting}
+          accessibilityLabel={t('common.retry')}
+          accessibilityRole="button"
         >
           <MaterialCommunityIcons
             name="refresh"

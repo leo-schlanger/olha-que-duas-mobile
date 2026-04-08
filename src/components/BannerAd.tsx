@@ -72,7 +72,7 @@ export function BannerAd({ size = BannerAdSize.ANCHORED_ADAPTIVE_BANNER }: Banne
             setSdkReady(true);
           }
         }
-      }, 500);
+      }, 1000);
 
       // Timeout after 10 seconds
       timeoutId = setTimeout(() => {

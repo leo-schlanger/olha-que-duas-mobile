@@ -56,7 +56,12 @@ export function AboutBottomSheet({ visible, onClose }: AboutBottomSheetProps) {
               <MaterialCommunityIcons name="radio" size={28} color={colors.primary} />
               <Text style={styles.headerTitle}>{t('settings.about.aboutRadio')}</Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <TouchableOpacity
+              onPress={onClose}
+              style={styles.closeButton}
+              accessibilityLabel={t('common.close')}
+              accessibilityRole="button"
+            >
               <MaterialCommunityIcons name="close" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
@@ -206,9 +211,9 @@ function createStyles(colors: ThemeColors, isDark: boolean, insetTop: number) {
       color: colors.text,
     },
     closeButton: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
       backgroundColor: colors.muted,
       alignItems: 'center',
       justifyContent: 'center',

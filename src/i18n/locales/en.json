@@ -35,7 +35,8 @@
     },
     "nowPlaying": "Now playing",
     "dailySchedule": {
-      "title": "Your Daily Soundtrack"
+      "title": "Your Daily Soundtrack",
+      "now": "NOW"
     },
     "schedule": {
       "title": "Weekly Schedule",
@@ -125,7 +126,11 @@
     "noResults": "No news found.",
     "clearFilters": "Clear filters",
     "clear": "Clear",
+    "toggleFilters": "Toggle filters",
     "loading": "Loading news...",
+    "notFound": "News article not found",
+    "back": "Back",
+    "viewOriginalSource": "View original source",
     "source": "Source: {{source}}",
     "accessibility": {
       "newsItem": "News: {{title}}. Category: {{category}}. Published on {{date}}",
@@ -230,7 +235,8 @@
     },
     "personalized": "Personalized ads",
     "nonPersonalized": "Non-personalized ads",
-    "notSet": "Not set"
+    "notSet": "Not set",
+    "mustChoose": "Please choose a consent option to continue."
   },
   "exitApp": {
     "android": {
