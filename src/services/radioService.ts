@@ -4,6 +4,7 @@ import { siteConfig } from '../config/site';
 import { radioSettingsService, RadioSettings } from './radioSettingsService';
 import { nowPlayingService } from './nowPlayingService';
 import { logger } from '../utils/logger';
+import { TIMING, LIMITS } from '../config/constants';
 
 /**
  * Radio streaming service using expo-audio (2026)
@@ -19,11 +20,11 @@ class RadioService {
   private isIntentionallyStopped: boolean = true;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempts: number = 0;
-  private readonly MAX_RECONNECT_ATTEMPTS: number = 10;
   private settings: RadioSettings | null = null;
   private settingsUnsubscribe: (() => void) | null = null;
   private nowPlayingUnsubscribe: (() => void) | null = null;
   private isBuffering: boolean = false;
+  private isPlayInProgress: boolean = false;
   private statusPollingInterval: ReturnType<typeof setInterval> | null = null;
   private appStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null;
   private lastAppState: AppStateStatus = 'active';
@@ -59,39 +60,42 @@ class RadioService {
 
   private startStatusPolling() {
     this.stopStatusPolling();
-    // Poll player status every 500ms as fallback for playbackStatusUpdate
     this.statusPollingInterval = setInterval(() => {
       this.pollPlayerStatus();
-    }, 500);
+    }, TIMING.RADIO_STATUS_POLL_INTERVAL);
   }
 
   private pollPlayerStatus() {
-    // Double-check intentionally stopped to prevent race conditions
-    if (!this.player || this.isIntentionallyStopped) {
-      return;
-    }
+    if (!this.player) return;
 
     try {
-      // Read status directly from player properties (expo-audio SDK 54+)
       const playerPlaying = this.player.playing ?? false;
       const playerBuffering = this.player.isBuffering ?? false;
-
-      // Re-check after reading player state (may have changed during read)
-      if (this.isIntentionallyStopped) {
-        return;
-      }
-
       const wasPlaying = this.isPlaying;
       const wasBuffering = this.isBuffering;
 
+      // Detect external resume (e.g., user pressed play on lock screen)
+      // Player is playing but we think it's intentionally stopped
+      if (this.isIntentionallyStopped && playerPlaying) {
+        logger.log('Polling: External resume detected (lock screen play)');
+        this.isIntentionallyStopped = false;
+        this.isPlaying = true;
+        this.isBuffering = playerBuffering;
+        this.subscribeToNowPlaying();
+        this.emitStatus(false);
+        return;
+      }
+
+      // Don't process further if intentionally stopped
+      if (this.isIntentionallyStopped) return;
+
       // Detect external pause (e.g., from lock screen controls)
-      // If we were playing and now we're not (without buffering), it's an external pause
       if (wasPlaying && !playerPlaying && !playerBuffering) {
         logger.log('Polling: External pause detected');
         this.isIntentionallyStopped = true;
         this.isPlaying = false;
         this.isBuffering = false;
-        this.stopStatusPolling();
+        this.unsubscribeFromNowPlaying();
         this.emitStatus(false);
         return;
       }
@@ -140,7 +144,7 @@ class RadioService {
 
       // Auto-play if enabled
       if (this.settings.autoPlayOnStart) {
-        setTimeout(() => this.play(), 500);
+        setTimeout(() => this.play(), TIMING.RADIO_AUTOPLAY_DELAY);
       }
     } catch (error) {
       logger.error('Error initializing RadioService:', error);
@@ -158,24 +162,32 @@ class RadioService {
 
     // App coming back to active from background/inactive
     if (this.lastAppState.match(/inactive|background/) && nextAppState === 'active') {
-      // Resume polling ONLY if playing AND not intentionally stopped
-      // This prevents re-enabling polling after user paused in background
-      if (this.isPlaying && !this.isIntentionallyStopped && !this.statusPollingInterval) {
+      // Resume polling if player exists (needed to detect lock screen play/pause)
+      if (this.player && !this.statusPollingInterval) {
         this.startStatusPolling();
       }
     }
 
     // App going to background
     if (nextAppState === 'background') {
-      // Pause polling to save battery (lock screen doesn't need frequent updates)
+      // Stop polling in background to save battery
+      // Lock screen controls will be detected when app returns to foreground
       if (this.statusPollingInterval) {
         this.stopStatusPolling();
       }
 
       // If stopOnClose is enabled, stop the radio when app goes to background
-      // Note: This handles the case when user swipes app from recent apps
+      // This must be fast and synchronous-like because the process may be killed
       if (this.settings?.stopOnClose && this.isPlaying) {
         logger.log('Stopping radio due to stopOnClose setting');
+        // Deactivate lock screen immediately before stop() in case process is killed
+        if (this.player) {
+          try {
+            this.player.setActiveForLockScreen(false);
+          } catch {
+            // Ignore - best effort
+          }
+        }
         await this.stop();
       }
     }
@@ -227,6 +239,13 @@ class RadioService {
   }
 
   async play(): Promise<boolean> {
+    // Guard against concurrent play() calls
+    if (this.isPlayInProgress) {
+      logger.log('Play already in progress, ignoring');
+      return false;
+    }
+    this.isPlayInProgress = true;
+
     try {
       this.isIntentionallyStopped = false;
       this.clearReconnectTimeout();
@@ -281,7 +300,7 @@ class RadioService {
             logger.error('Error setting lock screen:', e);
           }
         }
-      }, 200);
+      }, TIMING.RADIO_LOCK_SCREEN_DELAY);
 
       // Subscribe to now-playing updates for lock screen metadata
       // Always unsubscribe first to prevent duplicate listeners on reconnect
@@ -307,6 +326,8 @@ class RadioService {
         this.reconnect();
       }
       return false;
+    } finally {
+      this.isPlayInProgress = false;
     }
   }
 
@@ -349,7 +370,7 @@ class RadioService {
       this.isIntentionallyStopped = true;
       this.isPlaying = false;
       this.isBuffering = false;
-      this.stopStatusPolling();
+      this.unsubscribeFromNowPlaying();
       this.emitStatus(false);
       return;
     }
@@ -420,7 +441,7 @@ class RadioService {
 
   private reconnect() {
     if (this.isIntentionallyStopped) return;
-    if (this.reconnectAttempts >= this.MAX_RECONNECT_ATTEMPTS) {
+    if (this.reconnectAttempts >= LIMITS.MAX_RECONNECT_ATTEMPTS) {
       logger.log('Max reconnect attempts reached, giving up');
       // Reset state so user can try again manually
       this.reconnectAttempts = 0;
@@ -434,7 +455,10 @@ class RadioService {
 
     this.clearReconnectTimeout();
 
-    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
+    const delay = Math.min(
+      TIMING.RADIO_RECONNECT_BASE_DELAY * Math.pow(2, this.reconnectAttempts),
+      TIMING.RADIO_MAX_RECONNECT_DELAY
+    );
     this.reconnectAttempts++;
 
     logger.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
@@ -484,26 +508,17 @@ class RadioService {
     // Cancel pending lock screen timeout
     this.clearLockScreenTimeout();
 
-    // Stop player BEFORE cleanup
+    // Release player immediately - no delays that could be interrupted by process kill
     if (this.player) {
-      // Deactivate lock screen BEFORE releasing the player to remove notification
       try {
         this.player.pause();
         this.player.setActiveForLockScreen(false);
       } catch (e) {
-        // Ignore error if player is already released
         logger.error('Error deactivating lock screen:', e);
       }
       this.removePlayerListener();
-
-      // Small delay to allow lock screen deactivation to propagate on Android
-      // before releasing the player, preventing orphaned notifications
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      if (this.player) {
-        this.player.release();
-        this.player = null;
-      }
+      this.player.release();
+      this.player = null;
     }
 
     // Now safe to cleanup
@@ -515,6 +530,7 @@ class RadioService {
   }
 
   async setVolume(value: number): Promise<void> {
+    if (!Number.isFinite(value)) return;
     this.volume = Math.max(0, Math.min(1, value));
 
     if (this.settings) {

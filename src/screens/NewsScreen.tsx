@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -80,17 +80,31 @@ export function NewsScreen() {
     [navigation]
   );
 
+  // Debounce da pesquisa para evitar chamadas excessivas à API
+  const searchTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   const handleSearch = useCallback(
     (text: string) => {
       setSearchText(text);
-      const newFilters: BlogFilters = {
-        ...filters,
-        search: text.trim() || undefined,
-      };
-      updateFilters(newFilters);
+      if (searchTimerRef.current) {
+        clearTimeout(searchTimerRef.current);
+      }
+      searchTimerRef.current = setTimeout(() => {
+        const newFilters: BlogFilters = {
+          ...filters,
+          search: text.trim() || undefined,
+        };
+        updateFilters(newFilters);
+      }, 400);
     },
     [filters, updateFilters]
   );
+
+  useEffect(() => {
+    return () => {
+      if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    };
+  }, []);
 
   const handleCategoryPress = useCallback(
     (category: string) => {
@@ -153,7 +167,7 @@ export function NewsScreen() {
           color={colors.textSecondary}
         />
         <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-          {error || t('news.noResults')}
+          {error ? t(error) : t('news.noResults')}
         </Text>
         {hasActiveFilters && (
           <TouchableOpacity

@@ -70,8 +70,23 @@ class NowPlayingService {
 
   private setupAppStateListener(): void {
     this.appStateSubscription = AppState.addEventListener('change', (state: AppStateStatus) => {
+      const wasInBackground = this.isInBackground;
       this.isInBackground = state === 'background';
+
+      // Adjust polling interval when transitioning between foreground and background
+      if (this.interval && wasInBackground !== this.isInBackground) {
+        this.restartPolling();
+      }
     });
+  }
+
+  private restartPolling() {
+    if (!this.interval) return;
+    clearInterval(this.interval);
+    const pollInterval = this.isInBackground
+      ? TIMING.NOW_PLAYING_POLL_INTERVAL * 3 // 15s in background to save battery
+      : TIMING.NOW_PLAYING_POLL_INTERVAL;
+    this.interval = setInterval(() => this.fetchNowPlaying(), pollInterval);
   }
 
   start() {
@@ -119,12 +134,6 @@ class NowPlayingService {
   }
 
   private async fetchNowPlaying() {
-    // Skip fetch when in background to save battery
-    // Lock screen metadata is updated less frequently anyway
-    if (this.isInBackground) {
-      return;
-    }
-
     try {
       const response = await fetchWithTimeout(this.apiUrl, { timeout: 10000 });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);

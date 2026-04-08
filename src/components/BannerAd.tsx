@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { View, StyleSheet, Text, ActivityIndicator } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { usePremium } from '../context/PremiumContext';
 import { useTheme } from '../context/ThemeContext';
 import { environment } from '../config/environment';
@@ -43,6 +44,7 @@ interface BannerAdProps {
 }
 
 export function BannerAd({ size = BannerAdSize.ANCHORED_ADAPTIVE_BANNER }: BannerAdProps) {
+  const { t } = useTranslation();
   const { colors } = useTheme();
   const { isPremium } = usePremium();
 
@@ -126,7 +128,7 @@ export function BannerAd({ size = BannerAdSize.ANCHORED_ADAPTIVE_BANNER }: Banne
             { backgroundColor: colors.card, borderTopColor: colors.background },
           ]}
         >
-          <Text style={[styles.placeholderText, { color: colors.textSecondary }]}>Publicidade</Text>
+          <Text style={[styles.placeholderText, { color: colors.textSecondary }]}>{t('ads.advertisement')}</Text>
         </View>
       </View>
     );

@@ -17,7 +17,7 @@ export function OfflineBanner() {
   if (isConnected) return null;
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.error }]}>
+    <View style={[styles.container, { backgroundColor: colors.error }]} accessibilityRole="alert">
       <MaterialCommunityIcons name="wifi-off" size={16} color="#FFFFFF" />
       <Text style={styles.text}>{t('common.offline')}</Text>
     </View>

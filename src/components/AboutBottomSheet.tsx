@@ -122,18 +122,24 @@ export function AboutBottomSheet({ visible, onClose }: AboutBottomSheetProps) {
                 <TouchableOpacity
                   style={[styles.socialButton, { backgroundColor: '#E4405F' }]}
                   onPress={() => openLink(siteConfig.social.instagram)}
+                  accessibilityLabel="Instagram"
+                  accessibilityRole="link"
                 >
                   <MaterialCommunityIcons name="instagram" size={22} color="#fff" />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.socialButton, { backgroundColor: '#1877F2' }]}
                   onPress={() => openLink(siteConfig.social.facebook)}
+                  accessibilityLabel="Facebook"
+                  accessibilityRole="link"
                 >
                   <MaterialCommunityIcons name="facebook" size={22} color="#fff" />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.socialButton, { backgroundColor: isDark ? '#FFFFFF' : '#000000' }]}
                   onPress={() => openLink(siteConfig.social.tiktok)}
+                  accessibilityLabel="TikTok"
+                  accessibilityRole="link"
                 >
                   <MaterialCommunityIcons
                     name="music-note"
@@ -144,6 +150,8 @@ export function AboutBottomSheet({ visible, onClose }: AboutBottomSheetProps) {
                 <TouchableOpacity
                   style={[styles.socialButton, { backgroundColor: '#FF0000' }]}
                   onPress={() => openLink(siteConfig.social.youtube)}
+                  accessibilityLabel="YouTube"
+                  accessibilityRole="link"
                 >
                   <MaterialCommunityIcons name="youtube" size={22} color="#fff" />
                 </TouchableOpacity>

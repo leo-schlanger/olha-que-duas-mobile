@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Image, Animated, StyleSheet, Dimensions, Easing } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import { colors } from '../config/site';
 
 const { width, height } = Dimensions.get('window');
@@ -11,6 +12,7 @@ interface AnimatedSplashProps {
 }
 
 export function AnimatedSplash({ isReady, onAnimationEnd }: AnimatedSplashProps) {
+  const { t } = useTranslation();
   const logoScale = useRef(new Animated.Value(0.5)).current;
   const logoOpacity = useRef(new Animated.Value(0)).current;
   const logoRotate = useRef(new Animated.Value(0)).current;
@@ -292,7 +294,7 @@ export function AnimatedSplash({ isReady, onAnimationEnd }: AnimatedSplashProps)
           },
         ]}
       >
-        <Animated.Text style={styles.tagline}>A sua voz, 24 horas por dia</Animated.Text>
+        <Animated.Text style={styles.tagline}>{t('splash.tagline')}</Animated.Text>
       </Animated.View>
 
       {/* Loading dots */}

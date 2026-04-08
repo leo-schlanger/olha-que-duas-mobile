@@ -56,7 +56,7 @@ export function useNews(initialFilters: BlogFilters = {}) {
     } catch (err) {
       // Only set error if this is still the latest request
       if (currentRequestId !== requestIdRef.current) return;
-      setError('Erro ao carregar notícias. Tente novamente.');
+      setError('news.loadError');
       logger.error('Error loading news:', err);
     } finally {
       if (currentRequestId === requestIdRef.current) {
@@ -117,7 +117,7 @@ export function useNewsDetail(slug: string) {
         const result = await fetchNewsById(slug);
         setPost(result);
       } catch (err) {
-        setError('Erro ao carregar notícia.');
+        setError('news.detailError');
         logger.error('Error loading news detail:', err);
       } finally {
         setIsLoading(false);

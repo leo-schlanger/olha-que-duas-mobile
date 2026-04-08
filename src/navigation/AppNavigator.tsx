@@ -138,7 +138,7 @@ function MainTabs() {
         name="News"
         component={SafeNewsScreen}
         options={{
-          tabBarLabel: 'Noticias',
+          tabBarLabel: 'Notícias',
           tabBarAccessibilityLabel: 'Notícias - ver últimas notícias',
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="newspaper-variant-outline" size={size} color={color} />
@@ -160,7 +160,7 @@ function MainTabs() {
         name="Settings"
         component={SafeSettingsScreen}
         options={{
-          tabBarLabel: 'Definicoes',
+          tabBarLabel: 'Definições',
           tabBarAccessibilityLabel: 'Definições - configurações da aplicação',
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="cog-outline" size={size} color={color} />

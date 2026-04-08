@@ -252,14 +252,13 @@ function createCardStyles(colors: ThemeColors, isDark: boolean, isCurrent: boole
       color: colors.textSecondary,
     },
     slots: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 6,
+      gap: 4,
     },
     slotRow: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
+      width: '100%',
     },
     slotTime: {
       fontSize: 11,

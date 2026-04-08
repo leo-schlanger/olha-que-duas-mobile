@@ -41,7 +41,12 @@ export async function fetchNews(
   page: number = 1
 ): Promise<{ posts: BlogPost[]; total: number }> {
   // Verificar cache primeiro
-  const cacheKey = JSON.stringify({ filters, page });
+  const cacheKey = JSON.stringify({
+    page,
+    category: filters.category,
+    region: filters.region,
+    search: filters.search,
+  });
   const cached = newsCache.get(cacheKey);
 
   if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {

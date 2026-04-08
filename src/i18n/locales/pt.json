@@ -1,4 +1,12 @@
 {
+  "splash": {
+    "tagline": "A sua voz, 24 horas por dia"
+  },
+  "error": {
+    "title": "Algo correu mal",
+    "message": "Ocorreu um erro inesperado. Tente novamente.",
+    "retry": "Tentar Novamente"
+  },
   "common": {
     "ok": "OK",
     "cancel": "Cancelar",
@@ -117,7 +125,9 @@
     "useLisbon": "Usar Lisboa",
     "lisbonDefault": "Lisboa (padrão)",
     "currentLocation": "Localização atual",
-    "locationBanner": "A mostrar dados de Lisboa. Toque para ativar a localização."
+    "locationBanner": "A mostrar dados de Lisboa. Toque para ativar a localização.",
+    "error": "Erro ao carregar dados meteorológicos. Tente novamente.",
+    "locationError": "Erro ao solicitar permissão de localização"
   },
   "news": {
     "title": "Notícias",
@@ -132,6 +142,11 @@
     "back": "Voltar",
     "viewOriginalSource": "Ver fonte original",
     "source": "Fonte: {{source}}",
+    "shareNews": "Partilhar notícia",
+    "tags": "Tags:",
+    "openOriginalSource": "Abrir fonte original da notícia",
+    "loadError": "Erro ao carregar notícias. Tente novamente.",
+    "detailError": "Erro ao carregar notícia.",
     "accessibility": {
       "newsItem": "Notícia: {{title}}. Categoria: {{category}}. Publicado em {{date}}",
       "tapToRead": "Toque para ler a notícia completa"
@@ -255,6 +270,7 @@
     "loadingAd": "A carregar anúncio...",
     "closeIn": "{{seconds}}s",
     "close": "Fechar",
-    "helpKeepFree": "Os anúncios ajudam a manter a app gratuita"
+    "helpKeepFree": "Os anúncios ajudam a manter a app gratuita",
+    "advertisement": "Publicidade"
   }
 }

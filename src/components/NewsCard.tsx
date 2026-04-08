@@ -2,6 +2,7 @@ import React, { memo, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { Image } from 'expo-image';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { useTranslation } from 'react-i18next';
 import { BlogPost, getCategoryColor, categoryLabels } from '../types/blog';
 import { useTheme, getContrastTextColor } from '../context/ThemeContext';
 
@@ -18,17 +19,18 @@ interface NewsCardProps {
  */
 export const NewsCard = memo(
   function NewsCard({ post, onPress }: NewsCardProps) {
+    const { t, i18n } = useTranslation();
     const { colors, isDark } = useTheme();
 
-    // Memoizar formatação de data
     const formattedDate = useMemo(() => {
+      const locale = i18n.language === 'en' ? 'en-US' : 'pt-PT';
       const date = new Date(post.published_at);
-      return date.toLocaleDateString('pt-PT', {
+      return date.toLocaleDateString(locale, {
         day: '2-digit',
         month: 'short',
         year: 'numeric',
       });
-    }, [post.published_at]);
+    }, [post.published_at, i18n.language]);
 
     // Memoizar cores de categoria
     const categoryColor = useMemo(
@@ -49,9 +51,9 @@ export const NewsCard = memo(
         ]}
         onPress={onPress}
         activeOpacity={0.8}
-        accessibilityLabel={`Notícia: ${post.title}. Categoria: ${categoryLabel}. Publicado em ${formattedDate}`}
+        accessibilityLabel={t('news.accessibility.newsItem', { title: post.title, category: categoryLabel, date: formattedDate })}
         accessibilityRole="button"
-        accessibilityHint="Toque para ler a notícia completa"
+        accessibilityHint={t('news.accessibility.tapToRead')}
       >
         <View style={styles.imageContainer}>
           {post.image_url ? (
@@ -112,15 +114,19 @@ export const NewsCard = memo(
           </View>
 
           <Text style={[styles.source, { color: colors.textSecondary }]}>
-            Fonte: {post.source_name}
+            {t('news.source', { source: post.source_name })}
           </Text>
         </View>
       </TouchableOpacity>
     );
   },
   (prevProps, nextProps) => {
-    // Custom comparison: apenas re-render se post.id mudar
-    return prevProps.post.id === nextProps.post.id;
+    return (
+      prevProps.post.id === nextProps.post.id &&
+      prevProps.post.title === nextProps.post.title &&
+      prevProps.post.image_url === nextProps.post.image_url &&
+      prevProps.post.summary === nextProps.post.summary
+    );
   }
 );
 

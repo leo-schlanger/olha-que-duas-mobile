@@ -44,7 +44,7 @@ export function useWeather(location: LocationCoords | null): UseWeatherResult {
     } catch (err) {
       logger.error('Error loading weather:', err);
       if (!mountedRef.current) return;
-      setError('Erro ao carregar dados meteorológicos. Tente novamente.');
+      setError('weather.error');
     } finally {
       if (mountedRef.current) {
         setIsLoading(false);

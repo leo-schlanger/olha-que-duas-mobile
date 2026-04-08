@@ -620,7 +620,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.05)',
+    borderTopColor: 'rgba(128,128,128,0.15)',
   },
   timezoneInfoText: {
     fontSize: 11,

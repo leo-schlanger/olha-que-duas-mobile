@@ -1,4 +1,12 @@
 {
+  "splash": {
+    "tagline": "Your voice, 24 hours a day"
+  },
+  "error": {
+    "title": "Something went wrong",
+    "message": "An unexpected error occurred. Please try again.",
+    "retry": "Try Again"
+  },
   "common": {
     "ok": "OK",
     "cancel": "Cancel",
@@ -117,7 +125,9 @@
     "useLisbon": "Use Lisbon",
     "lisbonDefault": "Lisbon (default)",
     "currentLocation": "Current location",
-    "locationBanner": "Showing data for Lisbon. Tap to enable location."
+    "locationBanner": "Showing data for Lisbon. Tap to enable location.",
+    "error": "Error loading weather data. Please try again.",
+    "locationError": "Error requesting location permission"
   },
   "news": {
     "title": "News",
@@ -132,6 +142,11 @@
     "back": "Back",
     "viewOriginalSource": "View original source",
     "source": "Source: {{source}}",
+    "shareNews": "Share article",
+    "tags": "Tags:",
+    "openOriginalSource": "Open original news source",
+    "loadError": "Error loading news. Please try again.",
+    "detailError": "Error loading article.",
     "accessibility": {
       "newsItem": "News: {{title}}. Category: {{category}}. Published on {{date}}",
       "tapToRead": "Tap to read the full article"
@@ -255,6 +270,7 @@
     "loadingAd": "Loading ad...",
     "closeIn": "{{seconds}}s",
     "close": "Close",
-    "helpKeepFree": "Ads help keep the app free"
+    "helpKeepFree": "Ads help keep the app free",
+    "advertisement": "Advertisement"
   }
 }

@@ -21,9 +21,9 @@ interface DailyForecastSectionProps {
 /**
  * Format time from ISO string to "HH:mm"
  */
-function formatHour(isoString: string): string {
+function formatHour(isoString: string, locale: string): string {
   const date = new Date(isoString);
-  return date.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
+  return date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
 }
 
 /**
@@ -64,9 +64,10 @@ interface HourlyItemProps {
   index: number;
   colors: ThemeColors;
   nowLabel: string;
+  locale: string;
 }
 
-const HourlyItem = memo(function HourlyItem({ item, index, colors, nowLabel }: HourlyItemProps) {
+const HourlyItem = memo(function HourlyItem({ item, index, colors, nowLabel, locale }: HourlyItemProps) {
   const iconName = useMemo(
     () => getWeatherIcon(item.weatherCode, isDayTime(item.time)),
     [item.weatherCode, item.time]
@@ -75,7 +76,7 @@ const HourlyItem = memo(function HourlyItem({ item, index, colors, nowLabel }: H
   return (
     <View style={styles.hourlyItem}>
       <Text style={[styles.hourlyTime, { color: colors.textSecondary }]}>
-        {index === 0 ? nowLabel : formatHour(item.time)}
+        {index === 0 ? nowLabel : formatHour(item.time, locale)}
       </Text>
       <MaterialCommunityIcons
         name={iconName as keyof typeof MaterialCommunityIcons.glyphMap}
@@ -95,15 +96,16 @@ const HourlyItem = memo(function HourlyItem({ item, index, colors, nowLabel }: H
 export const HourlyForecastSection = memo(function HourlyForecastSection({
   hourly,
 }: HourlyForecastSectionProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { colors } = useTheme();
   const nowLabel = t('weather.now');
+  const locale = i18n.language === 'en' ? 'en-US' : 'pt-PT';
 
   const renderItem = useCallback(
     ({ item, index }: { item: HourlyForecast; index: number }) => (
-      <HourlyItem item={item} index={index} colors={colors} nowLabel={nowLabel} />
+      <HourlyItem item={item} index={index} colors={colors} nowLabel={nowLabel} locale={locale} />
     ),
-    [colors, nowLabel]
+    [colors, nowLabel, locale]
   );
 
   const keyExtractor = useCallback((_item: HourlyForecast, index: number) => index.toString(), []);

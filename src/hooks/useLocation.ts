@@ -103,7 +103,7 @@ export function useLocation(): UseLocationResult {
       return granted;
     } catch (err) {
       logger.error('Error requesting location permission:', err);
-      setError('Erro ao solicitar permissão de localização');
+      setError('weather.locationError');
       return false;
     }
   }, [fetchLocation]);

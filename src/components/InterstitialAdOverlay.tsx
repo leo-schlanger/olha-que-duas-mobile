@@ -227,7 +227,7 @@ export function InterstitialAdOverlay({ visible, onClose }: InterstitialAdOverla
                   color={colors.textSecondary}
                 />
                 <Text style={[styles.placeholderText, { color: colors.textSecondary }]}>
-                  Publicidade
+                  {t('ads.advertisement')}
                 </Text>
               </View>
             ) : (

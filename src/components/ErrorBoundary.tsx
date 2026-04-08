@@ -6,6 +6,7 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import i18n from '../i18n';
 import { logger } from '../utils/logger';
 
 interface Props {
@@ -45,9 +46,9 @@ export class ErrorBoundary extends Component<Props, State> {
       return (
         <View style={styles.container}>
           <MaterialCommunityIcons name="alert-circle-outline" size={64} color="#d6402e" />
-          <Text style={styles.title}>Algo correu mal</Text>
+          <Text style={styles.title}>{i18n.t('error.title')}</Text>
           <Text style={styles.message}>
-            Ocorreu um erro inesperado. Tente novamente.
+            {i18n.t('error.message')}
           </Text>
           {__DEV__ && this.state.error && (
             <ScrollView style={styles.errorBox}>
@@ -56,7 +57,7 @@ export class ErrorBoundary extends Component<Props, State> {
           )}
           <TouchableOpacity style={styles.button} onPress={this.handleRetry} activeOpacity={0.8}>
             <MaterialCommunityIcons name="refresh" size={20} color="#FFFFFF" />
-            <Text style={styles.buttonText}>Tentar Novamente</Text>
+            <Text style={styles.buttonText}>{i18n.t('error.retry')}</Text>
           </TouchableOpacity>
         </View>
       );

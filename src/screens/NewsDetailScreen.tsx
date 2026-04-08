@@ -31,7 +31,7 @@ type RootStackParamList = {
 type NewsDetailRouteProp = RouteProp<RootStackParamList, 'NewsDetail'>;
 
 export function NewsDetailScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { colors, isDark } = useTheme();
   const route = useRoute<NewsDetailRouteProp>();
   const navigation = useNavigation();
@@ -40,8 +40,9 @@ export function NewsDetailScreen() {
   const [showAdOverlay, setShowAdOverlay] = useState(true);
 
   const formatDate = (dateString: string) => {
+    const locale = i18n.language === 'en' ? 'en-US' : 'pt-PT';
     const date = new Date(dateString);
-    return date.toLocaleDateString('pt-PT', {
+    return date.toLocaleDateString(locale, {
       day: '2-digit',
       month: 'long',
       year: 'numeric',
@@ -109,7 +110,7 @@ export function NewsDetailScreen() {
             color={colors.textSecondary}
           />
           <Text style={[styles.errorText, { color: colors.textSecondary }]}>
-            {error || t('news.notFound')}
+            {error ? t(error) : t('news.notFound')}
           </Text>
           <TouchableOpacity
             style={[
@@ -165,7 +166,7 @@ export function NewsDetailScreen() {
         <TouchableOpacity
           style={styles.headerButton}
           onPress={handleShare}
-          accessibilityLabel="Partilhar notícia"
+          accessibilityLabel={t('news.shareNews')}
           accessibilityRole="button"
         >
           <MaterialCommunityIcons name="share-variant" size={24} color={colors.text} />
@@ -221,7 +222,7 @@ export function NewsDetailScreen() {
               {formatDate(post.published_at)}
             </Text>
             <Text style={[styles.source, { color: colors.textSecondary }]}>
-              Fonte: {post.source_name}
+              {t('news.source', { source: post.source_name })}
             </Text>
           </View>
 
@@ -239,7 +240,7 @@ export function NewsDetailScreen() {
 
           {tags.length > 0 && (
             <View style={styles.tagsContainer}>
-              <Text style={[styles.tagsLabel, { color: colors.textSecondary }]}>Tags:</Text>
+              <Text style={[styles.tagsLabel, { color: colors.textSecondary }]}>{t('news.tags')}</Text>
               <View style={styles.tags}>
                 {tags.map((tag: string, index: number) => (
                   <View
@@ -265,7 +266,7 @@ export function NewsDetailScreen() {
               { backgroundColor: colors.backgroundCard, borderColor: colors.muted },
             ]}
             onPress={handleOpenSource}
-            accessibilityLabel="Abrir fonte original da notícia"
+            accessibilityLabel={t('news.openOriginalSource')}
             accessibilityRole="link"
           >
             <MaterialCommunityIcons name="open-in-new" size={18} color={colors.primary} />
