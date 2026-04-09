@@ -21,7 +21,7 @@ export interface ScheduledNotification {
   dayOfWeek: number;
   time: string;
   notificationId: string;
-  scheduledAt: number; // timestamp for tracking
+  scheduledAt: number;
 }
 
 interface OperationResult<T = void> {
@@ -39,8 +39,7 @@ type PreferencesListener = (_prefs: NotificationPreferences) => void;
 const STORAGE_KEY = STORAGE_KEYS.NOTIFICATION_PREFS;
 const SCHEDULED_NOTIFICATIONS_KEY = STORAGE_KEYS.SCHEDULED_NOTIFICATIONS;
 const NOTIFICATION_CHANNEL_ID = 'program-reminders';
-const _OPERATION_TIMEOUT = 10000; // 10 seconds - reserved for future use
-const DEBOUNCE_DELAY = 300; // 300ms
+const SYNC_INTERVAL_MS = 5 * 60 * 1000;
 const PORTUGAL_TIMEZONE = 'Europe/Lisbon';
 
 const DEFAULT_PREFERENCES: NotificationPreferences = {
@@ -53,16 +52,10 @@ const DEFAULT_PREFERENCES: NotificationPreferences = {
 // TIMEZONE HELPERS
 // ============================================================================
 
-/**
- * Calcula o offset em minutos entre o timezone de Portugal e o timezone do dispositivo.
- * Positivo = dispositivo está à frente de Portugal
- * Negativo = dispositivo está atrás de Portugal
- */
 function getTimezoneOffsetMinutes(): number {
   try {
     const now = new Date();
 
-    // Obter hora atual em Portugal
     const portugalFormatter = new Intl.DateTimeFormat('en-US', {
       timeZone: PORTUGAL_TIMEZONE,
       hour: 'numeric',
@@ -75,9 +68,8 @@ function getTimezoneOffsetMinutes(): number {
       portugalParts.find((p) => p.type === 'minute')?.value || '0',
       10
     );
-    const portugalTotalMinutes = portugalHour * 60 + portugalMinute;
+    const portugalTotal = portugalHour * 60 + portugalMinute;
 
-    // Obter hora atual no dispositivo (local)
     const localFormatter = new Intl.DateTimeFormat('en-US', {
       hour: 'numeric',
       minute: 'numeric',
@@ -86,26 +78,16 @@ function getTimezoneOffsetMinutes(): number {
     const localParts = localFormatter.formatToParts(now);
     const localHour = parseInt(localParts.find((p) => p.type === 'hour')?.value || '0', 10);
     const localMinute = parseInt(localParts.find((p) => p.type === 'minute')?.value || '0', 10);
-    const localTotalMinutes = localHour * 60 + localMinute;
+    const localTotal = localHour * 60 + localMinute;
 
-    // Calcular diferença
-    let offset = localTotalMinutes - portugalTotalMinutes;
+    let offset = localTotal - portugalTotal;
+    if (offset > 720) offset -= 1440;
+    else if (offset < -720) offset += 1440;
 
-    // Ajustar para casos onde cruzamos a meia-noite
-    // Se a diferença for maior que 12 horas, provavelmente cruzamos a meia-noite
-    if (offset > 720) {
-      offset -= 1440; // 24 horas em minutos
-    } else if (offset < -720) {
-      offset += 1440;
-    }
-
-    logger.log(
-      `Timezone offset: ${offset} minutes (device is ${offset >= 0 ? 'ahead of' : 'behind'} Portugal)`
-    );
     return offset;
   } catch (error) {
     logger.error('Error calculating timezone offset:', error);
-    return 0; // Fallback: assume same timezone
+    return 0;
   }
 }
 
@@ -172,10 +154,7 @@ class NotificationService {
   private scheduledNotifications: ScheduledNotification[] = [];
   private listeners: Set<PreferencesListener> = new Set();
   private isInitialized = false;
-  private operationLock = false;
-  private operationQueue: Array<() => Promise<void>> = [];
-  private isProcessingQueue = false;
-  private debounceTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  private isBusy = false;
   private permissionCache: { granted: boolean; checkedAt: number } | null = null;
   private syncInterval: ReturnType<typeof setInterval> | null = null;
   private appStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null;
@@ -186,30 +165,20 @@ class NotificationService {
   // ==========================================================================
 
   async initialize(): Promise<boolean> {
-    if (this.isInitialized) {
-      return true;
-    }
+    if (this.isInitialized) return true;
 
     try {
       await this.loadPreferences();
       await this.loadScheduledNotifications();
       await this.syncWithSystem();
-
-      // Store initial timezone offset
       this.lastKnownTimezoneOffset = getTimezoneOffsetMinutes();
-
-      // Setup periodic sync (every 5 minutes)
       this.startPeriodicSync();
-
-      // Setup AppState listener to detect timezone changes
       this.setupAppStateListener();
-
       this.isInitialized = true;
       logger.log('NotificationService initialized successfully');
       return true;
     } catch (error) {
       logger.error('Error initializing notification service:', error);
-      // Initialize with defaults on failure
       this.preferences = { ...DEFAULT_PREFERENCES };
       this.scheduledNotifications = [];
       this.isInitialized = true;
@@ -222,39 +191,40 @@ class NotificationService {
   }
 
   private handleAppStateChange = async (nextAppState: AppStateStatus): Promise<void> => {
-    if (nextAppState === 'active') {
-      // App came to foreground - check if timezone changed
-      const currentOffset = getTimezoneOffsetMinutes();
+    if (nextAppState !== 'active') return;
+    // Skip if another operation is in progress to avoid concurrent state mutation
+    if (this.isBusy) return;
 
+    try {
+      const currentOffset = getTimezoneOffsetMinutes();
       if (currentOffset !== this.lastKnownTimezoneOffset) {
         logger.log(`Timezone changed: ${this.lastKnownTimezoneOffset} → ${currentOffset} minutes`);
         this.lastKnownTimezoneOffset = currentOffset;
 
-        // Reschedule all notifications with new timezone
         if (this.scheduledNotifications.length > 0) {
-          logger.log('Rescheduling notifications due to timezone change...');
-          await this.rescheduleAllNotifications();
+          this.isBusy = true;
+          try {
+            await this.rescheduleAllNotifications();
+          } finally {
+            this.isBusy = false;
+          }
         }
       }
 
-      // Also sync with system
-      await this.syncWithSystem();
+      if (!this.isBusy) {
+        await this.syncWithSystem();
+      }
+    } catch (error) {
+      logger.error('Error handling app state change for notifications:', error);
     }
   };
 
   private startPeriodicSync(): void {
-    if (this.syncInterval) {
-      clearInterval(this.syncInterval);
-    }
-    // Sync every 5 minutes
-    this.syncInterval = setInterval(
-      () => {
-        this.syncWithSystem().catch((err) => {
-          logger.error('Periodic sync failed:', err);
-        });
-      },
-      5 * 60 * 1000
-    );
+    if (this.syncInterval) clearInterval(this.syncInterval);
+    this.syncInterval = setInterval(() => {
+      if (this.isBusy) return;
+      this.syncWithSystem().catch((err) => logger.error('Periodic sync failed:', err));
+    }, SYNC_INTERVAL_MS);
   }
 
   cleanup(): void {
@@ -266,67 +236,7 @@ class NotificationService {
       this.appStateSubscription.remove();
       this.appStateSubscription = null;
     }
-    this.debounceTimers.forEach((timer) => clearTimeout(timer));
-    this.debounceTimers.clear();
     this.listeners.clear();
-    this.operationQueue = [];
-  }
-
-  // ==========================================================================
-  // OPERATION QUEUE & LOCKING
-  // ==========================================================================
-
-  private async executeWithQueue<T>(operation: () => Promise<T>): Promise<T> {
-    return new Promise((resolve, reject) => {
-      this.operationQueue.push(async () => {
-        try {
-          const result = await operation();
-          resolve(result);
-        } catch (error) {
-          reject(error);
-        }
-      });
-      this.processQueue();
-    });
-  }
-
-  private async processQueue(): Promise<void> {
-    if (this.isProcessingQueue || this.operationQueue.length === 0) {
-      return;
-    }
-
-    this.isProcessingQueue = true;
-
-    while (this.operationQueue.length > 0) {
-      const operation = this.operationQueue.shift();
-      if (operation) {
-        try {
-          await operation();
-        } catch (error) {
-          logger.error('Queue operation failed:', error);
-        }
-      }
-    }
-
-    this.isProcessingQueue = false;
-  }
-
-  private debounce(key: string, fn: () => void, delay: number = DEBOUNCE_DELAY): void {
-    const existing = this.debounceTimers.get(key);
-    if (existing) {
-      clearTimeout(existing);
-    }
-    this.debounceTimers.set(
-      key,
-      setTimeout(() => {
-        this.debounceTimers.delete(key);
-        fn();
-      }, delay)
-    );
-  }
-
-  isOperationPending(): boolean {
-    return this.isProcessingQueue || this.operationQueue.length > 0;
   }
 
   // ==========================================================================
@@ -358,7 +268,6 @@ class NotificationService {
   }
 
   async checkPermissions(): Promise<boolean> {
-    // Use cache if checked within last 30 seconds
     if (this.permissionCache && Date.now() - this.permissionCache.checkedAt < 30000) {
       return this.permissionCache.granted;
     }
@@ -399,7 +308,6 @@ class NotificationService {
         if (isValidPreferences(parsed)) {
           this.preferences = parsed;
         } else {
-          logger.log('Invalid preferences format, using defaults');
           this.preferences = { ...DEFAULT_PREFERENCES };
         }
       }
@@ -425,7 +333,6 @@ class NotificationService {
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) {
-          // Filter out invalid entries
           this.scheduledNotifications = parsed.filter(isValidScheduledNotification);
         }
       }
@@ -458,51 +365,46 @@ class NotificationService {
       const systemIds = new Set(systemNotifications.map((n) => n.identifier));
       const localIds = new Set(this.scheduledNotifications.map((n) => n.notificationId));
 
-      // Find notifications that exist only locally (orphans in our state)
-      const localOrphans = this.scheduledNotifications.filter(
-        (n) => !systemIds.has(n.notificationId)
-      );
-
-      // Find notifications that exist only in system (orphans in system)
+      // Cancel system orphans (exist in system but not in local state)
       const systemOrphans = systemNotifications.filter((n) => !localIds.has(n.identifier));
-
-      // Cancel system orphans
       for (const orphan of systemOrphans) {
         try {
           await Notifications.cancelScheduledNotificationAsync(orphan.identifier);
-          logger.log('Cancelled system orphan:', orphan.identifier);
         } catch (error) {
           logger.error('Error cancelling system orphan:', error);
         }
       }
 
-      // Remove local orphans from state
+      // Remove local orphans (exist locally but not in system)
+      const localOrphans = this.scheduledNotifications.filter(
+        (n) => !systemIds.has(n.notificationId)
+      );
       if (localOrphans.length > 0) {
         this.scheduledNotifications = this.scheduledNotifications.filter((n) =>
           systemIds.has(n.notificationId)
         );
         await this.saveScheduledNotifications();
-        logger.log(`Removed ${localOrphans.length} local orphan(s)`);
       }
 
       // Sync enabledShows with actual scheduled notifications
       const scheduledShowNames = new Set(this.scheduledNotifications.map((n) => n.showName));
-      const enabledShowsNeedUpdate = this.preferences.enabledShows.some(
+      const staleShows = this.preferences.enabledShows.filter(
         (show) => !scheduledShowNames.has(show)
       );
-
-      if (enabledShowsNeedUpdate) {
-        // Remove shows from enabledShows that have no scheduled notifications
-        this.preferences.enabledShows = this.preferences.enabledShows.filter((show) =>
-          scheduledShowNames.has(show)
-        );
+      if (staleShows.length > 0) {
+        this.preferences = {
+          ...this.preferences,
+          enabledShows: this.preferences.enabledShows.filter((show) =>
+            scheduledShowNames.has(show)
+          ),
+        };
         await this.savePreferences();
         this.notifyListeners();
       }
 
-      if (systemOrphans.length > 0 || localOrphans.length > 0 || enabledShowsNeedUpdate) {
+      if (systemOrphans.length > 0 || localOrphans.length > 0 || staleShows.length > 0) {
         logger.log(
-          `Sync complete: ${systemOrphans.length} system orphans, ${localOrphans.length} local orphans removed`
+          `Sync: removed ${systemOrphans.length} system orphans, ${localOrphans.length} local orphans, ${staleShows.length} stale shows`
         );
       }
     } catch (error) {
@@ -526,18 +428,21 @@ class NotificationService {
   }
 
   async setEnabled(enabled: boolean): Promise<OperationResult> {
-    return this.executeWithQueue(async () => {
+    if (this.isBusy) return { success: false, error: 'Operation in progress' };
+    this.isBusy = true;
+
+    try {
       if (enabled) {
         const hasPermission = await this.requestPermissions();
         if (!hasPermission) {
-          throw new Error('Permission not granted');
+          return { success: false, error: 'Permission not granted' };
         }
       }
 
       this.preferences = { ...this.preferences, enabled };
 
       if (!(await this.savePreferences())) {
-        throw new Error('Failed to save preferences');
+        return { success: false, error: 'Failed to save preferences' };
       }
 
       if (!enabled) {
@@ -545,28 +450,41 @@ class NotificationService {
       }
 
       this.notifyListeners();
-    })
-      .then(() => ({ success: true }))
-      .catch((error) => ({ success: false, error: error.message }));
+      return { success: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('Error setting enabled:', error);
+      return { success: false, error: message };
+    } finally {
+      this.isBusy = false;
+    }
   }
 
   async setReminderMinutes(minutes: ReminderTime): Promise<OperationResult> {
-    return this.executeWithQueue(async () => {
+    if (this.isBusy) return { success: false, error: 'Operation in progress' };
+    this.isBusy = true;
+
+    try {
       const oldMinutes = this.preferences.reminderMinutes;
       this.preferences = { ...this.preferences, reminderMinutes: minutes };
 
       if (!(await this.savePreferences())) {
-        // Rollback
         this.preferences = { ...this.preferences, reminderMinutes: oldMinutes };
-        throw new Error('Failed to save preferences');
+        return { success: false, error: 'Failed to save preferences' };
       }
 
       // Reschedule all notifications with new reminder time
+      // This is called directly (not through the queue) to avoid deadlock
       await this.rescheduleAllNotifications();
       this.notifyListeners();
-    })
-      .then(() => ({ success: true }))
-      .catch((error) => ({ success: false, error: error.message }));
+      return { success: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('Error setting reminder minutes:', error);
+      return { success: false, error: message };
+    } finally {
+      this.isBusy = false;
+    }
   }
 
   // ==========================================================================
@@ -578,49 +496,45 @@ class NotificationService {
   }
 
   async toggleShowReminder(showName: string): Promise<OperationResult<boolean>> {
-    // Debounce rapid clicks
-    return new Promise((resolve) => {
-      this.debounce(`toggle-${showName}`, async () => {
-        try {
-          await this.executeWithQueue(async () => {
-            const isEnabled = this.isShowEnabled(showName);
+    if (this.isBusy) return { success: false, error: 'Operation in progress' };
+    this.isBusy = true;
 
-            if (isEnabled) {
-              // Disable - cancel all notifications for this show
-              await this.cancelShowNotificationsInternal(showName);
-              this.preferences = {
-                ...this.preferences,
-                enabledShows: this.preferences.enabledShows.filter((s) => s !== showName),
-              };
-            } else {
-              // Enable - will be scheduled when scheduleShowReminder is called
-              if (!this.preferences.enabled) {
-                const hasPermission = await this.requestPermissions();
-                if (!hasPermission) {
-                  throw new Error('Permission not granted');
-                }
-                this.preferences = { ...this.preferences, enabled: true };
-              }
-              this.preferences = {
-                ...this.preferences,
-                enabledShows: [...this.preferences.enabledShows, showName],
-              };
-            }
+    try {
+      const isEnabled = this.isShowEnabled(showName);
 
-            if (!(await this.savePreferences())) {
-              throw new Error('Failed to save preferences');
-            }
-
-            this.notifyListeners();
-          });
-
-          resolve({ success: true, data: this.isShowEnabled(showName) });
-        } catch (error) {
-          const message = error instanceof Error ? error.message : 'Operation failed';
-          resolve({ success: false, error: message });
+      if (isEnabled) {
+        await this.cancelShowNotificationsInternal(showName);
+        this.preferences = {
+          ...this.preferences,
+          enabledShows: this.preferences.enabledShows.filter((s) => s !== showName),
+        };
+      } else {
+        if (!this.preferences.enabled) {
+          const hasPermission = await this.requestPermissions();
+          if (!hasPermission) {
+            return { success: false, error: 'Permission not granted' };
+          }
+          this.preferences = { ...this.preferences, enabled: true };
         }
-      });
-    });
+        this.preferences = {
+          ...this.preferences,
+          enabledShows: [...this.preferences.enabledShows, showName],
+        };
+      }
+
+      if (!(await this.savePreferences())) {
+        return { success: false, error: 'Failed to save preferences' };
+      }
+
+      this.notifyListeners();
+      return { success: true, data: !isEnabled };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('Error toggling show reminder:', error);
+      return { success: false, error: message };
+    } finally {
+      this.isBusy = false;
+    }
   }
 
   async scheduleShowReminder(
@@ -628,7 +542,6 @@ class NotificationService {
     dayOfWeek: number,
     time: string
   ): Promise<OperationResult<string>> {
-    // Validate inputs
     if (!isValidDayOfWeek(dayOfWeek)) {
       return { success: false, error: 'Invalid day of week' };
     }
@@ -636,18 +549,17 @@ class NotificationService {
       return { success: false, error: 'Invalid time format' };
     }
 
-    return this.executeWithQueue(async () => {
+    try {
       // Ensure permissions and enabled state
       if (!this.preferences.enabled) {
         const hasPermission = await this.requestPermissions();
         if (!hasPermission) {
-          throw new Error('Permission not granted');
+          return { success: false, error: 'Permission not granted' };
         }
         this.preferences = { ...this.preferences, enabled: true };
         await this.savePreferences();
       }
 
-      // Normalize time to HH:mm
       const normalizedTime = time.slice(0, 5);
 
       // Check for existing notification
@@ -656,61 +568,43 @@ class NotificationService {
       );
 
       if (existing) {
-        // Verify it exists in system
         const systemNotifications = await Notifications.getAllScheduledNotificationsAsync();
         const existsInSystem = systemNotifications.some(
           (n) => n.identifier === existing.notificationId
         );
 
         if (existsInSystem) {
-          return existing.notificationId;
+          return { success: true, data: existing.notificationId };
         }
-        // If not in system, remove from local state and reschedule
+        // Remove stale local entry
         this.scheduledNotifications = this.scheduledNotifications.filter(
           (n) => n.notificationId !== existing.notificationId
         );
       }
 
       // Calculate reminder time with timezone adjustment
-      // Show times are in Portugal timezone, we need to convert to device local time
       const [hours, minutes] = normalizedTime.split(':').map(Number);
       const timezoneOffset = getTimezoneOffsetMinutes();
 
-      // Convert Portugal show time to device local time, then subtract reminder
-      // Total minutes from midnight in Portugal
       let totalMinutes = hours * 60 + minutes;
-      // Add timezone offset (positive = device ahead of Portugal)
       totalMinutes += timezoneOffset;
-      // Subtract reminder time
       totalMinutes -= this.preferences.reminderMinutes;
 
-      // Handle day changes
       let reminderDayOfWeek = dayOfWeek;
 
-      // If totalMinutes went negative (previous day)
       while (totalMinutes < 0) {
-        totalMinutes += 1440; // Add 24 hours
-        reminderDayOfWeek -= 1;
-        if (reminderDayOfWeek < 0) {
-          reminderDayOfWeek = 6; // Wrap to Saturday
-        }
+        totalMinutes += 1440;
+        reminderDayOfWeek = reminderDayOfWeek === 0 ? 6 : reminderDayOfWeek - 1;
       }
-
-      // If totalMinutes exceeded 24 hours (next day)
       while (totalMinutes >= 1440) {
-        totalMinutes -= 1440; // Subtract 24 hours
-        reminderDayOfWeek += 1;
-        if (reminderDayOfWeek > 6) {
-          reminderDayOfWeek = 0; // Wrap to Sunday
-        }
+        totalMinutes -= 1440;
+        reminderDayOfWeek = reminderDayOfWeek === 6 ? 0 : reminderDayOfWeek + 1;
       }
 
       const reminderHours = Math.floor(totalMinutes / 60);
       const reminderMins = totalMinutes % 60;
 
-      // Create trigger (expo-notifications uses 1-7, Sunday=1)
-      // JavaScript: 0=Sunday, 1=Monday, ..., 6=Saturday
-      // expo-notifications: 1=Sunday, 2=Monday, ..., 7=Saturday
+      // JS weekday (0=Sunday) to expo weekday (1=Sunday)
       const expoWeekday = reminderDayOfWeek === 0 ? 1 : reminderDayOfWeek + 1;
 
       logger.log(
@@ -724,7 +618,6 @@ class NotificationService {
         minute: reminderMins,
       };
 
-      // Schedule notification
       const notificationId = await Notifications.scheduleNotificationAsync({
         content: {
           title: 'Olha que Duas',
@@ -735,7 +628,6 @@ class NotificationService {
         trigger,
       });
 
-      // Add to local state
       const notification: ScheduledNotification = {
         showName,
         dayOfWeek,
@@ -747,12 +639,12 @@ class NotificationService {
       this.scheduledNotifications = [...this.scheduledNotifications, notification];
 
       if (!(await this.saveScheduledNotifications())) {
-        // Rollback - cancel the scheduled notification
+        // Rollback
         await Notifications.cancelScheduledNotificationAsync(notificationId);
         this.scheduledNotifications = this.scheduledNotifications.filter(
           (n) => n.notificationId !== notificationId
         );
-        throw new Error('Failed to save notification');
+        return { success: false, error: 'Failed to save notification' };
       }
 
       // Ensure show is in enabledShows
@@ -765,11 +657,12 @@ class NotificationService {
         this.notifyListeners();
       }
 
-      logger.log(`Scheduled notification for ${showName} on day ${dayOfWeek} at ${normalizedTime}`);
-      return notificationId;
-    })
-      .then((data) => ({ success: true, data: data as string }))
-      .catch((error) => ({ success: false, error: error.message }));
+      return { success: true, data: notificationId };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      logger.error(`Error scheduling reminder for ${showName}:`, error);
+      return { success: false, error: message };
+    }
   }
 
   async scheduleAllTimesForShow(
@@ -777,66 +670,81 @@ class NotificationService {
     dayOfWeek: number,
     times: string[]
   ): Promise<OperationResult<{ scheduled: number; failed: number }>> {
-    let scheduled = 0;
-    let failed = 0;
+    if (this.isBusy) return { success: false, error: 'Operation in progress' };
+    this.isBusy = true;
 
-    for (const time of times) {
-      const result = await this.scheduleShowReminder(showName, dayOfWeek, time);
-      if (result.success) {
-        scheduled++;
-      } else {
-        failed++;
+    try {
+      let scheduled = 0;
+      let failed = 0;
+
+      for (const time of times) {
+        const result = await this.scheduleShowReminder(showName, dayOfWeek, time);
+        if (result.success) {
+          scheduled++;
+        } else {
+          failed++;
+        }
       }
-    }
 
-    // If all failed, rollback any that succeeded
-    if (scheduled > 0 && failed === times.length) {
-      await this.cancelShowNotificationsInternal(showName);
-      return { success: false, error: 'Failed to schedule all notifications' };
-    }
+      if (scheduled === 0) {
+        return { success: false, error: 'Failed to schedule any notifications' };
+      }
 
-    return { success: true, data: { scheduled, failed } };
+      return { success: true, data: { scheduled, failed } };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('Error scheduling all times for show:', error);
+      return { success: false, error: message };
+    } finally {
+      this.isBusy = false;
+    }
   }
 
   async cancelShowNotifications(showName: string): Promise<OperationResult> {
-    return this.executeWithQueue(async () => {
+    if (this.isBusy) return { success: false, error: 'Operation in progress' };
+    this.isBusy = true;
+
+    try {
       await this.cancelShowNotificationsInternal(showName);
 
-      // Remove from enabledShows
       this.preferences = {
         ...this.preferences,
         enabledShows: this.preferences.enabledShows.filter((s) => s !== showName),
       };
       await this.savePreferences();
       this.notifyListeners();
-    })
-      .then(() => ({ success: true }))
-      .catch((error) => ({ success: false, error: error.message }));
+      return { success: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('Error cancelling show notifications:', error);
+      return { success: false, error: message };
+    } finally {
+      this.isBusy = false;
+    }
   }
 
   private async cancelShowNotificationsInternal(showName: string): Promise<void> {
     const toCancel = this.scheduledNotifications.filter((n) => n.showName === showName);
-    const cancelledIds: string[] = [];
 
     for (const notification of toCancel) {
       try {
         await Notifications.cancelScheduledNotificationAsync(notification.notificationId);
-        cancelledIds.push(notification.notificationId);
       } catch (error) {
         logger.error('Error canceling notification:', error);
-        // Still mark as cancelled - it might not exist in system
-        cancelledIds.push(notification.notificationId);
       }
     }
 
     this.scheduledNotifications = this.scheduledNotifications.filter(
-      (n) => !cancelledIds.includes(n.notificationId)
+      (n) => n.showName !== showName
     );
     await this.saveScheduledNotifications();
   }
 
   async cancelAllNotifications(): Promise<OperationResult> {
-    return this.executeWithQueue(async () => {
+    if (this.isBusy) return { success: false, error: 'Operation in progress' };
+    this.isBusy = true;
+
+    try {
       await this.cancelAllNotificationsInternal();
 
       this.preferences = {
@@ -845,9 +753,14 @@ class NotificationService {
       };
       await this.savePreferences();
       this.notifyListeners();
-    })
-      .then(() => ({ success: true }))
-      .catch((error) => ({ success: false, error: error.message }));
+      return { success: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('Error cancelling all notifications:', error);
+      return { success: false, error: message };
+    } finally {
+      this.isBusy = false;
+    }
   }
 
   private async cancelAllNotificationsInternal(): Promise<void> {
@@ -859,7 +772,7 @@ class NotificationService {
       for (const notification of this.scheduledNotifications) {
         try {
           await Notifications.cancelScheduledNotificationAsync(notification.notificationId);
-        } catch (_innerError) {
+        } catch {
           // Ignore individual errors
         }
       }
@@ -870,13 +783,12 @@ class NotificationService {
 
   private async rescheduleAllNotifications(): Promise<void> {
     const currentScheduled = [...this.scheduledNotifications];
+    const enabledSet = new Set(this.preferences.enabledShows);
 
     // Cancel all first
     await this.cancelAllNotificationsInternal();
 
-    // Reschedule only for enabled shows
-    const enabledSet = new Set(this.preferences.enabledShows);
-
+    // Reschedule only for enabled shows (calls scheduleShowReminder directly, no lock)
     for (const notification of currentScheduled) {
       if (enabledSet.has(notification.showName)) {
         await this.scheduleShowReminder(
@@ -908,26 +820,37 @@ class NotificationService {
     return this.isInitialized;
   }
 
+  isOperationPending(): boolean {
+    return this.isBusy;
+  }
+
   // ==========================================================================
   // LISTENERS
   // ==========================================================================
 
   subscribe(listener: PreferencesListener): () => void {
     this.listeners.add(listener);
-    // Send current state immediately
     listener(this.getPreferences());
     return () => this.listeners.delete(listener);
   }
 
   private notifyListeners(): void {
     const prefs = this.getPreferences();
+    const deadListeners: PreferencesListener[] = [];
+
     this.listeners.forEach((listener) => {
       try {
         listener(prefs);
       } catch (error) {
         logger.error('Error in notification listener:', error);
+        deadListeners.push(listener);
       }
     });
+
+    // Remove listeners that threw errors
+    for (const dead of deadListeners) {
+      this.listeners.delete(dead);
+    }
   }
 }
 
