@@ -263,10 +263,7 @@ export function useSchedule() {
   }, [currentDay]);
 
   // Only return active programs
-  const schedule = useMemo(
-    () => rawSchedule.filter((item) => item.isActive),
-    [rawSchedule]
-  );
+  const schedule = useMemo(() => rawSchedule.filter((item) => item.isActive), [rawSchedule]);
 
   return { schedule, loading, error };
 }

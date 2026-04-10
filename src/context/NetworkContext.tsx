@@ -3,7 +3,14 @@
  * Monitors online/offline state and provides it to the entire app
  */
 
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  ReactNode,
+} from 'react';
 import * as Network from 'expo-network';
 import { AppState, AppStateStatus } from 'react-native';
 import { logger } from '../utils/logger';

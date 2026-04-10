@@ -1,6 +1,6 @@
 {
   "name": "olha-que-duas-mobile",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
@@ -35,9 +35,9 @@
     "expo-image": "~3.0.11",
     "expo-linear-gradient": "~15.0.8",
     "expo-linking": "~8.0.11",
-    "expo-localization": "^55.0.10-canary-20260328-2049187",
+    "expo-localization": "~17.0.8",
     "expo-location": "~19.0.8",
-    "expo-network": "^55.0.11",
+    "expo-network": "~8.0.8",
     "expo-notifications": "~0.32.16",
     "expo-status-bar": "~3.0.9",
     "i18next": "^26.0.1",

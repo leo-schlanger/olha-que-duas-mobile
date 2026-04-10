@@ -66,6 +66,7 @@ export function InterstitialAdOverlay({ visible, onClose }: InterstitialAdOverla
   const [adLoaded, setAdLoaded] = useState(false);
   const [adError, setAdError] = useState(false);
   const [sdkReady, setSdkReady] = useState(false);
+  const sdkReadyRef = useRef(false);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Check SDK ready status
@@ -77,20 +78,22 @@ export function InterstitialAdOverlay({ visible, onClose }: InterstitialAdOverla
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
     if (adService?.isReady()) {
+      sdkReadyRef.current = true;
       setSdkReady(true);
     } else {
       checkInterval = setInterval(() => {
         if (adService?.isReady() && mounted) {
+          sdkReadyRef.current = true;
           setSdkReady(true);
           if (checkInterval) clearInterval(checkInterval);
           if (timeoutId) clearTimeout(timeoutId);
         }
       }, 1000);
 
-      // Timeout after 5 seconds
+      // Timeout after 5 seconds — read the ref so we don't capture a stale state value
       timeoutId = setTimeout(() => {
         if (checkInterval) clearInterval(checkInterval);
-        if (mounted && !sdkReady) {
+        if (mounted && !sdkReadyRef.current) {
           setAdError(true);
         }
       }, 5000);

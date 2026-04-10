@@ -25,11 +25,14 @@ function cleanExpiredCache(): void {
 }
 
 /**
- * Sanitiza string de busca para evitar SQL injection
+ * Escapa metacaracteres do PostgreSQL ILIKE (% e _) para que sejam interpretados
+ * como literais e não como wildcards. O Supabase faz parametrização própria,
+ * por isso não removemos aspas/backslashes (que partiriam pesquisas legítimas
+ * por termos como "C++", "C#" ou "rock'n'roll"). Apenas neutralizamos o que
+ * iria mudar o significado do operador ILIKE.
  */
 function sanitizeSearchQuery(query: string): string {
-  // Remove caracteres especiais que poderiam ser usados em SQL injection
-  return query.replace(/[%_'"\\;]/g, '').trim();
+  return query.trim().replace(/[\\%_]/g, (match) => `\\${match}`);
 }
 
 /**

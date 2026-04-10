@@ -72,7 +72,12 @@ export function useLocation(): UseLocationResult {
       // Validate coordinates
       const lat = position.coords.latitude;
       const lon = position.coords.longitude;
-      if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
+      if (
+        !Number.isFinite(lat) ||
+        !Number.isFinite(lon) ||
+        Math.abs(lat) > 90 ||
+        Math.abs(lon) > 180
+      ) {
         logger.error('Invalid coordinates received:', { lat, lon });
         useDefaultLocation();
         return;

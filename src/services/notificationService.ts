@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform, AppState, AppStateStatus } from 'react-native';
+import i18n from '../i18n';
 import { logger } from '../utils/logger';
 import { STORAGE_KEYS } from '../config/constants';
 
@@ -159,6 +160,8 @@ class NotificationService {
   private syncInterval: ReturnType<typeof setInterval> | null = null;
   private appStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null;
   private lastKnownTimezoneOffset: number = 0;
+  private languageChangeHandler: ((_lng: string) => void) | null = null;
+  private lastKnownLanguage: string = '';
 
   // ==========================================================================
   // INITIALIZATION
@@ -172,8 +175,10 @@ class NotificationService {
       await this.loadScheduledNotifications();
       await this.syncWithSystem();
       this.lastKnownTimezoneOffset = getTimezoneOffsetMinutes();
+      this.lastKnownLanguage = i18n.language || 'pt';
       this.startPeriodicSync();
       this.setupAppStateListener();
+      this.setupLanguageListener();
       this.isInitialized = true;
       logger.log('NotificationService initialized successfully');
       return true;
@@ -184,6 +189,25 @@ class NotificationService {
       this.isInitialized = true;
       return false;
     }
+  }
+
+  private setupLanguageListener(): void {
+    // Reschedule already-scheduled reminders when the user changes app language,
+    // so that the next notification body is in the new language.
+    this.languageChangeHandler = (lng: string) => {
+      if (lng === this.lastKnownLanguage) return;
+      this.lastKnownLanguage = lng;
+      if (this.scheduledNotifications.length === 0) return;
+      if (this.isBusy) return;
+      logger.log(`Language changed to ${lng}, rescheduling reminders`);
+      this.isBusy = true;
+      this.rescheduleAllNotifications()
+        .catch((err) => logger.error('Error rescheduling on language change:', err))
+        .finally(() => {
+          this.isBusy = false;
+        });
+    };
+    i18n.on('languageChanged', this.languageChangeHandler);
   }
 
   private setupAppStateListener(): void {
@@ -235,6 +259,10 @@ class NotificationService {
     if (this.appStateSubscription) {
       this.appStateSubscription.remove();
       this.appStateSubscription = null;
+    }
+    if (this.languageChangeHandler) {
+      i18n.off('languageChanged', this.languageChangeHandler);
+      this.languageChangeHandler = null;
     }
     this.listeners.clear();
   }
@@ -303,13 +331,21 @@ class NotificationService {
   private async loadPreferences(): Promise<void> {
     try {
       const stored = await AsyncStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (isValidPreferences(parsed)) {
-          this.preferences = parsed;
-        } else {
-          this.preferences = { ...DEFAULT_PREFERENCES };
-        }
+      if (!stored) return;
+
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(stored);
+      } catch (parseError) {
+        logger.error('Corrupted notification preferences in storage, resetting:', parseError);
+        await AsyncStorage.removeItem(STORAGE_KEY);
+        this.preferences = { ...DEFAULT_PREFERENCES };
+        return;
+      }
+      if (isValidPreferences(parsed)) {
+        this.preferences = parsed;
+      } else {
+        this.preferences = { ...DEFAULT_PREFERENCES };
       }
     } catch (error) {
       logger.error('Error loading notification preferences:', error);
@@ -330,11 +366,20 @@ class NotificationService {
   private async loadScheduledNotifications(): Promise<void> {
     try {
       const stored = await AsyncStorage.getItem(SCHEDULED_NOTIFICATIONS_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
-          this.scheduledNotifications = parsed.filter(isValidScheduledNotification);
-        }
+      if (!stored) return;
+
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(stored);
+      } catch (parseError) {
+        // Storage payload is corrupted — drop it so the app can recover instead of looping
+        logger.error('Corrupted scheduled notifications in storage, resetting:', parseError);
+        await AsyncStorage.removeItem(SCHEDULED_NOTIFICATIONS_KEY);
+        this.scheduledNotifications = [];
+        return;
+      }
+      if (Array.isArray(parsed)) {
+        this.scheduledNotifications = parsed.filter(isValidScheduledNotification);
       }
     } catch (error) {
       logger.error('Error loading scheduled notifications:', error);
@@ -537,10 +582,36 @@ class NotificationService {
     }
   }
 
+  /**
+   * Public entry point for scheduling a single show reminder.
+   * Acquires the operation lock so external callers (UI) cannot race other operations.
+   * Internal callers that already hold the lock (`scheduleAllTimesForShow`,
+   * `rescheduleAllNotifications`) must call `scheduleShowReminderInternal` directly.
+   */
   async scheduleShowReminder(
     showName: string,
     dayOfWeek: number,
     time: string
+  ): Promise<OperationResult<string>> {
+    if (this.isBusy) return { success: false, error: 'Operation in progress' };
+    this.isBusy = true;
+    try {
+      return await this.scheduleShowReminderInternal(showName, dayOfWeek, time);
+    } finally {
+      this.isBusy = false;
+    }
+  }
+
+  private async scheduleShowReminderInternal(
+    showName: string,
+    dayOfWeek: number,
+    time: string,
+    /**
+     * Optional set of system notification IDs already loaded by the caller.
+     * Avoids a redundant `getAllScheduledNotificationsAsync()` round-trip when
+     * scheduling multiple reminders in a batch (see `scheduleAllTimesForShow`).
+     */
+    knownSystemIds?: Set<string>
   ): Promise<OperationResult<string>> {
     if (!isValidDayOfWeek(dayOfWeek)) {
       return { success: false, error: 'Invalid day of week' };
@@ -568,10 +639,15 @@ class NotificationService {
       );
 
       if (existing) {
-        const systemNotifications = await Notifications.getAllScheduledNotificationsAsync();
-        const existsInSystem = systemNotifications.some(
-          (n) => n.identifier === existing.notificationId
-        );
+        let existsInSystem: boolean;
+        if (knownSystemIds) {
+          existsInSystem = knownSystemIds.has(existing.notificationId);
+        } else {
+          const systemNotifications = await Notifications.getAllScheduledNotificationsAsync();
+          existsInSystem = systemNotifications.some(
+            (n) => n.identifier === existing.notificationId
+          );
+        }
 
         if (existsInSystem) {
           return { success: true, data: existing.notificationId };
@@ -618,12 +694,17 @@ class NotificationService {
         minute: reminderMins,
       };
 
+      // Localized content — i18n is initialized at app boot before any reminder is created
+      const reminderMinutes = this.preferences.reminderMinutes;
       const notificationId = await Notifications.scheduleNotificationAsync({
         content: {
-          title: 'Olha que Duas',
-          body: `${showName} começa em ${this.preferences.reminderMinutes} minutos!`,
+          title: i18n.t('notifications.reminderTitle'),
+          body: i18n.t('notifications.reminderBody', {
+            show: showName,
+            minutes: reminderMinutes,
+          }),
           sound: 'default',
-          data: { showName, dayOfWeek, time: normalizedTime },
+          data: { showName, dayOfWeek, time: normalizedTime, type: 'program-reminder' },
         },
         trigger,
       });
@@ -674,13 +755,29 @@ class NotificationService {
     this.isBusy = true;
 
     try {
+      // Read system-scheduled notification IDs once instead of on every iteration
+      let knownSystemIds: Set<string> | undefined;
+      try {
+        const systemNotifications = await Notifications.getAllScheduledNotificationsAsync();
+        knownSystemIds = new Set(systemNotifications.map((n) => n.identifier));
+      } catch (error) {
+        logger.error('Could not pre-load system notifications, falling back per-call:', error);
+      }
+
       let scheduled = 0;
       let failed = 0;
 
       for (const time of times) {
-        const result = await this.scheduleShowReminder(showName, dayOfWeek, time);
+        const result = await this.scheduleShowReminderInternal(
+          showName,
+          dayOfWeek,
+          time,
+          knownSystemIds
+        );
         if (result.success) {
           scheduled++;
+          // Keep the cached set in sync so subsequent iterations see the new ID
+          if (knownSystemIds && result.data) knownSystemIds.add(result.data);
         } else {
           failed++;
         }
@@ -788,15 +885,48 @@ class NotificationService {
     // Cancel all first
     await this.cancelAllNotificationsInternal();
 
-    // Reschedule only for enabled shows (calls scheduleShowReminder directly, no lock)
-    for (const notification of currentScheduled) {
-      if (enabledSet.has(notification.showName)) {
-        await this.scheduleShowReminder(
+    // Reschedule only for enabled shows (calls scheduleShowReminder directly, no lock).
+    // We don't abort on individual failures: each show is independent and partial success
+    // is better than losing every reminder. Failures are logged so they can be inspected.
+    // Run schedules in parallel — each schedule is an independent native call and the
+    // expo-notifications native side serializes them anyway, but Promise.all reduces the
+    // round-trip overhead from N×latency to ~max(latency).
+    const toSchedule = currentScheduled.filter((n) => enabledSet.has(n.showName));
+    if (toSchedule.length === 0) return;
+
+    // Pre-load the empty system list — after cancelAllNotificationsInternal it should be empty
+    const knownSystemIds = new Set<string>();
+
+    const results = await Promise.allSettled(
+      toSchedule.map((notification) =>
+        this.scheduleShowReminderInternal(
           notification.showName,
           notification.dayOfWeek,
-          notification.time
+          notification.time,
+          knownSystemIds
+        )
+      )
+    );
+
+    let failures = 0;
+    results.forEach((result, idx) => {
+      const notification = toSchedule[idx];
+      if (result.status === 'rejected') {
+        failures++;
+        logger.error(
+          `Failed to reschedule reminder for "${notification.showName}" @ ${notification.time}:`,
+          result.reason
+        );
+      } else if (!result.value.success) {
+        failures++;
+        logger.error(
+          `Failed to reschedule reminder for "${notification.showName}" @ ${notification.time}: ${result.value.error}`
         );
       }
+    });
+
+    if (failures > 0) {
+      logger.warn(`rescheduleAllNotifications: ${failures} reminder(s) failed to reschedule`);
     }
   }
 

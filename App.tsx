@@ -102,14 +102,33 @@ function AppContent() {
   useEffect(() => {
     initializeServices();
 
-    // Handle notification taps - navigate to Radio tab when user taps a notification
-    notificationResponseListener.current = Notifications.addNotificationResponseReceivedListener(
-      (response) => {
-        logger.log("Notification tapped:", response.notification.request.content.data);
-        // Navigate to Radio tab when notification is tapped
-        navigateToTab("Radio");
+    // Helper that decides whether a tapped notification should navigate to Radio.
+    // Only program-reminder notifications navigate; future notification types can opt out.
+    const handleNotificationTap = (response: Notifications.NotificationResponse | null) => {
+      if (!response) return;
+      const data = response.notification.request.content.data as
+        | { type?: string }
+        | null
+        | undefined;
+      logger.log("Notification tapped:", data);
+      if (data?.type === 'program-reminder' || data?.type === undefined) {
+        // Defer until the navigator is mounted — cold-start tap arrives before mount
+        const tryNavigate = () => navigateToTab("Radio");
+        tryNavigate();
+        // Retry once after a short delay in case the navigator wasn't ready yet
+        setTimeout(tryNavigate, 500);
       }
+    };
+
+    // Handle taps that happen while the app is already running
+    notificationResponseListener.current = Notifications.addNotificationResponseReceivedListener(
+      handleNotificationTap
     );
+
+    // Handle taps that launched the app from a killed state
+    Notifications.getLastNotificationResponseAsync()
+      .then(handleNotificationTap)
+      .catch((err) => logger.error('Error reading initial notification response:', err));
 
     return () => {
       // Clean up notification listener first (sync)

@@ -6,10 +6,21 @@ const reactHooks = require('eslint-plugin-react-hooks');
 const prettier = require('eslint-plugin-prettier');
 
 module.exports = [
+  // Globally ignored paths (must come first in flat config)
+  {
+    ignores: [
+      'node_modules/',
+      'android/',
+      'ios/',
+      '*.config.js',
+      'babel.config.js',
+      // CommonJS mock — uses Node globals (`module`), shouldn't be linted as ESM source
+      'src/services/__mocks__/**/*.js',
+    ],
+  },
   js.configs.recommended,
   {
     files: ['src/**/*.{ts,tsx}'],
-    ignores: ['node_modules/', 'android/', 'ios/', '*.config.js', 'babel.config.js'],
     languageOptions: {
       parser: tsparser,
       parserOptions: {
@@ -65,7 +76,14 @@ module.exports = [
       'react/prop-types': 'off',
       '@typescript-eslint/explicit-module-boundary-types': 'off',
       '@typescript-eslint/no-explicit-any': 'warn',
-      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+        },
+      ],
       'no-unused-vars': 'off', // Use @typescript-eslint/no-unused-vars instead
       'prettier/prettier': 'warn',
       'no-console': ['warn', { allow: ['warn', 'error'] }],

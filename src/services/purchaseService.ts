@@ -67,7 +67,7 @@ function getIAPModule(): IAPModule | null {
   if (iapModule === null) {
     try {
       // Metro config handles mocking in Expo Go
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+
       iapModule = require('react-native-iap') as IAPModule;
     } catch (error) {
       logger.error('PurchaseService: Failed to load react-native-iap:', error);

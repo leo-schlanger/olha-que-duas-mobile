@@ -36,14 +36,26 @@ class RadioSettingsService {
     try {
       const stored = await AsyncStorage.getItem(STORAGE_KEY);
       if (stored) {
-        const parsed = JSON.parse(stored);
-        // Merge with defaults to handle new settings
-        this.settings = { ...DEFAULT_SETTINGS, ...parsed };
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(stored);
+        } catch (parseError) {
+          // Storage payload is corrupted — reset to defaults so the app can recover
+          logger.error('Corrupted radio settings in storage, resetting:', parseError);
+          await AsyncStorage.removeItem(STORAGE_KEY);
+          this.isLoaded = true;
+          return this.settings;
+        }
+        if (parsed && typeof parsed === 'object') {
+          // Merge with defaults to handle new settings
+          this.settings = { ...DEFAULT_SETTINGS, ...(parsed as Partial<RadioSettings>) };
+        }
       }
       this.isLoaded = true;
       return this.settings;
     } catch (error) {
       logger.error('Error loading radio settings:', error);
+      this.isLoaded = true;
       return this.settings;
     }
   }

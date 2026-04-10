@@ -47,9 +47,7 @@ export class ErrorBoundary extends Component<Props, State> {
         <View style={styles.container}>
           <MaterialCommunityIcons name="alert-circle-outline" size={64} color="#d6402e" />
           <Text style={styles.title}>{i18n.t('error.title')}</Text>
-          <Text style={styles.message}>
-            {i18n.t('error.message')}
-          </Text>
+          <Text style={styles.message}>{i18n.t('error.message')}</Text>
           {__DEV__ && this.state.error && (
             <ScrollView style={styles.errorBox}>
               <Text style={styles.errorText}>{this.state.error.toString()}</Text>

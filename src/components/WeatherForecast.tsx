@@ -67,7 +67,13 @@ interface HourlyItemProps {
   locale: string;
 }
 
-const HourlyItem = memo(function HourlyItem({ item, index, colors, nowLabel, locale }: HourlyItemProps) {
+const HourlyItem = memo(function HourlyItem({
+  item,
+  index,
+  colors,
+  nowLabel,
+  locale,
+}: HourlyItemProps) {
   const iconName = useMemo(
     () => getWeatherIcon(item.weatherCode, isDayTime(item.time)),
     [item.weatherCode, item.time]

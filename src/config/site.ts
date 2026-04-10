@@ -22,9 +22,27 @@ export const siteConfig = {
     tagline: 'A sua companhia, 24 horas por dia',
     quality: '192kbps',
     schedule: [
-      { day: 'Segunda', show: 'Nutrição', times: ['12:00', '19:00'], icon: 'leaf-outline', isActive: true },
-      { day: 'Terça', show: 'Motivar', times: ['12:00', '19:00'], icon: 'bulb-outline', isActive: true },
-      { day: 'Quarta', show: 'Prazer Feminino', times: ['21:00', '00:00'], icon: 'heart-outline', isActive: true },
+      {
+        day: 'Segunda',
+        show: 'Nutrição',
+        times: ['12:00', '19:00'],
+        icon: 'leaf-outline',
+        isActive: true,
+      },
+      {
+        day: 'Terça',
+        show: 'Motivar',
+        times: ['12:00', '19:00'],
+        icon: 'bulb-outline',
+        isActive: true,
+      },
+      {
+        day: 'Quarta',
+        show: 'Prazer Feminino',
+        times: ['21:00', '00:00'],
+        icon: 'heart-outline',
+        isActive: true,
+      },
       {
         day: 'Quinta',
         show: 'Companheiros de Caminhada',

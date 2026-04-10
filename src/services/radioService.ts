@@ -29,6 +29,14 @@ class RadioService {
   private appStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null;
   private lastAppState: AppStateStatus = 'active';
   private lockScreenTimeout: ReturnType<typeof setTimeout> | null = null;
+  // Timestamp em ms quando começou a estar em buffering. Usado para detectar
+  // streams "stalled" — quando o player fica preso a fazer buffer mas o áudio
+  // não avança. Reset a 0 quando volta a tocar normalmente.
+  private bufferingStartedAt: number = 0;
+  // Cache do último metadata enviado para o lock screen. Evita chamadas
+  // redundantes a setActiveForLockScreen() — cada chamada pode causar microcortes
+  // no áudio em alguns devices Android.
+  private lastLockScreenMetaKey: string = '';
 
   private clearReconnectTimeout() {
     if (this.reconnectTimeout) {
@@ -49,6 +57,28 @@ class RadioService {
       this.playerSubscription.remove();
       this.playerSubscription = null;
     }
+  }
+
+  /**
+   * Actualiza o lock screen apenas se o metadata mudou desde a última vez.
+   * Cada chamada a setActiveForLockScreen() faz round-trip JS<->native e pode
+   * causar microcortes no áudio em alguns devices Android — minimizar é crítico
+   * para a qualidade da reprodução.
+   */
+  private updateLockScreen(meta: { title: string; artist: string; artworkUrl: string }) {
+    if (!this.player || this.isIntentionallyStopped) return;
+    const key = `${meta.title}\x00${meta.artist}\x00${meta.artworkUrl}`;
+    if (key === this.lastLockScreenMetaKey) return;
+    try {
+      this.player.setActiveForLockScreen(true, meta);
+      this.lastLockScreenMetaKey = key;
+    } catch (error) {
+      logger.error('Error updating lock screen:', error);
+    }
+  }
+
+  private resetLockScreenCache() {
+    this.lastLockScreenMetaKey = '';
   }
 
   private stopStatusPolling() {
@@ -81,6 +111,7 @@ class RadioService {
         this.isIntentionallyStopped = false;
         this.isPlaying = true;
         this.isBuffering = playerBuffering;
+        this.bufferingStartedAt = 0;
         this.subscribeToNowPlaying();
         this.emitStatus(false);
         return;
@@ -95,6 +126,7 @@ class RadioService {
         this.isIntentionallyStopped = true;
         this.isPlaying = false;
         this.isBuffering = false;
+        this.bufferingStartedAt = 0;
         this.unsubscribeFromNowPlaying();
         this.emitStatus(false);
         return;
@@ -102,6 +134,26 @@ class RadioService {
 
       this.isPlaying = playerPlaying;
       this.isBuffering = playerBuffering;
+
+      // Stall detection: se ficamos presos a fazer buffer durante demasiado
+      // tempo, o stream provavelmente caiu silenciosamente. Forçar reconnect
+      // em vez de deixar o utilizador a ver um spinner para sempre.
+      if (playerBuffering && !playerPlaying) {
+        if (this.bufferingStartedAt === 0) {
+          this.bufferingStartedAt = Date.now();
+        } else if (
+          Date.now() - this.bufferingStartedAt > TIMING.RADIO_STALL_TIMEOUT &&
+          this.settings?.autoReconnect
+        ) {
+          logger.warn('Stream stalled in buffering, triggering reconnect');
+          this.bufferingStartedAt = 0;
+          this.reconnect();
+          return;
+        }
+      } else if (playerPlaying) {
+        // Voltámos a tocar, limpar timer de stall
+        this.bufferingStartedAt = 0;
+      }
 
       const isLoading = !this.isPlaying && !this.isIntentionallyStopped;
 
@@ -248,6 +300,8 @@ class RadioService {
 
     try {
       this.isIntentionallyStopped = false;
+      this.bufferingStartedAt = 0;
+      this.resetLockScreenCache();
       this.clearReconnectTimeout();
       this.clearLockScreenTimeout();
       this.stopStatusPolling();
@@ -262,11 +316,17 @@ class RadioService {
         // Deactivate lock screen before releasing to prevent orphan notifications
         try {
           this.player.setActiveForLockScreen(false);
-        } catch (_e) {
+        } catch {
           // Ignore if already released
         }
         this.removePlayerListener();
-        this.player.release();
+        try {
+          this.player.release();
+        } catch (releaseError) {
+          // release() pode falhar se o player nativo já foi destruído.
+          // Apenas registar — vamos criar um player novo de qualquer forma.
+          logger.error('Error releasing previous player:', releaseError);
+        }
         this.player = null;
       }
 
@@ -289,17 +349,11 @@ class RadioService {
       // Store timeout reference so it can be cancelled if pause/stop is called
       this.lockScreenTimeout = setTimeout(() => {
         this.lockScreenTimeout = null;
-        if (this.player && !this.isIntentionallyStopped) {
-          try {
-            this.player.setActiveForLockScreen(true, {
-              title: siteConfig.radio.name,
-              artist: siteConfig.radio.tagline,
-              artworkUrl: siteConfig.radio.logoUrl,
-            });
-          } catch (e) {
-            logger.error('Error setting lock screen:', e);
-          }
-        }
+        this.updateLockScreen({
+          title: siteConfig.radio.name,
+          artist: siteConfig.radio.tagline,
+          artworkUrl: siteConfig.radio.logoUrl,
+        });
       }, TIMING.RADIO_LOCK_SCREEN_DELAY);
 
       // Subscribe to now-playing updates for lock screen metadata
@@ -348,6 +402,7 @@ class RadioService {
       logger.error('Playback error:', status.error);
       this.isPlaying = false;
       this.isBuffering = false;
+      this.bufferingStartedAt = 0;
       this.emitStatus(false);
 
       if (!this.isIntentionallyStopped && this.settings?.autoReconnect) {
@@ -370,6 +425,7 @@ class RadioService {
       this.isIntentionallyStopped = true;
       this.isPlaying = false;
       this.isBuffering = false;
+      this.bufferingStartedAt = 0;
       this.unsubscribeFromNowPlaying();
       this.emitStatus(false);
       return;
@@ -377,6 +433,10 @@ class RadioService {
 
     this.isPlaying = newIsPlaying;
     this.isBuffering = newIsBuffering;
+    if (newIsPlaying) {
+      // Voltámos a tocar — limpa o timer de stall do polling
+      this.bufferingStartedAt = 0;
+    }
 
     // Loading is finished when playback has started
     // We consider it playing if isPlaying is true, regardless of buffering
@@ -405,28 +465,18 @@ class RadioService {
 
       if (data.isMusic && data.song) {
         // Show song info with artwork from now-playing API, fallback to radio logo URL
-        const artworkUrl = data.song.art || siteConfig.radio.logoUrl;
-        logger.log('Updating lock screen metadata:', data.song.title, '-', data.song.artist);
-        try {
-          this.player.setActiveForLockScreen(true, {
-            title: data.song.title,
-            artist: data.song.artist,
-            artworkUrl,
-          });
-        } catch (error) {
-          logger.error('Error updating lock screen:', error);
-        }
+        this.updateLockScreen({
+          title: data.song.title,
+          artist: data.song.artist,
+          artworkUrl: data.song.art || siteConfig.radio.logoUrl,
+        });
       } else {
         // Show radio name with logo when no song is playing
-        try {
-          this.player.setActiveForLockScreen(true, {
-            title: siteConfig.radio.name,
-            artist: siteConfig.radio.tagline,
-            artworkUrl: siteConfig.radio.logoUrl,
-          });
-        } catch (error) {
-          logger.error('Error updating lock screen:', error);
-        }
+        this.updateLockScreen({
+          title: siteConfig.radio.name,
+          artist: siteConfig.radio.tagline,
+          artworkUrl: siteConfig.radio.logoUrl,
+        });
       }
     });
   }
@@ -446,6 +496,8 @@ class RadioService {
       // Reset state so user can try again manually
       this.reconnectAttempts = 0;
       this.isPlaying = false;
+      this.isBuffering = false;
+      this.bufferingStartedAt = 0;
       this.isIntentionallyStopped = true;
       this.stopStatusPolling();
       this.unsubscribeFromNowPlaying();
@@ -476,6 +528,8 @@ class RadioService {
     this.isIntentionallyStopped = true;
     this.isPlaying = false;
     this.reconnectAttempts = 0;
+    this.bufferingStartedAt = 0;
+    this.resetLockScreenCache();
 
     // Cancel pending lock screen timeout
     this.clearLockScreenTimeout();
@@ -504,6 +558,8 @@ class RadioService {
     this.isIntentionallyStopped = true;
     this.isPlaying = false;
     this.reconnectAttempts = 0;
+    this.bufferingStartedAt = 0;
+    this.resetLockScreenCache();
 
     // Cancel pending lock screen timeout
     this.clearLockScreenTimeout();
@@ -517,7 +573,11 @@ class RadioService {
         logger.error('Error deactivating lock screen:', e);
       }
       this.removePlayerListener();
-      this.player.release();
+      try {
+        this.player.release();
+      } catch (releaseError) {
+        logger.error('Error releasing player:', releaseError);
+      }
       this.player = null;
     }
 
@@ -581,6 +641,8 @@ class RadioService {
     // Clear all timeouts first
     this.clearLockScreenTimeout();
     this.clearReconnectTimeout();
+    this.bufferingStartedAt = 0;
+    this.resetLockScreenCache();
 
     if (this.appStateSubscription) {
       this.appStateSubscription.remove();

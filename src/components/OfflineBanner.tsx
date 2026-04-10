@@ -18,8 +18,8 @@ export function OfflineBanner() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.error }]} accessibilityRole="alert">
-      <MaterialCommunityIcons name="wifi-off" size={16} color="#FFFFFF" />
-      <Text style={styles.text}>{t('common.offline')}</Text>
+      <MaterialCommunityIcons name="wifi-off" size={16} color={colors.white} />
+      <Text style={[styles.text, { color: colors.white }]}>{t('common.offline')}</Text>
     </View>
   );
 }
@@ -34,7 +34,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   text: {
-    color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '600',
   },

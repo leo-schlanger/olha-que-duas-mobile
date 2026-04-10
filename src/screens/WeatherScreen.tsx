@@ -112,7 +112,9 @@ export function WeatherScreen() {
             <Text style={[styles.messageTitle, { color: colors.text }]}>
               {t('weather.errorTitle')}
             </Text>
-            <Text style={[styles.messageText, { color: colors.textSecondary }]}>{error ? t(error) : ''}</Text>
+            <Text style={[styles.messageText, { color: colors.textSecondary }]}>
+              {error ? t(error) : ''}
+            </Text>
             <TouchableOpacity
               style={[styles.button, { backgroundColor: colors.primary }]}
               onPress={handleRetry}

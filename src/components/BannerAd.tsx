@@ -48,16 +48,18 @@ export function BannerAd({ size = BannerAdSize.ANCHORED_ADAPTIVE_BANNER }: Banne
   const { colors } = useTheme();
   const { isPremium } = usePremium();
 
-  // Not available in Expo Go
-  if (!environment.canUseNativeModules || !adService || !GoogleBannerAd) {
-    return null;
-  }
+  // Hooks must run before any early return (Rules of Hooks)
   const [adError, setAdError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [sdkReady, setSdkReady] = useState(false);
   const sdkReadyRef = useRef(false);
 
   useEffect(() => {
+    // Skip SDK polling when native modules are unavailable (Expo Go)
+    if (!environment.canUseNativeModules || !adService || !GoogleBannerAd) {
+      return;
+    }
+
     // Wait for SDK to be initialized (done in App.tsx after GDPR consent)
     let mounted = true;
     let checkInterval: ReturnType<typeof setInterval> | null = null;
@@ -102,6 +104,11 @@ export function BannerAd({ size = BannerAdSize.ANCHORED_ADAPTIVE_BANNER }: Banne
     };
   }, []);
 
+  // Not available in Expo Go
+  if (!environment.canUseNativeModules || !adService || !GoogleBannerAd) {
+    return null;
+  }
+
   // Don't show ads for premium users
   if (isPremium) {
     return null;
@@ -128,7 +135,9 @@ export function BannerAd({ size = BannerAdSize.ANCHORED_ADAPTIVE_BANNER }: Banne
             { backgroundColor: colors.card, borderTopColor: colors.background },
           ]}
         >
-          <Text style={[styles.placeholderText, { color: colors.textSecondary }]}>{t('ads.advertisement')}</Text>
+          <Text style={[styles.placeholderText, { color: colors.textSecondary }]}>
+            {t('ads.advertisement')}
+          </Text>
         </View>
       </View>
     );

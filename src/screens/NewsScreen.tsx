@@ -215,138 +215,142 @@ export function NewsScreen() {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      edges={['top']}
-    >
-      <StatusBar
-        barStyle={isDark ? 'light-content' : 'dark-content'}
-        backgroundColor={colors.background}
-      />
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        edges={['top']}
+      >
+        <StatusBar
+          barStyle={isDark ? 'light-content' : 'dark-content'}
+          backgroundColor={colors.background}
+        />
 
-      {/* Header */}
-      <View style={[styles.header, { borderBottomColor: colors.muted }]}>
-        <View style={styles.headerTop}>
-          <View>
-            <Text style={[styles.headerTitle, { color: colors.text }]}>{t('news.title')}</Text>
-            <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
-              {t('news.subtitle')}
-            </Text>
+        {/* Header */}
+        <View style={[styles.header, { borderBottomColor: colors.muted }]}>
+          <View style={styles.headerTop}>
+            <View>
+              <Text style={[styles.headerTitle, { color: colors.text }]}>{t('news.title')}</Text>
+              <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
+                {t('news.subtitle')}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.filterToggle, { backgroundColor: colors.backgroundCard }]}
+              onPress={() => setShowFilters(!showFilters)}
+              accessibilityLabel={t('news.toggleFilters')}
+              accessibilityRole="button"
+            >
+              <MaterialCommunityIcons
+                name={showFilters ? 'filter-off' : 'filter'}
+                size={20}
+                color={colors.text}
+              />
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity
-            style={[styles.filterToggle, { backgroundColor: colors.backgroundCard }]}
-            onPress={() => setShowFilters(!showFilters)}
-            accessibilityLabel={t('news.toggleFilters')}
-            accessibilityRole="button"
-          >
-            <MaterialCommunityIcons
-              name={showFilters ? 'filter-off' : 'filter'}
-              size={20}
-              color={colors.text}
-            />
-          </TouchableOpacity>
+
+          {/* Search Bar */}
+          {showFilters && (
+            <View
+              style={[
+                styles.searchContainer,
+                { backgroundColor: colors.backgroundCard, borderColor: colors.muted },
+              ]}
+            >
+              <MaterialCommunityIcons name="magnify" size={20} color={colors.textSecondary} />
+              <TextInput
+                style={[styles.searchInput, { color: colors.text }]}
+                placeholder={t('news.searchPlaceholder')}
+                placeholderTextColor={colors.textSecondary}
+                value={searchText}
+                onChangeText={handleSearch}
+                returnKeyType="search"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {searchText.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => handleSearch('')}
+                  accessibilityLabel={t('news.clearSearch')}
+                  accessibilityRole="button"
+                >
+                  <MaterialCommunityIcons
+                    name="close-circle"
+                    size={18}
+                    color={colors.textSecondary}
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
         </View>
 
-        {/* Search Bar */}
+        {/* Category Filters */}
         {showFilters && (
-          <View
-            style={[
-              styles.searchContainer,
-              { backgroundColor: colors.backgroundCard, borderColor: colors.muted },
-            ]}
-          >
-            <MaterialCommunityIcons name="magnify" size={20} color={colors.textSecondary} />
-            <TextInput
-              style={[styles.searchInput, { color: colors.text }]}
-              placeholder={t('news.searchPlaceholder')}
-              placeholderTextColor={colors.textSecondary}
-              value={searchText}
-              onChangeText={handleSearch}
-              returnKeyType="search"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            {searchText.length > 0 && (
-              <TouchableOpacity onPress={() => handleSearch('')}>
-                <MaterialCommunityIcons
-                  name="close-circle"
-                  size={18}
-                  color={colors.textSecondary}
-                />
-              </TouchableOpacity>
-            )}
+          <View style={[styles.filtersContainer, { borderBottomColor: colors.muted }]}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoriesScroll}
+            >
+              {/* Clear all button */}
+              {hasActiveFilters && (
+                <TouchableOpacity
+                  style={[
+                    styles.clearChip,
+                    { backgroundColor: colors.vermelho + '20', borderColor: colors.vermelho },
+                  ]}
+                  onPress={handleClearFilters}
+                >
+                  <MaterialCommunityIcons name="close" size={14} color={colors.vermelho} />
+                  <Text style={[styles.clearChipText, { color: colors.vermelho }]}>
+                    {t('news.clear')}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              {CATEGORIES.map(renderCategoryChip)}
+            </ScrollView>
           </View>
         )}
-      </View>
 
-      {/* Category Filters */}
-      {showFilters && (
-        <View style={[styles.filtersContainer, { borderBottomColor: colors.muted }]}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.categoriesScroll}
-          >
-            {/* Clear all button */}
-            {hasActiveFilters && (
-              <TouchableOpacity
-                style={[
-                  styles.clearChip,
-                  { backgroundColor: colors.vermelho + '20', borderColor: colors.vermelho },
-                ]}
-                onPress={handleClearFilters}
-              >
-                <MaterialCommunityIcons name="close" size={14} color={colors.vermelho} />
-                <Text style={[styles.clearChipText, { color: colors.vermelho }]}>
-                  {t('news.clear')}
-                </Text>
-              </TouchableOpacity>
-            )}
-            {CATEGORIES.map(renderCategoryChip)}
-          </ScrollView>
-        </View>
-      )}
+        {/* Loading State */}
+        {isLoading && posts.length === 0 ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+              {t('news.loading')}
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={posts}
+            renderItem={renderItem}
+            keyExtractor={keyExtractor}
+            getItemLayout={getItemLayout}
+            contentContainerStyle={styles.list}
+            showsVerticalScrollIndicator={false}
+            onEndReached={loadMoreDebounced}
+            onEndReachedThreshold={0.5}
+            ListFooterComponent={renderFooter}
+            ListEmptyComponent={renderEmpty}
+            // Otimizações de performance
+            maxToRenderPerBatch={10}
+            updateCellsBatchingPeriod={50}
+            initialNumToRender={10}
+            removeClippedSubviews={true}
+            windowSize={5}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={refresh}
+                tintColor={colors.primary}
+                colors={[colors.primary]}
+              />
+            }
+          />
+        )}
 
-      {/* Loading State */}
-      {isLoading && posts.length === 0 ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-            {t('news.loading')}
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={posts}
-          renderItem={renderItem}
-          keyExtractor={keyExtractor}
-          getItemLayout={getItemLayout}
-          contentContainerStyle={styles.list}
-          showsVerticalScrollIndicator={false}
-          onEndReached={loadMoreDebounced}
-          onEndReachedThreshold={0.5}
-          ListFooterComponent={renderFooter}
-          ListEmptyComponent={renderEmpty}
-          // Otimizações de performance
-          maxToRenderPerBatch={10}
-          updateCellsBatchingPeriod={50}
-          initialNumToRender={10}
-          removeClippedSubviews={true}
-          windowSize={5}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={refresh}
-              tintColor={colors.primary}
-              colors={[colors.primary]}
-            />
-          }
-        />
-      )}
-
-      {/* Banner Ad */}
-      <BannerAd />
-    </SafeAreaView>
+        {/* Banner Ad */}
+        <BannerAd />
+      </SafeAreaView>
     </KeyboardAvoidingView>
   );
 }

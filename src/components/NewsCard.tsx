@@ -51,7 +51,11 @@ export const NewsCard = memo(
         ]}
         onPress={onPress}
         activeOpacity={0.8}
-        accessibilityLabel={t('news.accessibility.newsItem', { title: post.title, category: categoryLabel, date: formattedDate })}
+        accessibilityLabel={t('news.accessibility.newsItem', {
+          title: post.title,
+          category: categoryLabel,
+          date: formattedDate,
+        })}
         accessibilityRole="button"
         accessibilityHint={t('news.accessibility.tapToRead')}
       >

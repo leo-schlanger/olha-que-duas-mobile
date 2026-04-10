@@ -35,7 +35,8 @@ export function NewsDetailScreen() {
   const { colors, isDark } = useTheme();
   const route = useRoute<NewsDetailRouteProp>();
   const navigation = useNavigation();
-  const { slug } = route.params;
+  // route.params can be undefined when arriving from a malformed deep link
+  const slug = route.params?.slug ?? '';
   const { post, isLoading, error } = useNewsDetail(slug);
   const [showAdOverlay, setShowAdOverlay] = useState(true);
 
@@ -87,7 +88,9 @@ export function NewsDetailScreen() {
         />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>{t('common.loading')}</Text>
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+            {t('common.loading')}
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -232,7 +235,10 @@ export function NewsDetailScreen() {
 
           <View style={styles.body}>
             {paragraphs.map((paragraph, index) => (
-              <Text key={index} style={[styles.paragraph, { color: colors.textSecondary }]}>
+              <Text
+                key={`p-${index}-${paragraph.slice(0, 16)}`}
+                style={[styles.paragraph, { color: colors.textSecondary }]}
+              >
                 {paragraph}
               </Text>
             ))}
@@ -240,11 +246,13 @@ export function NewsDetailScreen() {
 
           {tags.length > 0 && (
             <View style={styles.tagsContainer}>
-              <Text style={[styles.tagsLabel, { color: colors.textSecondary }]}>{t('news.tags')}</Text>
+              <Text style={[styles.tagsLabel, { color: colors.textSecondary }]}>
+                {t('news.tags')}
+              </Text>
               <View style={styles.tags}>
-                {tags.map((tag: string, index: number) => (
+                {tags.map((tag: string) => (
                   <View
-                    key={index}
+                    key={tag}
                     style={[
                       styles.tag,
                       {
