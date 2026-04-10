@@ -96,13 +96,17 @@ export function useLocation(): UseLocationResult {
   const requestPermission = useCallback(async (): Promise<boolean> => {
     try {
       setError(null);
-      const { status } = await Location.requestForegroundPermissionsAsync();
+      const { status, canAskAgain } = await Location.requestForegroundPermissionsAsync();
       const granted = status === Location.PermissionStatus.GRANTED;
-      setPermissionStatus(granted ? 'granted' : 'denied');
-      lastPermissionRef.current = granted ? 'granted' : 'denied';
+      const mappedStatus: PermissionStatus = granted ? 'granted' : 'denied';
+      setPermissionStatus(mappedStatus);
+      lastPermissionRef.current = mappedStatus;
 
       if (granted) {
         await fetchLocation();
+      } else if (!canAskAgain) {
+        // System will no longer show the dialog — caller should offer Settings
+        logger.log('Location permission permanently denied (canAskAgain=false)');
       }
 
       return granted;
@@ -126,9 +130,29 @@ export function useLocation(): UseLocationResult {
       const status = await checkPermission();
       if (status === 'granted') {
         await fetchLocation();
-      } else {
-        useDefaultLocation();
+        return;
       }
+
+      // First launch (undetermined): auto-prompt the system permission dialog
+      // so the user is not silently sent to the Lisbon fallback.
+      if (status === 'undetermined') {
+        try {
+          const { status: requested } = await Location.requestForegroundPermissionsAsync();
+          if (requested === Location.PermissionStatus.GRANTED) {
+            setPermissionStatus('granted');
+            lastPermissionRef.current = 'granted';
+            await fetchLocation();
+            return;
+          }
+          setPermissionStatus('denied');
+          lastPermissionRef.current = 'denied';
+        } catch (err) {
+          logger.error('Error auto-requesting location permission:', err);
+        }
+      }
+
+      // Permission denied/unavailable — fall back to Lisbon
+      useDefaultLocation();
     };
 
     initialize();

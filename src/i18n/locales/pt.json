@@ -49,7 +49,27 @@
       "timezone": "(PT)",
       "liveNow": "AO VIVO",
       "today": "Hoje",
-      "noPrograms": "Sem programação disponível"
+      "noPrograms": "Sem programação disponível",
+      "days": {
+        "0": "Domingo",
+        "1": "Segunda",
+        "2": "Terça",
+        "3": "Quarta",
+        "4": "Quinta",
+        "5": "Sexta",
+        "6": "Sábado"
+      },
+      "daysShort": {
+        "0": "DOM",
+        "1": "SEG",
+        "2": "TER",
+        "3": "QUA",
+        "4": "QUI",
+        "5": "SEX",
+        "6": "SÁB"
+      },
+      "showCount_one": "{{count}} programa",
+      "showCount_other": "{{count}} programas"
     },
     "info": {
       "highQuality": "Alta Qualidade",
@@ -196,8 +216,11 @@
     "about": {
       "title": "Sobre",
       "aboutRadio": "Sobre a Rádio",
+      "openAboutRadio": "Conhecer a rádio",
       "description": "O Olha que Duas é uma rádio online portuguesa que une entretenimento, bem-estar e conversas autênticas. Com uma programação diversificada que vai desde nutrição e motivação até debates descontraídos, estamos no ar 24 horas por dia para lhe fazer companhia.",
-      "featuredPrograms": "Programas em destaque"
+      "featuredPrograms": "Programas em destaque",
+      "appTagline": "Aplicação oficial da Rádio Olha que Duas",
+      "copyright": "© {{year}} Olha que Duas"
     },
     "app": {
       "title": "Aplicação",

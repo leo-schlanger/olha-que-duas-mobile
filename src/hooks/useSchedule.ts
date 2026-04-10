@@ -23,12 +23,20 @@ export interface GroupedSchedule {
   day: string;
   dayNumber: number;
   show: string;
+  description: string | null;
   times: string[];
   iconUrl: string;
   icon: string; // Ionicons fallback
   isActive: boolean;
   isToday: boolean;
   isLive: boolean;
+}
+
+export interface DaySchedule {
+  dayNumber: number;
+  dayName: string;
+  isToday: boolean;
+  shows: GroupedSchedule[];
 }
 
 const DAYS_MAP: Record<number, string> = {
@@ -46,9 +54,10 @@ const FALLBACK_ICONS: Record<string, string> = {
   Nutrição: 'leaf-outline',
   Motivar: 'bulb-outline',
   'Prazer Feminino': 'heart-outline',
-  'Companheiros de Caminhada': 'walk-outline',
+  'Companheiros de Caminho': 'walk-outline',
   'Dizem que...': 'chatbubbles-outline',
   'Olha que Duas!': 'people-outline',
+  'Céu de cada mês': 'star-outline',
 };
 
 /**
@@ -146,6 +155,7 @@ function buildFallbackSchedule(currentDay: number): GroupedSchedule[] {
         day: item.day,
         dayNumber,
         show: item.show,
+        description: item.description ?? null,
         times: item.times,
         iconUrl: '',
         icon: item.icon,
@@ -221,6 +231,7 @@ export function useSchedule() {
                 day: DAYS_MAP[item.day_of_week],
                 dayNumber: item.day_of_week,
                 show: event.name,
+                description: event.description,
                 times,
                 iconUrl: event.icon_url,
                 icon: FALLBACK_ICONS[event.name] || 'radio-outline',
@@ -231,8 +242,9 @@ export function useSchedule() {
             }
           }
 
-          // Update isLive after all times are grouped
+          // Sort times within each show and update isLive after all times are grouped
           for (const schedule of grouped.values()) {
+            schedule.times.sort();
             schedule.isLive = checkIsLive(schedule.dayNumber, schedule.times);
           }
 
@@ -265,5 +277,37 @@ export function useSchedule() {
   // Only return active programs
   const schedule = useMemo(() => rawSchedule.filter((item) => item.isActive), [rawSchedule]);
 
-  return { schedule, loading, error };
+  // Group programs by day for layouts that show day headers.
+  // Order: today first, then forward through the week (wrap-around),
+  // so the user always sees upcoming days next.
+  const scheduleByDay = useMemo<DaySchedule[]>(() => {
+    const byDay = new Map<number, DaySchedule>();
+    for (const item of schedule) {
+      let entry = byDay.get(item.dayNumber);
+      if (!entry) {
+        entry = {
+          dayNumber: item.dayNumber,
+          dayName: DAYS_MAP[item.dayNumber] ?? item.day,
+          isToday: item.dayNumber === currentDay,
+          shows: [],
+        };
+        byDay.set(item.dayNumber, entry);
+      }
+      entry.shows.push(item);
+    }
+
+    // Sort shows within each day by their first time
+    for (const day of byDay.values()) {
+      day.shows.sort((a, b) => (a.times[0] ?? '').localeCompare(b.times[0] ?? ''));
+    }
+
+    // Order: today, then upcoming days, wrapping around the week
+    return Array.from(byDay.values()).sort((a, b) => {
+      const distA = (a.dayNumber - currentDay + 7) % 7;
+      const distB = (b.dayNumber - currentDay + 7) % 7;
+      return distA - distB;
+    });
+  }, [schedule, currentDay]);
+
+  return { schedule, scheduleByDay, loading, error };
 }

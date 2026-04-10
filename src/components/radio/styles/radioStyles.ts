@@ -284,6 +284,40 @@ export function createScheduleStyles(colors: ThemeColors, isDark: boolean) {
       color: colors.textSecondary,
       fontSize: 12,
     },
+    // Day grouping
+    dayGroup: {
+      width: '100%',
+    },
+    dayHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      borderBottomWidth: 1,
+      borderTopWidth: 1,
+      borderTopColor: 'transparent',
+    },
+    dayHeaderLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    todayDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+    },
+    dayHeaderText: {
+      fontSize: 12,
+      fontWeight: '800',
+      letterSpacing: 1,
+      textTransform: 'uppercase',
+    },
+    dayHeaderCount: {
+      fontSize: 11,
+      fontWeight: '600',
+    },
     // Schedule item styles
     item: {
       flexDirection: 'row',
@@ -291,14 +325,14 @@ export function createScheduleStyles(colors: ThemeColors, isDark: boolean) {
       paddingVertical: 12,
       borderBottomWidth: 1,
       alignItems: 'flex-start',
-      borderLeftWidth: 0,
     },
     itemLast: {
       borderBottomWidth: 0,
     },
-    itemToday: {
-      borderLeftWidth: 3,
-      backgroundColor: isDark ? colors.secondary + '08' : colors.secondary + '06',
+    description: {
+      fontSize: 12,
+      lineHeight: 16,
+      marginBottom: 6,
     },
     iconContainer: {
       width: 46,
@@ -329,16 +363,6 @@ export function createScheduleStyles(colors: ThemeColors, isDark: boolean) {
       fontSize: 15,
       fontWeight: '700',
       flex: 1,
-    },
-    dayRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
-      marginBottom: 6,
-    },
-    day: {
-      fontSize: 12,
-      fontWeight: '500',
     },
     liveBadge: {
       flexDirection: 'row',

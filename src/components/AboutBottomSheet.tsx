@@ -24,7 +24,7 @@ interface AboutBottomSheetProps {
 export function AboutBottomSheet({ visible, onClose }: AboutBottomSheetProps) {
   const { t } = useTranslation();
   const { colors, isDark } = useTheme();
-  const { schedule, loading: scheduleLoading } = useSchedule();
+  const { scheduleByDay, loading: scheduleLoading } = useSchedule();
   const insets = useSafeAreaInsets();
 
   function openLink(url: string) {
@@ -86,17 +86,27 @@ export function AboutBottomSheet({ visible, onClose }: AboutBottomSheetProps) {
                   <ActivityIndicator size="small" color={colors.secondary} />
                 </View>
               ) : (
-                schedule.map((item, index) => (
+                scheduleByDay.map((day, dayIndex) => (
                   <View
-                    key={`${item.day}-${item.show}`}
+                    key={day.dayNumber}
                     style={[
-                      styles.scheduleRow,
-                      index === schedule.length - 1 && styles.scheduleRowLast,
+                      styles.dayBlock,
+                      dayIndex === scheduleByDay.length - 1 && styles.dayBlockLast,
                     ]}
                   >
-                    <Text style={styles.scheduleDay}>{item.day}</Text>
-                    <Text style={styles.scheduleShow}>{item.show}</Text>
-                    <Text style={styles.scheduleTimes}>{item.times.join(' / ')}</Text>
+                    <Text style={[styles.dayHeader, day.isToday && { color: colors.primary }]}>
+                      {day.isToday
+                        ? `${t('radio.schedule.today').toUpperCase()} · ${t(`radio.schedule.daysShort.${day.dayNumber}`)}`
+                        : t(`radio.schedule.days.${day.dayNumber}`)}
+                    </Text>
+                    {day.shows.map((item) => (
+                      <View key={`${item.dayNumber}-${item.show}`} style={styles.scheduleRow}>
+                        <Text style={styles.scheduleShow} numberOfLines={1}>
+                          {item.show}
+                        </Text>
+                        <Text style={styles.scheduleTimes}>{item.times.join(' · ')}</Text>
+                      </View>
+                    ))}
                   </View>
                 ))
               )}
@@ -263,21 +273,28 @@ function createStyles(colors: ThemeColors, isDark: boolean, insetTop: number) {
       padding: 20,
       alignItems: 'center',
     },
+    dayBlock: {
+      borderBottomWidth: 1,
+      borderBottomColor: colors.muted,
+      paddingVertical: 8,
+    },
+    dayBlockLast: {
+      borderBottomWidth: 0,
+    },
+    dayHeader: {
+      fontSize: 11,
+      fontWeight: '800',
+      letterSpacing: 1,
+      color: colors.secondary,
+      textTransform: 'uppercase',
+      marginBottom: 6,
+    },
     scheduleRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingVertical: 10,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.muted,
-    },
-    scheduleRowLast: {
-      borderBottomWidth: 0,
-    },
-    scheduleDay: {
-      width: 70,
-      fontSize: 12,
-      fontWeight: '700',
-      color: colors.secondary,
+      justifyContent: 'space-between',
+      paddingVertical: 4,
+      gap: 12,
     },
     scheduleShow: {
       flex: 1,
@@ -288,6 +305,7 @@ function createStyles(colors: ThemeColors, isDark: boolean, insetTop: number) {
     scheduleTimes: {
       fontSize: 12,
       color: colors.textSecondary,
+      fontFamily: 'monospace',
     },
     communityText: {
       fontSize: 14,

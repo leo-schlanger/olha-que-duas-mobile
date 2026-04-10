@@ -49,7 +49,27 @@
       "timezone": "(PT)",
       "liveNow": "LIVE",
       "today": "Today",
-      "noPrograms": "No schedule available"
+      "noPrograms": "No schedule available",
+      "days": {
+        "0": "Sunday",
+        "1": "Monday",
+        "2": "Tuesday",
+        "3": "Wednesday",
+        "4": "Thursday",
+        "5": "Friday",
+        "6": "Saturday"
+      },
+      "daysShort": {
+        "0": "SUN",
+        "1": "MON",
+        "2": "TUE",
+        "3": "WED",
+        "4": "THU",
+        "5": "FRI",
+        "6": "SAT"
+      },
+      "showCount_one": "{{count}} show",
+      "showCount_other": "{{count}} shows"
     },
     "info": {
       "highQuality": "High Quality",
@@ -196,8 +216,11 @@
     "about": {
       "title": "About",
       "aboutRadio": "About the Radio",
+      "openAboutRadio": "Discover the radio",
       "description": "Olha que Duas is a Portuguese online radio that combines entertainment, wellness, and authentic conversations. With diverse programming ranging from nutrition and motivation to relaxed debates, we are on air 24 hours a day to keep you company.",
-      "featuredPrograms": "Featured programs"
+      "featuredPrograms": "Featured programs",
+      "appTagline": "Official Olha que Duas Radio app",
+      "copyright": "© {{year}} Olha que Duas"
     },
     "app": {
       "title": "Application",

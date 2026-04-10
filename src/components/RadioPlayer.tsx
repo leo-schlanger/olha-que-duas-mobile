@@ -55,7 +55,7 @@ export function RadioPlayer() {
     forceReconnect,
   } = useRadio();
 
-  const { schedule, loading: scheduleLoading } = useSchedule();
+  const { scheduleByDay, loading: scheduleLoading } = useSchedule();
   const { schedule: dailySchedule, loading: dailyLoading } = useDailySchedule();
   const [currentPeriod, setCurrentPeriod] = useState(() => getCurrentPeriod());
 
@@ -338,7 +338,7 @@ export function RadioPlayer() {
 
         {/* Weekly Schedule Section */}
         <ScheduleSection
-          schedule={schedule}
+          scheduleByDay={scheduleByDay}
           loading={scheduleLoading}
           colors={colors}
           isDark={isDark}

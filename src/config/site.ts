@@ -25,6 +25,7 @@ export const siteConfig = {
       {
         day: 'Segunda',
         show: 'Nutrição',
+        description: 'Programa sobre alimentação saudável',
         times: ['12:00', '19:00'],
         icon: 'leaf-outline',
         isActive: true,
@@ -32,6 +33,7 @@ export const siteConfig = {
       {
         day: 'Terça',
         show: 'Motivar',
+        description: 'Motivação e desenvolvimento pessoal',
         times: ['12:00', '19:00'],
         icon: 'bulb-outline',
         isActive: true,
@@ -39,13 +41,15 @@ export const siteConfig = {
       {
         day: 'Quarta',
         show: 'Prazer Feminino',
-        times: ['21:00', '00:00'],
+        description: 'Programa sobre sexualidade feminina',
+        times: ['00:00', '21:00'],
         icon: 'heart-outline',
         isActive: true,
       },
       {
         day: 'Quinta',
-        show: 'Companheiros de Caminhada',
+        show: 'Companheiros de Caminho',
+        description: 'Histórias e companheirismo',
         times: ['12:00', '19:00'],
         icon: 'walk-outline',
         isActive: true,
@@ -53,6 +57,7 @@ export const siteConfig = {
       {
         day: 'Sexta',
         show: 'Dizem que...',
+        description: 'Conversas e curiosidades',
         times: ['12:00', '19:00'],
         icon: 'chatbubbles-outline',
         isActive: true,
@@ -60,7 +65,8 @@ export const siteConfig = {
       {
         day: 'Sábado',
         show: 'Olha que Duas!',
-        times: ['11:00', '19:00', '00:00'],
+        description: 'O programa principal com Alexandra e Marluce!!',
+        times: ['00:00', '11:00', '19:00'],
         icon: 'people-outline',
         isActive: true,
       },

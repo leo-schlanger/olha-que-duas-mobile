@@ -14,23 +14,22 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import Constants from 'expo-constants';
 import { useTranslation } from 'react-i18next';
 import { usePremium } from '../context/PremiumContext';
 import { useTheme, ThemeMode, ThemeColors } from '../context/ThemeContext';
 import { resetGDPRConsent, getGDPRConsentStatus } from '../components/GDPRConsent';
 import { useRadioSettings } from '../hooks/useRadioSettings';
 import { useNotifications } from '../hooks/useNotifications';
-import { useSchedule } from '../hooks/useSchedule';
 import { SettingRow, MenuItem } from '../components/settings';
+import { AboutBottomSheet } from '../components/AboutBottomSheet';
 import { ReminderTime } from '../services/notificationService';
 import { environment } from '../config/environment';
-import { siteConfig } from '../config/site';
 import { logger } from '../utils/logger';
 import { LANGUAGES, LanguageCode, changeLanguage, getCurrentLanguage } from '../i18n';
 
 const PRIVACY_POLICY_URL = 'https://olhaqueduas.com/privacidade';
 const TERMS_URL = 'https://olhaqueduas.com/termos';
-const WEBSITE_URL = 'https://olhaqueduas.com';
 
 const REMINDER_OPTIONS: { value: ReminderTime; label: string }[] = [
   { value: 5, label: '5 min' },
@@ -482,92 +481,49 @@ function NotificationSection({
 
 function AboutSection({
   colors,
-  isDark,
-  schedule,
-  scheduleLoading,
   dynamicStyles,
+  onOpenAboutRadio,
 }: {
   colors: ThemeColors;
-  isDark: boolean;
-  schedule: ReturnType<typeof useSchedule>['schedule'];
-  scheduleLoading: boolean;
   dynamicStyles: ReturnType<typeof createDynamicStyles>;
+  onOpenAboutRadio: () => void;
 }) {
   const { t } = useTranslation();
+  const version = Constants.expoConfig?.version ?? '—';
+  const currentYear = new Date().getFullYear();
+
   return (
     <View style={dynamicStyles.section}>
       <Text style={dynamicStyles.sectionTitle}>{t('settings.about.title')}</Text>
       <View style={dynamicStyles.aboutCard}>
         <MaterialCommunityIcons name="radio" size={40} color={colors.primary} />
-        <Text style={[dynamicStyles.aboutTitle, { marginTop: 24 }]}>Olha que Duas</Text>
-        <Text style={dynamicStyles.aboutText}>{t('settings.about.description')}</Text>
-        <View style={dynamicStyles.programsCard}>
-          <Text style={[dynamicStyles.programsTitle, { color: colors.text }]}>
-            {t('settings.about.featuredPrograms')}
-          </Text>
-          {scheduleLoading ? (
-            <ActivityIndicator size="small" color={colors.secondary} style={{ padding: 10 }} />
-          ) : (
-            schedule.map((item) => (
-              <View key={`${item.day}-${item.show}`} style={dynamicStyles.programRow}>
-                <Text style={[dynamicStyles.programDay, { color: colors.secondary }]}>
-                  {item.day}
-                </Text>
-                <Text style={[dynamicStyles.programName, { color: colors.text }]}>{item.show}</Text>
-                <Text style={[dynamicStyles.programTimes, { color: colors.textSecondary }]}>
-                  {item.times.join(' / ')}
-                </Text>
-              </View>
-            ))
-          )}
-        </View>
-        <Text style={[dynamicStyles.aboutText, { marginTop: 16 }]}>
-          {t('radio.social.communityText')}
+        <Text style={[dynamicStyles.aboutTitle, { marginTop: 16 }]}>Olha que Duas</Text>
+        <Text style={[dynamicStyles.aboutText, { marginTop: 4 }]}>
+          {t('settings.about.appTagline')}
         </Text>
+
+        <View style={dynamicStyles.versionBlock}>
+          <Text style={[dynamicStyles.versionMain, { color: colors.text }]}>
+            {t('common.version', { version })}
+          </Text>
+        </View>
+
         <TouchableOpacity
-          style={[dynamicStyles.websiteButton, { backgroundColor: colors.primary }]}
-          onPress={() => Linking.openURL(WEBSITE_URL)}
+          style={[dynamicStyles.aboutRadioButton, { backgroundColor: colors.primary }]}
+          onPress={onOpenAboutRadio}
           activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={t('settings.about.openAboutRadio')}
         >
-          <MaterialCommunityIcons name="web" size={20} color={colors.white} />
-          <Text style={dynamicStyles.websiteButtonText}>{t('radio.social.visitWebsite')}</Text>
+          <MaterialCommunityIcons name="radio" size={20} color={colors.white} />
+          <Text style={dynamicStyles.aboutRadioButtonText}>
+            {t('settings.about.openAboutRadio')}
+          </Text>
         </TouchableOpacity>
-        <View style={dynamicStyles.socialLinks}>
-          <TouchableOpacity
-            style={[dynamicStyles.socialButton, { backgroundColor: '#E4405F' }]}
-            onPress={() => Linking.openURL(siteConfig.social.instagram)}
-          >
-            <MaterialCommunityIcons name="instagram" size={22} color={colors.white} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[dynamicStyles.socialButton, { backgroundColor: '#1877F2' }]}
-            onPress={() => Linking.openURL(siteConfig.social.facebook)}
-          >
-            <MaterialCommunityIcons name="facebook" size={22} color={colors.white} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              dynamicStyles.socialButton,
-              { backgroundColor: isDark ? '#FFFFFF' : '#000000' },
-            ]}
-            onPress={() => Linking.openURL(siteConfig.social.tiktok)}
-          >
-            <MaterialCommunityIcons
-              name="music-note"
-              size={22}
-              color={isDark ? '#000000' : '#FFFFFF'}
-            />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[dynamicStyles.socialButton, { backgroundColor: '#FF0000' }]}
-            onPress={() => Linking.openURL(siteConfig.social.youtube)}
-          >
-            <MaterialCommunityIcons name="youtube" size={22} color={colors.white} />
-          </TouchableOpacity>
-        </View>
-        <View style={dynamicStyles.versionBadge}>
-          <Text style={dynamicStyles.versionText}>{t('common.version', { version: '1.1.0' })}</Text>
-        </View>
+
+        <Text style={[dynamicStyles.copyrightText, { color: colors.textSecondary }]}>
+          {t('settings.about.copyright', { year: currentYear })}
+        </Text>
       </View>
     </View>
   );
@@ -591,10 +547,10 @@ export function SettingsScreen() {
     setEnabled: setNotificationsEnabled,
     setReminderMinutes,
   } = useNotifications();
-  const { schedule, loading: scheduleLoading } = useSchedule();
   const [price, setPrice] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [adsConsentStatus, setAdsConsentStatus] = useState<string | null>(null);
+  const [showAboutSheet, setShowAboutSheet] = useState(false);
 
   useEffect(() => {
     loadPrice();
@@ -774,10 +730,8 @@ export function SettingsScreen() {
         />
         <AboutSection
           colors={colors}
-          isDark={isDark}
-          schedule={schedule}
-          scheduleLoading={scheduleLoading}
           dynamicStyles={dynamicStyles}
+          onOpenAboutRadio={() => setShowAboutSheet(true)}
         />
 
         <View style={dynamicStyles.section}>
@@ -830,6 +784,8 @@ export function SettingsScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      <AboutBottomSheet visible={showAboutSheet} onClose={() => setShowAboutSheet(false)} />
     </SafeAreaView>
   );
 }
@@ -1033,52 +989,37 @@ function createDynamicStyles(colors: ThemeColors, _isDark: boolean) {
       padding: 24,
       alignItems: 'center',
     },
-    aboutTitle: { color: colors.text, fontSize: 18, fontWeight: 'bold', marginBottom: 8 },
+    aboutTitle: { color: colors.text, fontSize: 20, fontWeight: 'bold', marginBottom: 4 },
     aboutText: {
       color: colors.textSecondary,
-      fontSize: 14,
+      fontSize: 13,
       textAlign: 'center',
-      lineHeight: 20,
-      marginBottom: 16,
+      lineHeight: 18,
     },
-    programsCard: {
-      width: '100%',
-      backgroundColor: colors.background,
-      borderRadius: 12,
-      padding: 16,
-      marginBottom: 16,
+    versionBlock: {
+      alignItems: 'center',
+      marginTop: 20,
+      marginBottom: 20,
     },
-    programsTitle: { fontSize: 14, fontWeight: '700', marginBottom: 12, textAlign: 'center' },
-    programRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, gap: 8 },
-    programDay: { fontSize: 12, fontWeight: '700', width: 60 },
-    programName: { fontSize: 13, fontWeight: '500', flex: 1 },
-    programTimes: { fontSize: 11, fontWeight: '500' },
-    websiteButton: {
+    versionMain: {
+      fontSize: 14,
+      fontWeight: '700',
+    },
+    aboutRadioButton: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      paddingVertical: 14,
-      paddingHorizontal: 24,
+      paddingVertical: 12,
+      paddingHorizontal: 20,
       borderRadius: 25,
       gap: 8,
-      marginBottom: 16,
+      alignSelf: 'stretch',
     },
-    websiteButtonText: { color: colors.white, fontSize: 15, fontWeight: '600' },
-    socialLinks: { flexDirection: 'row', gap: 12, marginBottom: 20 },
-    socialButton: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      alignItems: 'center',
-      justifyContent: 'center',
+    aboutRadioButtonText: { color: colors.white, fontSize: 15, fontWeight: '600' },
+    copyrightText: {
+      fontSize: 11,
+      marginTop: 16,
     },
-    versionBadge: {
-      backgroundColor: colors.muted,
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 20,
-    },
-    versionText: { color: colors.textSecondary, fontSize: 12, fontWeight: '500' },
     debugCard: { backgroundColor: colors.card, borderRadius: 16, padding: 16 },
   });
 }

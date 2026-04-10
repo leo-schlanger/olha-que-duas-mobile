@@ -1,6 +1,7 @@
 /**
  * Schedule section component showing weekly programming
- * Features: today highlighting, live indicator, improved layout
+ * Programs are grouped by day with sticky-style day headers, today first.
+ * Scales gracefully to multiple shows per day.
  */
 
 import React, { memo, useMemo } from 'react';
@@ -8,7 +9,7 @@ import { View, Text, TouchableOpacity, Image, ActivityIndicator } from 'react-na
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useTranslation } from 'react-i18next';
 import { ThemeColors } from '../../context/ThemeContext';
-import { GroupedSchedule } from '../../hooks/useSchedule';
+import { GroupedSchedule, DaySchedule } from '../../hooks/useSchedule';
 import { createScheduleStyles } from './styles/radioStyles';
 
 const scheduleIconMap: Record<string, string> = {
@@ -18,6 +19,7 @@ const scheduleIconMap: Record<string, string> = {
   'chatbubbles-outline': 'chat-outline',
   'heart-outline': 'heart-outline',
   'people-outline': 'account-group',
+  'star-outline': 'star-outline',
 };
 
 interface ScheduleItemProps {
@@ -47,15 +49,7 @@ const ScheduleItem = memo(function ScheduleItem({
   const iconName = scheduleIconMap[item.icon] ?? (item.icon as string);
 
   return (
-    <View
-      style={[
-        styles.item,
-        { borderBottomColor: colors.muted },
-        isLast && styles.itemLast,
-        item.isToday && styles.itemToday,
-        item.isToday && { borderLeftColor: colors.secondary },
-      ]}
-    >
+    <View style={[styles.item, { borderBottomColor: colors.muted }, isLast && styles.itemLast]}>
       <View
         style={[
           styles.iconContainer,
@@ -92,18 +86,11 @@ const ScheduleItem = memo(function ScheduleItem({
             </View>
           )}
         </View>
-        <View style={styles.dayRow}>
-          <MaterialCommunityIcons name="calendar" size={12} color={colors.textSecondary} />
-          <Text
-            style={[
-              styles.day,
-              { color: colors.textSecondary },
-              item.isToday && { color: colors.secondary, fontWeight: '700' },
-            ]}
-          >
-            {item.isToday ? t('radio.schedule.today') : item.day}
+        {item.description ? (
+          <Text style={[styles.description, { color: colors.textSecondary }]} numberOfLines={2}>
+            {item.description}
           </Text>
-        </View>
+        ) : null}
         <View style={styles.times}>
           {item.times.map((time) => (
             <View
@@ -130,6 +117,8 @@ const ScheduleItem = memo(function ScheduleItem({
         onPress={() => onToggleReminder(item)}
         disabled={isLoading || isOperationPending}
         activeOpacity={0.7}
+        accessibilityLabel={item.show}
+        accessibilityRole="button"
       >
         <MaterialCommunityIcons
           name={isEnabled ? 'bell-ring' : 'bell-outline'}
@@ -141,8 +130,80 @@ const ScheduleItem = memo(function ScheduleItem({
   );
 });
 
+interface DayGroupProps {
+  day: DaySchedule;
+  colors: ThemeColors;
+  styles: ReturnType<typeof createScheduleStyles>;
+  notificationLoading: boolean;
+  isShowEnabled: (show: string) => boolean;
+  isOperationPending: () => boolean;
+  timezone: string;
+  onToggleReminder: (item: GroupedSchedule) => void;
+}
+
+const DayGroup = memo(function DayGroup({
+  day,
+  colors,
+  styles,
+  notificationLoading,
+  isShowEnabled,
+  isOperationPending,
+  timezone,
+  onToggleReminder,
+}: DayGroupProps) {
+  const { t } = useTranslation();
+  const dayLabel = day.isToday
+    ? `${t('radio.schedule.today').toUpperCase()} · ${t(`radio.schedule.daysShort.${day.dayNumber}`)}`
+    : t(`radio.schedule.days.${day.dayNumber}`);
+  const showCount = t('radio.schedule.showCount', { count: day.shows.length });
+
+  return (
+    <View style={styles.dayGroup}>
+      <View
+        style={[
+          styles.dayHeader,
+          { backgroundColor: colors.background, borderBottomColor: colors.muted },
+          day.isToday && {
+            backgroundColor: colors.secondary + '15',
+            borderBottomColor: colors.secondary + '40',
+          },
+        ]}
+      >
+        <View style={styles.dayHeaderLeft}>
+          {day.isToday && <View style={[styles.todayDot, { backgroundColor: colors.secondary }]} />}
+          <Text
+            style={[
+              styles.dayHeaderText,
+              { color: colors.text },
+              day.isToday && { color: colors.secondary },
+            ]}
+          >
+            {dayLabel}
+          </Text>
+        </View>
+        <Text style={[styles.dayHeaderCount, { color: colors.textSecondary }]}>{showCount}</Text>
+      </View>
+
+      {day.shows.map((show, index) => (
+        <ScheduleItem
+          key={`${show.dayNumber}-${show.show}`}
+          item={show}
+          isLast={index === day.shows.length - 1}
+          colors={colors}
+          styles={styles}
+          isEnabled={isShowEnabled(show.show)}
+          isLoading={notificationLoading}
+          isOperationPending={isOperationPending()}
+          timezone={timezone}
+          onToggleReminder={onToggleReminder}
+        />
+      ))}
+    </View>
+  );
+});
+
 interface ScheduleSectionProps {
-  schedule: GroupedSchedule[];
+  scheduleByDay: DaySchedule[];
   loading: boolean;
   colors: ThemeColors;
   isDark: boolean;
@@ -153,7 +214,7 @@ interface ScheduleSectionProps {
 }
 
 export const ScheduleSection = memo(function ScheduleSection({
-  schedule,
+  scheduleByDay,
   loading,
   colors,
   isDark,
@@ -179,21 +240,20 @@ export const ScheduleSection = memo(function ScheduleSection({
             <ActivityIndicator size="small" color={colors.secondary} />
             <Text style={styles.loadingText}>{t('radio.schedule.loading')}</Text>
           </View>
-        ) : schedule.length === 0 ? (
+        ) : scheduleByDay.length === 0 ? (
           <View style={styles.loading}>
             <Text style={styles.loadingText}>{t('radio.schedule.noPrograms')}</Text>
           </View>
         ) : (
-          schedule.map((item, index) => (
-            <ScheduleItem
-              key={`${item.day}-${item.show}`}
-              item={item}
-              isLast={index === schedule.length - 1}
+          scheduleByDay.map((day) => (
+            <DayGroup
+              key={day.dayNumber}
+              day={day}
               colors={colors}
               styles={styles}
-              isEnabled={isShowEnabled(item.show)}
-              isLoading={notificationLoading}
-              isOperationPending={isOperationPending()}
+              notificationLoading={notificationLoading}
+              isShowEnabled={isShowEnabled}
+              isOperationPending={isOperationPending}
               timezone={timezone}
               onToggleReminder={onToggleReminder}
             />
