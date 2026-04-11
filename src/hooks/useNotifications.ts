@@ -25,6 +25,7 @@ interface UseNotificationsReturn {
     _times: string[]
   ) => Promise<boolean>;
   cancelShowReminders: (_showName: string) => Promise<boolean>;
+  cancelAllReminders: () => Promise<boolean>;
   isShowEnabled: (_showName: string) => boolean;
   requestPermissions: () => Promise<boolean>;
   forceSync: () => Promise<void>;
@@ -258,6 +259,33 @@ export function useNotifications(): UseNotificationsReturn {
     }
   }, []);
 
+  const cancelAllReminders = useCallback(async (): Promise<boolean> => {
+    if (!isMountedRef.current) return false;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const result = await notificationService.cancelAllNotifications();
+
+      if (isMountedRef.current && !result.success) {
+        setError(result.error || 'Erro ao cancelar lembretes');
+      }
+
+      return result.success;
+    } catch (err) {
+      if (isMountedRef.current) {
+        logger.error('Error cancelling all reminders:', err);
+        setError('Erro ao cancelar lembretes');
+      }
+      return false;
+    } finally {
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
+    }
+  }, []);
+
   const isShowEnabled = useCallback(
     (showName: string): boolean => {
       return preferences.enabledShows.includes(showName);
@@ -334,6 +362,7 @@ export function useNotifications(): UseNotificationsReturn {
     scheduleReminder,
     scheduleAllTimesForShow,
     cancelShowReminders,
+    cancelAllReminders,
     isShowEnabled,
     requestPermissions,
     forceSync,

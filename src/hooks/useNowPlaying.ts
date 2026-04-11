@@ -1,13 +1,16 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { nowPlayingService, NowPlayingData, NowPlayingSong } from '../services/nowPlayingService';
 
 interface NowPlayingState {
   song: NowPlayingSong | null;
   isMusic: boolean;
+  /**
+   * Kept for backwards compatibility with consumers that read this flag.
+   * The new flow relies on expo-image's built-in cross-fade transition,
+   * so the JSX no longer hides the song info during this window.
+   */
   isTransition: boolean;
 }
-
-const TRANSITION_DURATION = 1500; // Reduzido para transições mais rápidas
 
 export function useNowPlaying(isPlaying: boolean) {
   const [state, setState] = useState<NowPlayingState>({
@@ -16,84 +19,41 @@ export function useNowPlaying(isPlaying: boolean) {
     isTransition: false,
   });
 
-  const lastSongKeyRef = useRef<string | null>(null);
-  const transitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingSongRef = useRef<NowPlayingSong | null>(null); // Armazena a música pendente durante transição
-
   useEffect(() => {
-    // Cleanup function reference - will be set when subscribing
-    let unsubscribe: (() => void) | null = null;
-
     if (!isPlaying) {
-      // Not playing - just reset state, don't stop service (radioService manages it)
+      // Not playing — clear local state but don't stop the service
+      // (radioService owns its lifecycle).
       setState({ song: null, isMusic: false, isTransition: false });
-      lastSongKeyRef.current = null;
-      pendingSongRef.current = null;
-      if (transitionTimeoutRef.current) {
-        clearTimeout(transitionTimeoutRef.current);
-        transitionTimeoutRef.current = null;
-      }
-      // Return cleanup that does nothing since we didn't subscribe
-      return () => {};
+      return undefined;
     }
 
-    // Playing - subscribe to updates (don't call start, radioService manages it)
-    unsubscribe = nowPlayingService.subscribe((data: NowPlayingData) => {
+    // Apply the latest detected song straight away. Visual cross-fade is
+    // handled by expo-image (its `transition` prop animates the art change),
+    // and the text change is fast enough that no manual debounce is needed.
+    // If the API returns a stream of identical updates, React's setState
+    // shallow-compares state ref, so re-renders only happen on real changes.
+    const unsubscribe = nowPlayingService.subscribe((data: NowPlayingData) => {
       if (!data.isMusic || !data.song) {
-        // Se não é música, limpar transição e mostrar estado padrão
-        if (transitionTimeoutRef.current) {
-          clearTimeout(transitionTimeoutRef.current);
-          transitionTimeoutRef.current = null;
-        }
-        pendingSongRef.current = null;
         setState((prev) =>
-          prev.isTransition ? prev : { song: null, isMusic: false, isTransition: false }
+          prev.song === null && !prev.isMusic
+            ? prev
+            : { song: null, isMusic: false, isTransition: false }
         );
         return;
       }
 
-      const songKey = `${data.song.title}-${data.song.artist}`;
-
-      // Primeira música ou mesma música - sem transição
-      if (lastSongKeyRef.current === null || lastSongKeyRef.current === songKey) {
-        lastSongKeyRef.current = songKey;
-        pendingSongRef.current = null;
-        setState({ song: data.song, isMusic: true, isTransition: false });
-        return;
-      }
-
-      // Música mudou - iniciar transição
-      // Se já há uma transição em andamento, atualizar a música pendente
-      pendingSongRef.current = data.song;
-      lastSongKeyRef.current = songKey;
-
-      // Só iniciar nova transição se não houver uma em andamento
-      if (!transitionTimeoutRef.current) {
-        setState((prev) => ({ ...prev, isTransition: true }));
-
-        transitionTimeoutRef.current = setTimeout(() => {
-          transitionTimeoutRef.current = null;
-          // Usar a música mais recente (pendente) em vez da que iniciou a transição
-          const finalSong = pendingSongRef.current || data.song;
-          pendingSongRef.current = null;
-          setState({
-            song: finalSong,
-            isMusic: true,
-            isTransition: false,
-          });
-        }, TRANSITION_DURATION);
-      }
+      setState((prev) => {
+        const sameSong =
+          prev.song?.title === data.song?.title &&
+          prev.song?.artist === data.song?.artist &&
+          prev.song?.art === data.song?.art;
+        if (sameSong && prev.isMusic) return prev;
+        return { song: data.song, isMusic: true, isTransition: false };
+      });
     });
 
     return () => {
-      if (unsubscribe) {
-        unsubscribe();
-      }
-      if (transitionTimeoutRef.current) {
-        clearTimeout(transitionTimeoutRef.current);
-        transitionTimeoutRef.current = null;
-      }
-      pendingSongRef.current = null;
+      unsubscribe();
     };
   }, [isPlaying]);
 

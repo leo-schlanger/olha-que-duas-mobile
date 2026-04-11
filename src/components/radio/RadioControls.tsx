@@ -119,6 +119,9 @@ export const RadioControls = memo(function RadioControls({
           maximumTrackTintColor={colors.muted}
           thumbTintColor={colors.secondary}
           disabled={showExpoGoWarning}
+          accessibilityLabel={t('radio.controls.volume')}
+          accessibilityRole="adjustable"
+          accessibilityValue={{ min: 0, max: 100, now: Math.round(volume * 100) }}
         />
         <MaterialCommunityIcons name="volume-high" size={20} color={colors.textSecondary} />
       </View>

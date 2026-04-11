@@ -24,6 +24,16 @@
     "offline": "No internet connection",
     "initError": "Error starting the application"
   },
+  "tabs": {
+    "radio": "Radio",
+    "radioA11y": "Radio - listen live",
+    "news": "News",
+    "newsA11y": "News - latest stories",
+    "weather": "Weather",
+    "weatherA11y": "Weather - check the forecast",
+    "settings": "Settings",
+    "settingsA11y": "Settings - app preferences"
+  },
   "radio": {
     "status": {
       "reconnecting": "Reconnecting... ({{attempt}}/10)",
@@ -34,6 +44,7 @@
     "controls": {
       "play": "Play radio",
       "pause": "Pause radio",
+      "volume": "Volume",
       "notificationsActive": "Notifications active: {{count}} shows",
       "configureNotifications": "Configure show notifications",
       "expoGoWarning": "Audio only available in native build."
@@ -50,6 +61,11 @@
       "liveNow": "LIVE",
       "today": "Today",
       "noPrograms": "No schedule available",
+      "noProgramsHint": "Check back later for upcoming shows.",
+      "loadError": "Could not load the schedule.",
+      "loadErrorHint": "Showing cached schedule.",
+      "showMore": "Show more days",
+      "showLess": "Show less",
       "days": {
         "0": "Sunday",
         "1": "Monday",
@@ -125,7 +141,26 @@
     "reminderTitle": "Olha que Duas",
     "reminderBody": "{{show}} starts in {{minutes}} minutes!",
     "androidExactAlarmInfo": "On Android 12 and later, the system may delay reminders by a few minutes to save battery. For maximum precision, enable \"Alarms & reminders\" in system settings.",
-    "openSystemSettings": "Open system settings"
+    "openSystemSettings": "Open system settings",
+    "myReminders": {
+      "title": "My Reminders",
+      "subtitle_one": "{{count}} active reminder",
+      "subtitle_other": "{{count}} active reminders",
+      "empty": "No active reminders",
+      "emptyHint": "Tap the bell next to a show in the weekly schedule to get a heads-up before it starts.",
+      "warnBefore": "Warn me ahead of time",
+      "disableAll": "Disable all reminders",
+      "disableAllConfirm": "Disable all reminders?",
+      "disableAllConfirmYes": "Yes, disable",
+      "remove": "Remove reminder for {{show}}",
+      "openSettings": "More settings"
+    },
+    "toggleError": "Could not update the reminder.",
+    "removedToast_one": "Reminder removed",
+    "removedToast_other": "{{count}} reminders removed",
+    "activatedToast": "Reminder activated",
+    "syncedToast": "Reminders synced",
+    "permissionDeniedToast": "Notifications permission denied"
   },
   "weather": {
     "feelsLike": "Feels like: {{temp}}°C",
@@ -168,6 +203,8 @@
     "tags": "Tags:",
     "openOriginalSource": "Open original news source",
     "loadError": "Error loading news. Please try again.",
+    "openSourceErrorTitle": "Could not open link",
+    "openSourceErrorMessage": "Check your internet connection and try again.",
     "detailError": "Error loading article.",
     "accessibility": {
       "newsItem": "News: {{title}}. Category: {{category}}. Published on {{date}}",

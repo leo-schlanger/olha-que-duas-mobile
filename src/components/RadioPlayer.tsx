@@ -2,7 +2,7 @@
  * Main RadioPlayer component - orchestrates all radio sub-components
  */
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -24,9 +24,12 @@ import { useTheme, ThemeColors } from '../context/ThemeContext';
 import { useSchedule, GroupedSchedule } from '../hooks/useSchedule';
 import { useDailySchedule, getCurrentPeriod } from '../hooks/useDailySchedule';
 import { useNotifications } from '../hooks/useNotifications';
-import { navigateToTab } from '../navigation/AppNavigator';
+import { useToast } from '../context/ToastContext';
+import { ReminderTime, notificationService } from '../services/notificationService';
+import { logger } from '../utils/logger';
 import { environment } from '../config/environment';
 import { AboutBottomSheet } from './AboutBottomSheet';
+import { RemindersBottomSheet } from './RemindersBottomSheet';
 
 // Import radio sub-components
 import {
@@ -55,19 +58,38 @@ export function RadioPlayer() {
     forceReconnect,
   } = useRadio();
 
-  const { scheduleByDay, loading: scheduleLoading } = useSchedule();
-  const { schedule: dailySchedule, loading: dailyLoading } = useDailySchedule();
+  const { scheduleByDay, loading: scheduleLoading, error: scheduleError } = useSchedule();
+  const { schedule: dailySchedule, loading: dailyLoading, error: dailyError } = useDailySchedule();
   const [currentPeriod, setCurrentPeriod] = useState(() => getCurrentPeriod());
 
-  // Update currentPeriod when app returns to foreground
+  // Track when the app last went to background so we know whether to force a
+  // notification sync on resume. Sync after 30+ min protects against drift
+  // when the OS or user cleared notifications externally.
+  const lastBackgroundedAtRef = useRef<number | null>(null);
+  const SYNC_THRESHOLD_MS = 30 * 60 * 1000;
+
+  // Update currentPeriod when app returns to foreground, and force a notif
+  // sync if we were backgrounded for a while.
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
         setCurrentPeriod(getCurrentPeriod());
+
+        const lastBg = lastBackgroundedAtRef.current;
+        if (lastBg !== null && Date.now() - lastBg >= SYNC_THRESHOLD_MS) {
+          notificationService
+            .forceSync()
+            .catch((err) => logger.error('Background sync failed', err));
+        }
+        lastBackgroundedAtRef.current = null;
+      } else if (state === 'background' || state === 'inactive') {
+        if (lastBackgroundedAtRef.current === null) {
+          lastBackgroundedAtRef.current = Date.now();
+        }
       }
     });
     return () => sub.remove();
-  }, []);
+  }, [SYNC_THRESHOLD_MS]);
   const nowPlaying = useNowPlaying(isPlaying);
   const {
     preferences: notificationPrefs,
@@ -75,13 +97,37 @@ export function RadioPlayer() {
     hasPermission,
     scheduleAllTimesForShow,
     cancelShowReminders,
-    isShowEnabled,
+    cancelAllReminders,
+    setReminderMinutes,
     requestPermissions,
-    isOperationPending,
   } = useNotifications();
+  const toast = useToast();
 
   const [showAboutSheet, setShowAboutSheet] = useState(false);
+  const [showRemindersSheet, setShowRemindersSheet] = useState(false);
   const showExpoGoWarning = environment.isExpoGo;
+
+  // Optimistic mirror of notificationPrefs.enabledShows. The bell icon on each
+  // schedule row is rendered from THIS so taps feel instant. The async
+  // operation runs in the background; on failure we sync back to the real
+  // preferences (rollback) and toast the user.
+  const [optimisticEnabledShows, setOptimisticEnabledShows] = useState<Set<string>>(
+    () => new Set(notificationPrefs.enabledShows)
+  );
+
+  // Whenever the real preferences change (success path or external sync),
+  // re-sync the optimistic mirror so they don't diverge.
+  useEffect(() => {
+    setOptimisticEnabledShows(new Set(notificationPrefs.enabledShows));
+  }, [notificationPrefs.enabledShows]);
+
+  // Per-show "intent queue". Tracks the latest desired state per show so the
+  // user can tap the bell rapidly and only the final intent is honored.
+  // Value: { latest: true means "want enabled", running indicates a worker
+  // is already processing this show. }
+  const pendingOpsRef = useRef<
+    Map<string, { latest: boolean; itemRef: GroupedSchedule; running: boolean }>
+  >(new Map());
 
   const statusInfo = useMemo(() => {
     if (isReconnecting) {
@@ -114,101 +160,213 @@ export function RadioPlayer() {
 
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const handleToggleReminder = useCallback(
-    async (item: GroupedSchedule) => {
-      if (isOperationPending()) return;
+  // Worker that processes the latest intent for a single show. Loops until
+  // the in-memory intent matches the executed result, so rapid taps collapse
+  // to one final operation. Rollback uses the live notificationPrefs ref.
+  const processShowQueue = useCallback(
+    async (showName: string) => {
+      const queue = pendingOpsRef.current;
+      const entry = queue.get(showName);
+      if (!entry || entry.running) return;
+      entry.running = true;
 
-      const enabled = isShowEnabled(item.show);
+      try {
+        for (;;) {
+          const target = entry.latest;
+          const item = entry.itemRef;
+          let success = false;
 
-      if (enabled) {
-        const success = await cancelShowReminders(item.show);
-        if (success) {
-          Alert.alert(
-            t('notifications.reminderRemoved.title'),
-            t('notifications.reminderRemoved.message', { show: item.show }),
-            [{ text: t('common.ok') }]
-          );
-        }
-      } else {
-        const success = await scheduleAllTimesForShow(item.show, item.dayNumber, item.times);
+          try {
+            if (target) {
+              success = await scheduleAllTimesForShow(item.show, item.dayNumber, item.times);
+            } else {
+              success = await cancelShowReminders(item.show);
+            }
+          } catch (err) {
+            logger.error('processShowQueue: operation threw', err);
+            success = false;
+          }
 
-        if (success) {
-          Alert.alert(
-            t('notifications.reminderActivated.title'),
-            t('notifications.reminderActivated.message', {
-              minutes: notificationPrefs.reminderMinutes,
-              show: item.show,
-            }),
-            [{ text: t('common.ok') }]
-          );
-        } else {
-          Alert.alert(
-            t('notifications.permissionRequired.title'),
-            t('notifications.permissionRequired.message'),
-            [{ text: t('common.ok') }]
-          );
-        }
-      }
-    },
-    [
-      isOperationPending,
-      isShowEnabled,
-      cancelShowReminders,
-      scheduleAllTimesForShow,
-      notificationPrefs.reminderMinutes,
-      t,
-    ]
-  );
+          // If the user tapped again while we were running, the intent
+          // changed under us — loop again and apply the latest target.
+          if (entry.latest !== target) {
+            continue;
+          }
 
-  const handleOpenNotificationSettings = useCallback(async () => {
-    const activeShows = notificationPrefs.enabledShows;
+          if (success) {
+            // The hook subscriber will sync notificationPrefs in a moment;
+            // the optimistic mirror is already correct. Show a small toast.
+            toast.show(
+              target
+                ? t('notifications.activatedToast')
+                : t('notifications.removedToast', { count: 1 }),
+              { variant: target ? 'success' : 'info' }
+            );
+          } else {
+            // Rollback the optimistic mirror to whatever the real prefs say
+            // right now (read live from the service to avoid stale closures).
+            const livePrefs = notificationService.getPreferences();
+            setOptimisticEnabledShows(new Set(livePrefs.enabledShows));
+            toast.show(t('notifications.toggleError'), { variant: 'error' });
+          }
 
-    if (activeShows.length > 0) {
-      const showsList = activeShows.join(', ');
-      Alert.alert(
-        t('notifications.activeReminders.title'),
-        t('notifications.activeReminders.message', {
-          count: activeShows.length,
-          shows: showsList,
-          minutes: notificationPrefs.reminderMinutes,
-        }),
-        [
-          { text: t('common.manageInSettings'), onPress: () => navigateToTab('Settings') },
-          { text: t('common.ok'), style: 'cancel' },
-        ]
-      );
-    } else {
-      if (hasPermission === false) {
-        const granted = await requestPermissions();
-        if (!granted) {
-          Alert.alert(
-            t('notifications.permissionsRequired.title'),
-            t('notifications.permissionsRequired.message'),
-            [
-              { text: t('common.openSettings'), onPress: () => Linking.openSettings() },
-              { text: t('common.cancel'), style: 'cancel' },
-            ]
-          );
+          queue.delete(showName);
           return;
         }
+      } finally {
+        entry.running = false;
+      }
+    },
+    [scheduleAllTimesForShow, cancelShowReminders, toast, t]
+  );
+
+  const handleToggleReminder = useCallback(
+    (item: GroupedSchedule) => {
+      // Permission check up-front for the *enable* path. If denied, we tell
+      // the user via toast and don't optimistically flip anything.
+      const willEnable = !optimisticEnabledShows.has(item.show);
+
+      if (willEnable && hasPermission === false) {
+        // Try to request; if still denied, surface via toast (no optimistic flip)
+        requestPermissions().then((granted) => {
+          if (!granted) {
+            toast.show(t('notifications.permissionDeniedToast'), {
+              variant: 'error',
+              actionLabel: t('common.openSettings'),
+              onAction: () => Linking.openSettings(),
+            });
+          } else {
+            // Now retry the toggle with permission granted
+            handleToggleReminder(item);
+          }
+        });
+        return;
       }
 
-      Alert.alert(
-        t('notifications.noActiveReminders.title'),
-        t('notifications.noActiveReminders.message'),
-        [
-          { text: t('common.viewSettings'), onPress: () => navigateToTab('Settings') },
-          { text: t('common.ok'), style: 'cancel' },
-        ]
-      );
+      // 1) Optimistic update — bell flips immediately
+      setOptimisticEnabledShows((prev) => {
+        const next = new Set(prev);
+        if (willEnable) next.add(item.show);
+        else next.delete(item.show);
+        return next;
+      });
+
+      // 2) Update / create the intent queue entry for this show
+      const queue = pendingOpsRef.current;
+      const existing = queue.get(item.show);
+      if (existing) {
+        existing.latest = willEnable;
+        existing.itemRef = item;
+      } else {
+        queue.set(item.show, { latest: willEnable, itemRef: item, running: false });
+      }
+
+      // 3) Kick off the worker (no-op if already running for this show)
+      processShowQueue(item.show);
+    },
+    [optimisticEnabledShows, hasPermission, requestPermissions, processShowQueue, toast, t]
+  );
+
+  // The bell next to the play button now opens the management sheet.
+  const handleOpenNotificationSettings = useCallback(async () => {
+    // If permission is unknown or denied AND there are no active reminders,
+    // request permission first so the empty-state CTA actually works.
+    if (notificationPrefs.enabledShows.length === 0 && hasPermission === false) {
+      const granted = await requestPermissions();
+      if (!granted) {
+        toast.show(t('notifications.permissionDeniedToast'), {
+          variant: 'error',
+          actionLabel: t('common.openSettings'),
+          onAction: () => Linking.openSettings(),
+        });
+        return;
+      }
     }
-  }, [
-    notificationPrefs.enabledShows,
-    notificationPrefs.reminderMinutes,
-    hasPermission,
-    requestPermissions,
-    t,
-  ]);
+    setShowRemindersSheet(true);
+  }, [notificationPrefs.enabledShows.length, hasPermission, requestPermissions, toast, t]);
+
+  // Handler used by the bottom sheet to remove a single reminder. Returns
+  // boolean for the sheet's UI feedback (toast handled inside the sheet).
+  const handleSheetRemoveShow = useCallback(
+    async (show: string): Promise<boolean> => {
+      // Optimistic update too — sheet removes the row immediately
+      setOptimisticEnabledShows((prev) => {
+        const next = new Set(prev);
+        next.delete(show);
+        return next;
+      });
+      try {
+        const ok = await cancelShowReminders(show);
+        if (!ok) {
+          // Rollback
+          const live = notificationService.getPreferences();
+          setOptimisticEnabledShows(new Set(live.enabledShows));
+        }
+        return ok;
+      } catch (err) {
+        logger.error('handleSheetRemoveShow failed', err);
+        const live = notificationService.getPreferences();
+        setOptimisticEnabledShows(new Set(live.enabledShows));
+        return false;
+      }
+    },
+    [cancelShowReminders]
+  );
+
+  const handleSheetChangeMinutes = useCallback(
+    async (minutes: ReminderTime): Promise<boolean> => {
+      const ok = await setReminderMinutes(minutes);
+      return ok;
+    },
+    [setReminderMinutes]
+  );
+
+  const handleSheetDisableAll = useCallback(async (): Promise<boolean> => {
+    setOptimisticEnabledShows(new Set());
+    try {
+      const ok = await cancelAllReminders();
+      if (ok) {
+        toast.show(
+          t('notifications.removedToast', { count: notificationPrefs.enabledShows.length }),
+          { variant: 'info' }
+        );
+      } else {
+        const live = notificationService.getPreferences();
+        setOptimisticEnabledShows(new Set(live.enabledShows));
+      }
+      return ok;
+    } catch (err) {
+      logger.error('handleSheetDisableAll failed', err);
+      const live = notificationService.getPreferences();
+      setOptimisticEnabledShows(new Set(live.enabledShows));
+      return false;
+    }
+  }, [cancelAllReminders, toast, t, notificationPrefs.enabledShows.length]);
+
+  // Map of show name → times array, computed from the weekly schedule, so the
+  // RemindersBottomSheet can show "Companheiros · 11:00, 19:00" rows.
+  const showTimesByName = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const day of scheduleByDay) {
+      for (const show of day.shows) {
+        if (!map.has(show.show)) {
+          map.set(show.show, show.times);
+        }
+      }
+    }
+    return map;
+  }, [scheduleByDay]);
+
+  // Optimistic isShowEnabled used by the ScheduleSection bell rendering.
+  const isOptimisticallyEnabled = useCallback(
+    (show: string) => optimisticEnabledShows.has(show),
+    [optimisticEnabledShows]
+  );
+
+  // The schedule item bell uses isOperationPending only to disable the button;
+  // since we now optimistically flip immediately, the user shouldn't be blocked.
+  // Return a constant `false` so the bell never goes into a "stuck pending" state.
+  const noOpIsOperationPending = useCallback(() => false, []);
 
   const handleExitApp = useCallback(() => {
     if (Platform.OS === 'android') {
@@ -234,7 +392,10 @@ export function RadioPlayer() {
     Linking.openURL(url);
   }, []);
 
-  const hasActiveNotifications = notificationPrefs.enabledShows.length > 0;
+  // Use the optimistic mirror so the bell badge reflects taps instantly,
+  // before the async operation has confirmed.
+  const hasActiveNotifications = optimisticEnabledShows.size > 0;
+  const optimisticEnabledCount = optimisticEnabledShows.size;
 
   // Transform nowPlaying data for the component
   const nowPlayingData = useMemo(
@@ -271,6 +432,8 @@ export function RadioPlayer() {
               style={styles.infoButton}
               onPress={() => setShowAboutSheet(true)}
               activeOpacity={0.7}
+              accessibilityLabel={t('settings.about.aboutRadio')}
+              accessibilityRole="button"
             >
               <MaterialCommunityIcons
                 name="information-outline"
@@ -309,7 +472,7 @@ export function RadioPlayer() {
           showExpoGoWarning={showExpoGoWarning}
           volume={volume}
           hasActiveNotifications={hasActiveNotifications}
-          notificationCount={notificationPrefs.enabledShows.length}
+          notificationCount={optimisticEnabledCount}
           colors={colors}
           isDark={isDark}
           onTogglePlayPause={togglePlayPause}
@@ -332,6 +495,7 @@ export function RadioPlayer() {
           schedule={dailySchedule}
           currentPeriod={currentPeriod}
           loading={dailyLoading}
+          error={dailyError}
           colors={colors}
           isDark={isDark}
         />
@@ -340,17 +504,31 @@ export function RadioPlayer() {
         <ScheduleSection
           scheduleByDay={scheduleByDay}
           loading={scheduleLoading}
+          error={scheduleError}
           colors={colors}
           isDark={isDark}
           notificationLoading={notificationLoading}
-          isShowEnabled={isShowEnabled}
-          isOperationPending={isOperationPending}
+          isShowEnabled={isOptimisticallyEnabled}
+          isOperationPending={noOpIsOperationPending}
           onToggleReminder={handleToggleReminder}
         />
       </View>
 
       {/* About Bottom Sheet */}
       <AboutBottomSheet visible={showAboutSheet} onClose={() => setShowAboutSheet(false)} />
+
+      {/* Reminders management bottom sheet — opened by the bell next to play */}
+      <RemindersBottomSheet
+        visible={showRemindersSheet}
+        onClose={() => setShowRemindersSheet(false)}
+        enabledShows={Array.from(optimisticEnabledShows)}
+        reminderMinutes={notificationPrefs.reminderMinutes}
+        isLoading={notificationLoading}
+        showTimesByName={showTimesByName}
+        onRemoveShow={handleSheetRemoveShow}
+        onChangeReminderMinutes={handleSheetChangeMinutes}
+        onDisableAll={handleSheetDisableAll}
+      />
     </ScrollView>
   );
 }

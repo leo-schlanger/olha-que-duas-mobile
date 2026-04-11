@@ -1,11 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import {
-  fetchNews,
-  fetchNewsById,
-  fetchCategories,
-  fetchRegions,
-  invalidateNewsCache,
-} from '../services/newsApi';
+import { fetchNews, fetchNewsById, invalidateNewsCache } from '../services/newsApi';
 import { BlogPost, BlogFilters } from '../types/blog';
 import { logger } from '../utils/logger';
 
@@ -130,52 +124,4 @@ export function useNewsDetail(slug: string) {
   }, [slug]);
 
   return { post, isLoading, error };
-}
-
-/**
- * Hook for fetching available categories
- */
-export function useCategories() {
-  const [categories, setCategories] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const result = await fetchCategories();
-        setCategories(result);
-      } catch (err) {
-        logger.error('Error loading categories:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    load();
-  }, []);
-
-  return { categories, isLoading };
-}
-
-/**
- * Hook for fetching available regions
- */
-export function useRegions() {
-  const [regions, setRegions] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const result = await fetchRegions();
-        setRegions(result);
-      } catch (err) {
-        logger.error('Error loading regions:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    load();
-  }, []);
-
-  return { regions, isLoading };
 }

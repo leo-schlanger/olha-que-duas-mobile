@@ -22,6 +22,7 @@ interface DailyScheduleSectionProps {
   schedule: DailyPeriod[];
   currentPeriod: string;
   loading: boolean;
+  error?: string | null;
   colors: ThemeColors;
   isDark: boolean;
 }
@@ -93,11 +94,13 @@ export const DailyScheduleSection = memo(function DailyScheduleSection({
   schedule,
   currentPeriod,
   loading,
+  error,
   colors,
   isDark,
 }: DailyScheduleSectionProps) {
   const { t } = useTranslation();
   const styles = useMemo(() => createSectionStyles(colors, isDark), [colors, isDark]);
+  const isEmpty = !loading && schedule.length === 0;
 
   return (
     <View style={styles.container}>
@@ -109,10 +112,32 @@ export const DailyScheduleSection = memo(function DailyScheduleSection({
         <Text style={styles.badge}>24H</Text>
       </View>
 
+      {/* Error banner — shown when fetch failed but we still render the cached/fallback list */}
+      {error && !loading && schedule.length > 0 ? (
+        <View
+          style={[
+            styles.errorBanner,
+            { backgroundColor: colors.primary + '15', borderColor: colors.primary + '40' },
+          ]}
+        >
+          <MaterialCommunityIcons name="alert-circle-outline" size={16} color={colors.primary} />
+          <Text style={[styles.errorBannerText, { color: colors.primary }]}>
+            {t('radio.schedule.loadErrorHint')}
+          </Text>
+        </View>
+      ) : null}
+
       <View style={styles.content}>
         {loading ? (
           <View style={styles.loading}>
             <ActivityIndicator size="small" color={colors.secondary} />
+          </View>
+        ) : isEmpty ? (
+          <View style={styles.emptyState}>
+            <MaterialCommunityIcons name="music-note-off" size={40} color={colors.textSecondary} />
+            <Text style={[styles.emptyStateText, { color: colors.text }]}>
+              {t('radio.schedule.noPrograms')}
+            </Text>
           </View>
         ) : (
           <View style={styles.grid}>
@@ -183,6 +208,31 @@ function createSectionStyles(colors: ThemeColors, isDark: boolean) {
     },
     grid: {
       gap: 10,
+    },
+    emptyState: {
+      padding: 24,
+      alignItems: 'center',
+      gap: 10,
+    },
+    emptyStateText: {
+      fontSize: 13,
+      fontWeight: '500',
+      textAlign: 'center',
+    },
+    errorBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      padding: 10,
+      marginHorizontal: 12,
+      marginTop: 10,
+      borderRadius: 8,
+      borderWidth: 1,
+    },
+    errorBannerText: {
+      flex: 1,
+      fontSize: 11,
+      fontWeight: '500',
     },
   });
 }

@@ -24,6 +24,16 @@
     "offline": "Sem ligação à internet",
     "initError": "Erro ao iniciar a aplicação"
   },
+  "tabs": {
+    "radio": "Rádio",
+    "radioA11y": "Rádio - ouvir em direto",
+    "news": "Notícias",
+    "newsA11y": "Notícias - ver últimas notícias",
+    "weather": "Clima",
+    "weatherA11y": "Clima - ver previsão do tempo",
+    "settings": "Definições",
+    "settingsA11y": "Definições - configurações da aplicação"
+  },
   "radio": {
     "status": {
       "reconnecting": "A reconectar... ({{attempt}}/10)",
@@ -34,6 +44,7 @@
     "controls": {
       "play": "Reproduzir rádio",
       "pause": "Pausar rádio",
+      "volume": "Volume",
       "notificationsActive": "Notificações ativas: {{count}} programas",
       "configureNotifications": "Configurar notificações de programas",
       "expoGoWarning": "Áudio disponível apenas no build nativo."
@@ -50,6 +61,11 @@
       "liveNow": "AO VIVO",
       "today": "Hoje",
       "noPrograms": "Sem programação disponível",
+      "noProgramsHint": "Volte mais tarde para ver os próximos programas.",
+      "loadError": "Não foi possível carregar a programação.",
+      "loadErrorHint": "Mostrando programação guardada.",
+      "showMore": "Ver mais dias",
+      "showLess": "Ver menos",
       "days": {
         "0": "Domingo",
         "1": "Segunda",
@@ -125,7 +141,26 @@
     "reminderTitle": "Olha que Duas",
     "reminderBody": "{{show}} começa em {{minutes}} minutos!",
     "androidExactAlarmInfo": "No Android 12 e mais recentes, o sistema pode atrasar lembretes em alguns minutos para poupar bateria. Para máxima precisão, ative \"Alarmes e lembretes\" nas definições do sistema.",
-    "openSystemSettings": "Abrir definições do sistema"
+    "openSystemSettings": "Abrir definições do sistema",
+    "myReminders": {
+      "title": "Os Meus Lembretes",
+      "subtitle_one": "{{count}} lembrete ativo",
+      "subtitle_other": "{{count}} lembretes ativos",
+      "empty": "Sem lembretes ativos",
+      "emptyHint": "Toque no sino ao lado de cada programa na programação semanal para receber um aviso antes de começar.",
+      "warnBefore": "Avisar com antecedência",
+      "disableAll": "Desativar todos os lembretes",
+      "disableAllConfirm": "Desativar todos os lembretes?",
+      "disableAllConfirmYes": "Sim, desativar",
+      "remove": "Remover lembrete de {{show}}",
+      "openSettings": "Mais definições"
+    },
+    "toggleError": "Não foi possível atualizar o lembrete.",
+    "removedToast_one": "Lembrete removido",
+    "removedToast_other": "{{count}} lembretes removidos",
+    "activatedToast": "Lembrete ativado",
+    "syncedToast": "Lembretes sincronizados",
+    "permissionDeniedToast": "Permissão de notificações negada"
   },
   "weather": {
     "feelsLike": "Sensação térmica: {{temp}}°C",
@@ -168,6 +203,8 @@
     "tags": "Tags:",
     "openOriginalSource": "Abrir fonte original da notícia",
     "loadError": "Erro ao carregar notícias. Tente novamente.",
+    "openSourceErrorTitle": "Não foi possível abrir o link",
+    "openSourceErrorMessage": "Verifique a sua ligação à internet e tente novamente.",
     "detailError": "Erro ao carregar notícia.",
     "accessibility": {
       "newsItem": "Notícia: {{title}}. Categoria: {{category}}. Publicado em {{date}}",

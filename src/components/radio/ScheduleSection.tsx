@@ -4,7 +4,7 @@
  * Scales gracefully to multiple shows per day.
  */
 
-import React, { memo, useMemo } from 'react';
+import React, { memo, useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useTranslation } from 'react-i18next';
@@ -76,6 +76,7 @@ const ScheduleItem = memo(function ScheduleItem({
               item.isLive && { color: colors.primary },
             ]}
             numberOfLines={1}
+            ellipsizeMode="tail"
           >
             {item.show}
           </Text>
@@ -87,19 +88,17 @@ const ScheduleItem = memo(function ScheduleItem({
           )}
         </View>
         {item.description ? (
-          <Text style={[styles.description, { color: colors.textSecondary }]} numberOfLines={2}>
+          <Text
+            style={[styles.description, { color: colors.textSecondary }]}
+            numberOfLines={2}
+            ellipsizeMode="tail"
+          >
             {item.description}
           </Text>
         ) : null}
         <View style={styles.times}>
           {item.times.map((time) => (
-            <View
-              key={time}
-              style={[
-                styles.timeBadge,
-                { backgroundColor: colors.background, borderColor: colors.muted },
-              ]}
-            >
+            <View key={time} style={[styles.timeBadge, { borderColor: colors.muted }]}>
               <MaterialCommunityIcons name="clock-outline" size={11} color={colors.textSecondary} />
               <Text style={[styles.timeText, { color: colors.text }]}>
                 {time} <Text style={{ fontSize: 9, color: colors.textSecondary }}>{timezone}</Text>
@@ -117,14 +116,19 @@ const ScheduleItem = memo(function ScheduleItem({
         onPress={() => onToggleReminder(item)}
         disabled={isLoading || isOperationPending}
         activeOpacity={0.7}
-        accessibilityLabel={item.show}
+        accessibilityLabel={`${item.show}${isEnabled ? ' · ' + t('common.active') : ''}`}
         accessibilityRole="button"
+        accessibilityState={{ disabled: isLoading || isOperationPending, checked: isEnabled }}
       >
-        <MaterialCommunityIcons
-          name={isEnabled ? 'bell-ring' : 'bell-outline'}
-          size={18}
-          color={isEnabled ? '#FFFFFF' : colors.secondary}
-        />
+        {isLoading || isOperationPending ? (
+          <ActivityIndicator size="small" color={isEnabled ? '#FFFFFF' : colors.secondary} />
+        ) : (
+          <MaterialCommunityIcons
+            name={isEnabled ? 'bell-ring' : 'bell-outline'}
+            size={18}
+            color={isEnabled ? '#FFFFFF' : colors.secondary}
+          />
+        )}
       </TouchableOpacity>
     </View>
   );
@@ -205,6 +209,7 @@ const DayGroup = memo(function DayGroup({
 interface ScheduleSectionProps {
   scheduleByDay: DaySchedule[];
   loading: boolean;
+  error?: string | null;
   colors: ThemeColors;
   isDark: boolean;
   notificationLoading: boolean;
@@ -213,9 +218,15 @@ interface ScheduleSectionProps {
   onToggleReminder: (item: GroupedSchedule) => void;
 }
 
+// How many days to show before the "show more" toggle kicks in.
+// Today + next 2 = 3 days expanded by default. Enough to feel useful,
+// not enough to cause perf issues with large schedules.
+const DEFAULT_VISIBLE_DAYS = 3;
+
 export const ScheduleSection = memo(function ScheduleSection({
   scheduleByDay,
   loading,
+  error,
   colors,
   isDark,
   notificationLoading,
@@ -226,6 +237,14 @@ export const ScheduleSection = memo(function ScheduleSection({
   const { t } = useTranslation();
   const styles = useMemo(() => createScheduleStyles(colors, isDark), [colors, isDark]);
   const timezone = t('radio.schedule.timezone');
+  const [expanded, setExpanded] = useState(false);
+
+  const hasOverflow = scheduleByDay.length > DEFAULT_VISIBLE_DAYS;
+  const visibleDays = useMemo(
+    () => (expanded || !hasOverflow ? scheduleByDay : scheduleByDay.slice(0, DEFAULT_VISIBLE_DAYS)),
+    [scheduleByDay, expanded, hasOverflow]
+  );
+  const hiddenCount = scheduleByDay.length - DEFAULT_VISIBLE_DAYS;
 
   return (
     <View style={styles.container}>
@@ -234,6 +253,21 @@ export const ScheduleSection = memo(function ScheduleSection({
         <Text style={styles.title}>{t('radio.schedule.title')}</Text>
       </View>
 
+      {/* Error banner — shown when fetch failed but we still render the cached/fallback list */}
+      {error && !loading && scheduleByDay.length > 0 ? (
+        <View
+          style={[
+            styles.errorBanner,
+            { backgroundColor: colors.primary + '15', borderColor: colors.primary + '40' },
+          ]}
+        >
+          <MaterialCommunityIcons name="alert-circle-outline" size={18} color={colors.primary} />
+          <Text style={[styles.errorBannerText, { color: colors.primary }]}>
+            {t('radio.schedule.loadErrorHint')}
+          </Text>
+        </View>
+      ) : null}
+
       <View style={styles.grid}>
         {loading ? (
           <View style={styles.loading}>
@@ -241,23 +275,57 @@ export const ScheduleSection = memo(function ScheduleSection({
             <Text style={styles.loadingText}>{t('radio.schedule.loading')}</Text>
           </View>
         ) : scheduleByDay.length === 0 ? (
-          <View style={styles.loading}>
-            <Text style={styles.loadingText}>{t('radio.schedule.noPrograms')}</Text>
+          <View style={styles.emptyState}>
+            <MaterialCommunityIcons
+              name={error ? 'alert-circle-outline' : 'calendar-blank-outline'}
+              size={48}
+              color={colors.textSecondary}
+            />
+            <Text style={styles.emptyStateTitle}>
+              {error ? t('radio.schedule.loadError') : t('radio.schedule.noPrograms')}
+            </Text>
+            <Text style={styles.emptyStateHint}>
+              {error ? t('radio.schedule.loadErrorHint') : t('radio.schedule.noProgramsHint')}
+            </Text>
           </View>
         ) : (
-          scheduleByDay.map((day) => (
-            <DayGroup
-              key={day.dayNumber}
-              day={day}
-              colors={colors}
-              styles={styles}
-              notificationLoading={notificationLoading}
-              isShowEnabled={isShowEnabled}
-              isOperationPending={isOperationPending}
-              timezone={timezone}
-              onToggleReminder={onToggleReminder}
-            />
-          ))
+          <>
+            {visibleDays.map((day) => (
+              <DayGroup
+                key={day.dayNumber}
+                day={day}
+                colors={colors}
+                styles={styles}
+                notificationLoading={notificationLoading}
+                isShowEnabled={isShowEnabled}
+                isOperationPending={isOperationPending}
+                timezone={timezone}
+                onToggleReminder={onToggleReminder}
+              />
+            ))}
+            {hasOverflow ? (
+              <TouchableOpacity
+                style={styles.showMoreButton}
+                onPress={() => setExpanded((v) => !v)}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  expanded ? t('radio.schedule.showLess') : t('radio.schedule.showMore')
+                }
+              >
+                <MaterialCommunityIcons
+                  name={expanded ? 'chevron-up' : 'chevron-down'}
+                  size={18}
+                  color={colors.secondary}
+                />
+                <Text style={styles.showMoreText}>
+                  {expanded
+                    ? t('radio.schedule.showLess')
+                    : `${t('radio.schedule.showMore')} (${hiddenCount})`}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+          </>
         )}
       </View>
     </View>

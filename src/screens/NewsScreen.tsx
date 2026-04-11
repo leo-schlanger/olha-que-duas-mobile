@@ -265,6 +265,7 @@ export function NewsScreen() {
                 returnKeyType="search"
                 autoCapitalize="none"
                 autoCorrect={false}
+                accessibilityLabel={t('news.searchPlaceholder')}
               />
               {searchText.length > 0 && (
                 <TouchableOpacity

@@ -70,6 +70,7 @@ export function getCurrentPeriod(): string {
 export function useDailySchedule() {
   const [schedule, setSchedule] = useState<DailyPeriod[]>(fallbackSchedule);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchDailySchedule() {
@@ -79,13 +80,13 @@ export function useDailySchedule() {
       }
 
       try {
-        const { data, error } = await supabase
+        const { data, error: fetchError } = await supabase
           .from('daily_schedule')
           .select('*')
           .eq('is_active', true)
           .order('sort_order', { ascending: true });
 
-        if (error) throw error;
+        if (fetchError) throw fetchError;
         if (!data || data.length === 0) {
           setLoading(false);
           return;
@@ -113,8 +114,10 @@ export function useDailySchedule() {
         const sorted = PERIOD_ORDER.filter((p) => grouped.has(p)).map((p) => grouped.get(p)!);
 
         setSchedule(sorted);
+        setError(null);
       } catch (err) {
         logger.error('Error fetching daily schedule:', err);
+        setError(err instanceof Error ? err.message : 'unknown');
         // Keep fallback on error
       } finally {
         setLoading(false);
@@ -124,5 +127,5 @@ export function useDailySchedule() {
     fetchDailySchedule();
   }, []);
 
-  return { schedule, loading };
+  return { schedule, loading, error };
 }

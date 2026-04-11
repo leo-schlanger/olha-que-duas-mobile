@@ -3,7 +3,8 @@ import { StatusBar } from "expo-status-bar";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppNavigator, navigateToTab } from "./src/navigation/AppNavigator";
-import { PremiumProvider } from "./src/context/PremiumContext";
+import { PremiumProvider, usePremium } from "./src/context/PremiumContext";
+import { ToastProvider } from "./src/context/ToastContext";
 import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 import { NetworkProvider } from "./src/context/NetworkContext";
 import { ErrorBoundary } from "./src/components/ErrorBoundary";
@@ -55,6 +56,7 @@ const INIT_TIMEOUT_MS = 8000;
 function AppContent() {
   const { t } = useTranslation();
   const { isDark, colors } = useTheme();
+  const { isPremium, isLoading: isPremiumLoading } = usePremium();
   const [adsConsent, setAdsConsent] = useState<boolean | null>(null);
   const [initState, setInitState] = useState<InitState>('loading');
   const [splashDone, setSplashDone] = useState(false);
@@ -147,10 +149,37 @@ function AppContent() {
   }, [initializeServices]);
 
   useEffect(() => {
-    if (adsConsent !== null && environment.canUseNativeModules && adService) {
-      adService.initialize(adsConsent);
+    if (adsConsent === null || !environment.canUseNativeModules || !adService) {
+      return;
     }
-  }, [adsConsent]);
+    // Wait until premium status is known before deciding whether to init the
+    // ad SDK at all. Avoids briefly initializing ads for users who turn out
+    // to be premium once their AsyncStorage / IAP check resolves.
+    if (isPremiumLoading) {
+      return;
+    }
+    // Premium users never get ads — don't even initialize the SDK
+    if (isPremium) {
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        await adService.initialize(adsConsent);
+        if (cancelled) return;
+        // Pre-load the interstitial so it's ready when the user opens the
+        // 4th news article. Auto-reloads after each show.
+        adService.loadInterstitial?.();
+      } catch (err) {
+        logger.error("Failed to initialize ads", err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [adsConsent, isPremium, isPremiumLoading]);
 
   function handleGDPRConsent(personalizedAds: boolean) {
     setAdsConsent(personalizedAds);
@@ -215,7 +244,7 @@ export default function App() {
           settings={{
             icon: (props) => (
               <MaterialCommunityIcons
-                name={props.name as any}
+                name={props.name as keyof typeof MaterialCommunityIcons.glyphMap}
                 size={props.size ?? 24}
                 color={props.color}
               />
@@ -224,9 +253,11 @@ export default function App() {
         >
           <NetworkProvider>
             <ThemeProvider>
-              <PremiumProvider>
-                <AppContent />
-              </PremiumProvider>
+              <ToastProvider>
+                <PremiumProvider>
+                  <AppContent />
+                </PremiumProvider>
+              </ToastProvider>
             </ThemeProvider>
           </NetworkProvider>
         </PaperProvider>

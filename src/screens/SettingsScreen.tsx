@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -460,19 +460,26 @@ function NotificationSection({
               {t('notifications.activePrograms')}
             </Text>
           </View>
-          {notificationPrefs.enabledShows.map((show, index) => (
-            <View
-              key={show}
-              style={[
-                styles.enabledShowItem,
-                { borderBottomColor: colors.background },
-                index === notificationPrefs.enabledShows.length - 1 && styles.enabledShowItemLast,
-              ]}
-            >
-              <MaterialCommunityIcons name="bell-ring-outline" size={16} color={colors.secondary} />
-              <Text style={[styles.enabledShowName, { color: colors.text }]}>{show}</Text>
-            </View>
-          ))}
+          {/* Cap the list at ~6 visible rows; long lists scroll inside the card. */}
+          <ScrollView style={{ maxHeight: 240 }} nestedScrollEnabled showsVerticalScrollIndicator>
+            {notificationPrefs.enabledShows.map((show, index) => (
+              <View
+                key={show}
+                style={[
+                  styles.enabledShowItem,
+                  { borderBottomColor: colors.background },
+                  index === notificationPrefs.enabledShows.length - 1 && styles.enabledShowItemLast,
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="bell-ring-outline"
+                  size={16}
+                  color={colors.secondary}
+                />
+                <Text style={[styles.enabledShowName, { color: colors.text }]}>{show}</Text>
+              </View>
+            ))}
+          </ScrollView>
         </View>
       )}
     </View>
@@ -648,7 +655,7 @@ export function SettingsScreen() {
     }
   }
 
-  const dynamicStyles = createDynamicStyles(colors, isDark);
+  const dynamicStyles = useMemo(() => createDynamicStyles(colors, isDark), [colors, isDark]);
 
   return (
     <SafeAreaView style={dynamicStyles.container} edges={['top']}>

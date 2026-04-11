@@ -25,6 +25,8 @@ export const SocialLinks = memo(function SocialLinks({
         style={styles.websiteButton}
         onPress={() => onOpenLink('https://olhaqueduas.com')}
         activeOpacity={0.8}
+        accessibilityLabel={t('radio.social.visitWebsite')}
+        accessibilityRole="link"
       >
         <MaterialCommunityIcons name="web" size={20} color={colors.white} />
         <Text style={styles.websiteButtonText}>{t('radio.social.visitWebsite')}</Text>
@@ -37,18 +39,24 @@ export const SocialLinks = memo(function SocialLinks({
           <TouchableOpacity
             style={[styles.button, { backgroundColor: '#E4405F' }]}
             onPress={() => onOpenLink(siteConfig.social.instagram)}
+            accessibilityLabel="Instagram"
+            accessibilityRole="link"
           >
             <MaterialCommunityIcons name="instagram" size={22} color="#FFFFFF" />
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.button, { backgroundColor: '#1877F2' }]}
             onPress={() => onOpenLink(siteConfig.social.facebook)}
+            accessibilityLabel="Facebook"
+            accessibilityRole="link"
           >
             <MaterialCommunityIcons name="facebook" size={22} color="#FFFFFF" />
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.button, { backgroundColor: isDark ? '#FFFFFF' : '#000000' }]}
             onPress={() => onOpenLink(siteConfig.social.tiktok)}
+            accessibilityLabel="TikTok"
+            accessibilityRole="link"
           >
             <MaterialCommunityIcons
               name="music-note"
@@ -59,6 +67,8 @@ export const SocialLinks = memo(function SocialLinks({
           <TouchableOpacity
             style={[styles.button, { backgroundColor: '#FF0000' }]}
             onPress={() => onOpenLink(siteConfig.social.youtube)}
+            accessibilityLabel="YouTube"
+            accessibilityRole="link"
           >
             <MaterialCommunityIcons name="youtube" size={22} color="#FFFFFF" />
           </TouchableOpacity>

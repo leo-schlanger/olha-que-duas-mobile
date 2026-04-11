@@ -58,6 +58,7 @@ const SafeSettingsScreen = () => (
 );
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
+import { useTranslation } from 'react-i18next';
 
 // Deep linking configuration
 const linking: LinkingOptions<RootStackParamList> = {
@@ -100,6 +101,7 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 function MainTabs() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const { t } = useTranslation();
 
   return (
     <Tab.Navigator
@@ -127,8 +129,8 @@ function MainTabs() {
         name="Radio"
         component={SafeRadioScreen}
         options={{
-          tabBarLabel: 'Radio',
-          tabBarAccessibilityLabel: 'Rádio - ouvir em direto',
+          tabBarLabel: t('tabs.radio'),
+          tabBarAccessibilityLabel: t('tabs.radioA11y'),
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="radio" size={size} color={color} />
           ),
@@ -138,8 +140,8 @@ function MainTabs() {
         name="News"
         component={SafeNewsScreen}
         options={{
-          tabBarLabel: 'Notícias',
-          tabBarAccessibilityLabel: 'Notícias - ver últimas notícias',
+          tabBarLabel: t('tabs.news'),
+          tabBarAccessibilityLabel: t('tabs.newsA11y'),
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="newspaper-variant-outline" size={size} color={color} />
           ),
@@ -149,8 +151,8 @@ function MainTabs() {
         name="Weather"
         component={SafeWeatherScreen}
         options={{
-          tabBarLabel: 'Clima',
-          tabBarAccessibilityLabel: 'Clima - ver previsão do tempo',
+          tabBarLabel: t('tabs.weather'),
+          tabBarAccessibilityLabel: t('tabs.weatherA11y'),
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="weather-partly-cloudy" size={size} color={color} />
           ),
@@ -160,8 +162,8 @@ function MainTabs() {
         name="Settings"
         component={SafeSettingsScreen}
         options={{
-          tabBarLabel: 'Definições',
-          tabBarAccessibilityLabel: 'Definições - configurações da aplicação',
+          tabBarLabel: t('tabs.settings'),
+          tabBarAccessibilityLabel: t('tabs.settingsA11y'),
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="cog-outline" size={size} color={color} />
           ),

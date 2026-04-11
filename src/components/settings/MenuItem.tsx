@@ -35,6 +35,8 @@ export function MenuItem({
       ]}
       onPress={onPress}
       activeOpacity={0.7}
+      accessibilityLabel={subtitle ? `${title}, ${subtitle}` : title}
+      accessibilityRole={showExternal ? 'link' : 'button'}
     >
       <View style={[styles.menuIconBox, { backgroundColor: colors.muted }]}>
         <MaterialCommunityIcons

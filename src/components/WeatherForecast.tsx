@@ -207,7 +207,7 @@ export const DailyForecastSection = memo(function DailyForecastSection({
       </Text>
       {daily.map((item, index) => (
         <DailyItem
-          key={index}
+          key={item.date}
           item={item}
           isLast={index === daily.length - 1}
           colors={colors}

@@ -284,6 +284,54 @@ export function createScheduleStyles(colors: ThemeColors, isDark: boolean) {
       color: colors.textSecondary,
       fontSize: 12,
     },
+    // Empty state
+    emptyState: {
+      padding: 32,
+      alignItems: 'center',
+      gap: 12,
+    },
+    emptyStateTitle: {
+      color: colors.text,
+      fontSize: 14,
+      fontWeight: '600',
+      textAlign: 'center',
+    },
+    emptyStateHint: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      textAlign: 'center',
+    },
+    // Error banner
+    errorBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      padding: 12,
+      marginHorizontal: 14,
+      marginTop: 10,
+      borderRadius: 8,
+      borderWidth: 1,
+    },
+    errorBannerText: {
+      flex: 1,
+      fontSize: 12,
+      fontWeight: '500',
+    },
+    // Show more / collapse
+    showMoreButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      padding: 14,
+      borderTopWidth: 1,
+      borderTopColor: colors.muted,
+    },
+    showMoreText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.secondary,
+    },
     // Day grouping
     dayGroup: {
       width: '100%',
@@ -390,6 +438,7 @@ export function createScheduleStyles(colors: ThemeColors, isDark: boolean) {
       flexWrap: 'wrap',
       gap: 6,
       rowGap: 4,
+      maxWidth: '100%',
     },
     timeBadge: {
       flexDirection: 'row',
@@ -399,20 +448,22 @@ export function createScheduleStyles(colors: ThemeColors, isDark: boolean) {
       borderRadius: 6,
       borderWidth: 1,
       gap: 4,
+      // Slightly elevated background in dark mode for better contrast on cards
+      backgroundColor: isDark ? colors.muted + '60' : colors.background,
     },
     timeText: {
       fontSize: 11,
       fontFamily: 'monospace',
     },
     reminderButton: {
-      width: 38,
-      height: 38,
-      borderRadius: 19,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
       borderWidth: 1,
       alignItems: 'center',
       justifyContent: 'center',
       marginLeft: 8,
-      marginTop: 4,
+      marginTop: 2,
     },
   });
 }

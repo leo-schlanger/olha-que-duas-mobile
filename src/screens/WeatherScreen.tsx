@@ -174,7 +174,7 @@ export function WeatherScreen() {
 
         {isUsingDefaultLocation && (
           <TouchableOpacity
-            style={[styles.defaultLocationBanner, { backgroundColor: colors.primary + '15' }]}
+            style={[styles.defaultLocationBanner, { backgroundColor: colors.primary + '25' }]}
             onPress={async () => {
               const granted = await requestPermission();
               if (!granted) {
@@ -189,6 +189,8 @@ export function WeatherScreen() {
               }
             }}
             activeOpacity={0.8}
+            accessibilityLabel={t('weather.locationBanner')}
+            accessibilityRole="button"
           >
             <MaterialCommunityIcons name="map-marker-alert" size={20} color={colors.primary} />
             <Text style={[styles.defaultLocationText, { color: colors.primary }]}>

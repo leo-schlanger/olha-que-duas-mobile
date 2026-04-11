@@ -20,8 +20,10 @@ export const TIMING = {
   RADIO_STALL_TIMEOUT: 12000,
 
   // Now Playing
-  NOW_PLAYING_POLL_INTERVAL: 5000,
-  NOW_PLAYING_TRANSITION_DURATION: 1500,
+  // 3s gives a snappier "the song just changed" feel without thrashing the
+  // AzuraCast endpoint. Background polling stays at 3x this in service code.
+  NOW_PLAYING_POLL_INTERVAL: 3000,
+  NOW_PLAYING_TRANSITION_DURATION: 350,
 
   // Purchases
   PURCHASE_TIMEOUT: 120000, // 2 minutos

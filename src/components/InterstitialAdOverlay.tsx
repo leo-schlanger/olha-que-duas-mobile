@@ -19,7 +19,6 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 interface AdServiceType {
   isReady: () => boolean;
   getMRectAdUnitId: () => string;
-  getBannerAdUnitId: () => string;
   isPersonalizedAdsEnabled: () => boolean;
 }
 
@@ -72,6 +71,8 @@ export function InterstitialAdOverlay({ visible, onClose }: InterstitialAdOverla
   // Check SDK ready status
   useEffect(() => {
     if (!visible) return;
+    // Premium users never see ads — skip SDK polling entirely
+    if (isPremium) return;
 
     let mounted = true;
     let checkInterval: ReturnType<typeof setInterval> | null = null;
@@ -104,7 +105,7 @@ export function InterstitialAdOverlay({ visible, onClose }: InterstitialAdOverla
       if (checkInterval) clearInterval(checkInterval);
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [visible]);
+  }, [visible, isPremium]);
 
   // Reset and start countdown when overlay becomes visible
   useEffect(() => {
@@ -155,7 +156,7 @@ export function InterstitialAdOverlay({ visible, onClose }: InterstitialAdOverla
     }
   };
 
-  const adUnitId = adService?.getBannerAdUnitId() ?? '';
+  const adUnitId = adService?.getMRectAdUnitId() ?? '';
   const nonPersonalizedAds = adService ? !adService.isPersonalizedAdsEnabled() : true;
 
   return (

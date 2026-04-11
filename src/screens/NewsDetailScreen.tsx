@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,9 @@ import {
   Share,
   StatusBar,
   Dimensions,
+  Alert,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { logger } from '../utils/logger';
@@ -20,7 +22,29 @@ import { useTranslation } from 'react-i18next';
 import { useNewsDetail } from '../hooks/useNews';
 import { getCategoryColor, categoryLabels } from '../types/blog';
 import { useTheme, getContrastTextColor } from '../context/ThemeContext';
+import { usePremium } from '../context/PremiumContext';
+import { environment } from '../config/environment';
 import { InterstitialAdOverlay } from '../components/InterstitialAdOverlay';
+import { BannerAd } from '../components/BannerAd';
+
+// Type for the dynamically loaded ad service (only available with native modules)
+interface AdServiceForNews {
+  isInterstitialReady: () => boolean;
+  showInterstitial: () => boolean;
+}
+
+// Lazy load adService to keep Expo Go working
+let adService: AdServiceForNews | null = null;
+if (environment.canUseNativeModules) {
+  try {
+    adService = require('../services/adService').adService;
+  } catch (error) {
+    logger.log('Ad service not available in NewsDetailScreen', error);
+  }
+}
+
+const NEWS_AD_COUNTER_KEY = '@olhaqueduas:newsAdCounter';
+const INTERSTITIAL_FREQUENCY = 4;
 
 const { width } = Dimensions.get('window');
 
@@ -33,12 +57,56 @@ type NewsDetailRouteProp = RouteProp<RootStackParamList, 'NewsDetail'>;
 export function NewsDetailScreen() {
   const { t, i18n } = useTranslation();
   const { colors, isDark } = useTheme();
+  const { isPremium } = usePremium();
   const route = useRoute<NewsDetailRouteProp>();
   const navigation = useNavigation();
   // route.params can be undefined when arriving from a malformed deep link
   const slug = route.params?.slug ?? '';
   const { post, isLoading, error } = useNewsDetail(slug);
-  const [showAdOverlay, setShowAdOverlay] = useState(true);
+  const [showAdOverlay, setShowAdOverlay] = useState(false);
+  const adDecisionMadeRef = useRef(false);
+
+  // Decide what kind of ad to show on this news view:
+  //   - Premium users: nothing.
+  //   - Every Nth view (N = INTERSTITIAL_FREQUENCY): try the real interstitial.
+  //   - Otherwise (or if interstitial isn't loaded): the MRec overlay.
+  // The decision runs once per screen mount, guarded by adDecisionMadeRef.
+  useEffect(() => {
+    if (isPremium) return;
+    if (adDecisionMadeRef.current) return;
+    adDecisionMadeRef.current = true;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const stored = await AsyncStorage.getItem(NEWS_AD_COUNTER_KEY);
+        const nextCount = (stored ? parseInt(stored, 10) || 0 : 0) + 1;
+        await AsyncStorage.setItem(NEWS_AD_COUNTER_KEY, String(nextCount));
+
+        if (cancelled) return;
+
+        const isInterstitialSlot = nextCount % INTERSTITIAL_FREQUENCY === 0;
+        if (isInterstitialSlot && adService?.isInterstitialReady?.()) {
+          const shown = adService.showInterstitial();
+          if (shown) {
+            // Real interstitial took over — no MRec overlay this time.
+            return;
+          }
+          // Fallthrough to MRec if show failed
+        }
+
+        setShowAdOverlay(true);
+      } catch (e) {
+        logger.warn('NewsDetailScreen: ad decision failed, falling back to overlay', e);
+        if (!cancelled) setShowAdOverlay(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isPremium]);
 
   const formatDate = (dateString: string) => {
     const locale = i18n.language === 'en' ? 'en-US' : 'pt-PT';
@@ -67,12 +135,22 @@ export function NewsDetailScreen() {
     }
   };
 
-  const handleOpenSource = () => {
-    if (post?.source_url) {
-      const url = post.source_url;
-      if (url.startsWith('https://') || url.startsWith('http://')) {
-        Linking.openURL(url);
+  const handleOpenSource = async () => {
+    if (!post?.source_url) return;
+    const url = post.source_url;
+    if (!(url.startsWith('https://') || url.startsWith('http://'))) {
+      logger.warn('NewsDetailScreen: rejected non-http source URL', url);
+      return;
+    }
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (!supported) {
+        throw new Error('URL not supported');
       }
+      await Linking.openURL(url);
+    } catch (err) {
+      logger.error('Failed to open source URL:', err);
+      Alert.alert(t('news.openSourceErrorTitle'), t('news.openSourceErrorMessage'));
     }
   };
 
@@ -284,6 +362,7 @@ export function NewsDetailScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      <BannerAd />
     </SafeAreaView>
   );
 }

@@ -34,8 +34,8 @@ if (environment.canUseNativeModules) {
     GoogleBannerAd = adsModule.BannerAd;
     BannerAdSize = adsModule.BannerAdSize;
     adService = require('../services/adService').adService;
-  } catch (_error) {
-    logger.log('Ad modules not available');
+  } catch (error) {
+    logger.log('Ad modules not available', error);
   }
 }
 
