@@ -3,6 +3,7 @@
  */
 
 import { ThemeColors } from '../../context/ThemeContext';
+import type { NowPlayingData } from '../../services/nowPlayingService';
 
 export interface RadioStatusInfo {
   text: string;
@@ -10,17 +11,9 @@ export interface RadioStatusInfo {
   dotColor: string;
 }
 
-export interface SongInfo {
-  title: string;
-  artist: string;
-  art?: string;
-}
-
-export interface NowPlayingData {
-  isMusic: boolean;
-  isTransition: boolean;
-  song: SongInfo | null;
-}
+// Re-exported so existing consumers keep importing it from `radio/types`.
+export type { NowPlayingData } from '../../services/nowPlayingService';
+export type { NowPlayingSong as SongInfo } from '../../services/nowPlayingService';
 
 export interface RadioControlsProps {
   isPlaying: boolean;

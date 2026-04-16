@@ -50,6 +50,10 @@
       "expoGoWarning": "Audio only available in native build."
     },
     "nowPlaying": "Now playing",
+    "liveShow": "Live show",
+    "liveShowDefault": "On air",
+    "podcast": "Podcast",
+    "announcement": "Featured",
     "dailySchedule": {
       "title": "Your Daily Soundtrack",
       "now": "NOW"

@@ -50,6 +50,10 @@
       "expoGoWarning": "Áudio disponível apenas no build nativo."
     },
     "nowPlaying": "A tocar agora",
+    "liveShow": "Programa ao vivo",
+    "liveShowDefault": "Em direto",
+    "podcast": "Podcast",
+    "announcement": "Em destaque",
     "dailySchedule": {
       "title": "A Tua Soundtrack do Dia",
       "now": "AGORA"

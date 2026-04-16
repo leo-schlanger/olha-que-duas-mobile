@@ -397,21 +397,10 @@ export function RadioPlayer() {
   const hasActiveNotifications = optimisticEnabledShows.size > 0;
   const optimisticEnabledCount = optimisticEnabledShows.size;
 
-  // Transform nowPlaying data for the component
-  const nowPlayingData = useMemo(
-    () => ({
-      isMusic: nowPlaying.isMusic,
-      isTransition: nowPlaying.isTransition,
-      song: nowPlaying.song
-        ? {
-            title: nowPlaying.song.title,
-            artist: nowPlaying.song.artist,
-            art: nowPlaying.song.art,
-          }
-        : null,
-    }),
-    [nowPlaying.isMusic, nowPlaying.isTransition, nowPlaying.song]
-  );
+  // The hook already returns a stable, classified NowPlayingData — pass it
+  // straight through to NowPlaying without remapping (the service guarantees
+  // referential stability when nothing changed via its dataChanged check).
+  const nowPlayingData = nowPlaying;
 
   return (
     <ScrollView

@@ -463,21 +463,49 @@ class RadioService {
       // Verificar se ainda estamos tocando antes de atualizar lock screen
       if (!this.player || this.isIntentionallyStopped) return;
 
-      if (data.isMusic && data.song) {
-        // Show song info with artwork from now-playing API, fallback to radio logo URL
-        this.updateLockScreen({
-          title: data.song.title,
-          artist: data.song.artist,
-          artworkUrl: data.song.art || siteConfig.radio.logoUrl,
-        });
-      } else {
-        // Show radio name with logo when no song is playing
-        this.updateLockScreen({
-          title: siteConfig.radio.name,
-          artist: siteConfig.radio.tagline,
-          artworkUrl: siteConfig.radio.logoUrl,
-        });
+      // Mirror the on-screen classification on the lock screen so the user
+      // sees "Programa ao vivo: X", "Podcast: Y", etc. instead of just the
+      // radio name when something other than music is playing.
+      switch (data.mode) {
+        case 'music':
+          if (data.song) {
+            this.updateLockScreen({
+              title: data.song.title,
+              artist: data.song.artist,
+              artworkUrl: data.song.art || siteConfig.radio.logoUrl,
+            });
+            return;
+          }
+          break;
+        case 'liveShow':
+          this.updateLockScreen({
+            title: data.liveShowName || siteConfig.radio.name,
+            artist: siteConfig.radio.name,
+            artworkUrl: siteConfig.radio.logoUrl,
+          });
+          return;
+        case 'podcast':
+          this.updateLockScreen({
+            title: data.podcastName,
+            artist: siteConfig.radio.name,
+            artworkUrl: data.podcastArt || siteConfig.radio.logoUrl,
+          });
+          return;
+        case 'announcement':
+          this.updateLockScreen({
+            title: data.announcementName,
+            artist: siteConfig.radio.name,
+            artworkUrl: data.announcementArt || siteConfig.radio.logoUrl,
+          });
+          return;
       }
+
+      // Idle (or music with missing song object) — fall back to radio identity.
+      this.updateLockScreen({
+        title: siteConfig.radio.name,
+        artist: siteConfig.radio.tagline,
+        artworkUrl: siteConfig.radio.logoUrl,
+      });
     });
   }
 
