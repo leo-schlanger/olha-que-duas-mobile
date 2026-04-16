@@ -88,13 +88,16 @@ export const siteConfig = {
   },
 };
 
-// App color palette - Updated to match website (Light Theme)
+// App color palette - Light theme legacy export. Real theme lives in
+// ThemeContext (lightColors/darkColors). Keep these in sync only for the
+// few places that can't use the hook (e.g. AnimatedSplash before Provider
+// mounts). Do not import from here in new code.
 export const colors = {
   primary: '#d6402e', // Vermelho
   secondary: '#f0c042', // Amarelo/Gold
-  background: '#f7f4ed', // Beige Light
-  backgroundCard: '#faf8f2', // Cream
-  card: '#faf8f2', // Cream
+  background: '#ebe1c7', // Beige médio
+  backgroundCard: '#f1e9d0', // Cream quente
+  card: '#f1e9d0', // Cream quente
   text: '#6e5a4a', // Charcoal / Foreground
   textSecondary: '#8b7e74', // Softer Charcoal
   success: '#22c55e',
@@ -104,9 +107,9 @@ export const colors = {
   amareloSoft: '#f7d98d',
   vermelho: '#d6402e',
   vermelhoSoft: '#e47163',
-  beige: '#f7f4ed',
+  beige: '#ebe1c7',
   beigeDark: '#6e5a4a',
   white: '#FFFFFF',
   black: '#000000',
-  muted: '#e0d1bc',
+  muted: '#cdb98e',
 };

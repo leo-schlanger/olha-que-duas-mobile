@@ -243,12 +243,19 @@ class NowPlayingService {
       this.isInBackground = state === 'background';
       if (!this.isStarted || wasInBackground === this.isInBackground) return;
 
+      // We intentionally KEEP the SSE connection open in background. The
+      // expo-audio foreground service keeps the JS context alive while
+      // playback is on, so the socket survives — and that's the only way
+      // the lock-screen artwork can update within seconds of a track
+      // change. Polling stays as a fallback in case the SSE drops.
       if (this.isInBackground) {
-        this.closeSSE();
+        // Reconfigure polling to background cadence (slower, but still a
+        // sensible safety net if SSE silently disconnects).
         this.startPolling();
       } else {
         this.startPolling();
-        this.connectSSE();
+        // Re-establish SSE only if it was lost while we were in background.
+        if (!this.eventSource) this.connectSSE();
       }
     });
   }
@@ -305,8 +312,11 @@ class NowPlayingService {
 
   private startPolling() {
     this.stopPolling();
+    // SSE is now kept alive in background, so polling here is a fallback for
+    // the rare cases where the socket drops. 6s is a reasonable compromise
+    // between battery and lock-screen artwork freshness when SSE is gone.
     const pollInterval = this.isInBackground
-      ? TIMING.NOW_PLAYING_POLL_INTERVAL * 5 // 15s in background to save battery
+      ? TIMING.NOW_PLAYING_POLL_INTERVAL * 2 // 6s in background
       : TIMING.NOW_PLAYING_POLL_INTERVAL;
     this.interval = setInterval(() => this.fetchNowPlaying(), pollInterval);
   }
@@ -407,14 +417,23 @@ class NowPlayingService {
 
   private closeSSE() {
     if (!this.eventSource) return;
+    const es = this.eventSource;
+    // Detach the field synchronously so any in-flight handlers that fire
+    // between removeAllEventListeners() and close() see eventSource === null
+    // and short-circuit (handleSSEMessage / handleSSEDisconnect both branch
+    // on it). Prevents orphan callbacks running after close.
+    this.eventSource = null;
+    this.sseConnected = false;
     try {
-      this.eventSource.removeAllEventListeners();
-      this.eventSource.close();
+      es.removeAllEventListeners();
+    } catch {
+      // ignore
+    }
+    try {
+      es.close();
     } catch {
       // ignore — closing an already-closed source can throw on some platforms
     }
-    this.eventSource = null;
-    this.sseConnected = false;
   }
 
   // ---------- Hold-on-gap + smart re-emit ----------

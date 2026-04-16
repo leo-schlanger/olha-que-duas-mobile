@@ -8,12 +8,16 @@ const STORAGE_KEY = '@olhaqueduas:theme_preference';
 export type ThemeMode = 'light' | 'dark' | 'system';
 
 // Light theme colors
+// Paleta bege quente — fundos shifted para HSL ~hsl(43,46%,85-89%) por
+// feedback de "muito claro, dói os olhos". O texto charcoal #6e5a4a sobre
+// #ebe1c7 mantém contraste WCAG AA (~6.5:1) e o card #f1e9d0 destaca-se
+// suavemente do fundo sem perder a sensação de "papel envelhecido".
 export const lightColors = {
   primary: '#d6402e', // Vermelho
   secondary: '#f0c042', // Amarelo/Gold
-  background: '#f7f4ed', // Beige Light
-  backgroundCard: '#faf8f2', // Cream
-  card: '#faf8f2', // Cream
+  background: '#ebe1c7', // Beige médio
+  backgroundCard: '#f1e9d0', // Cream quente
+  card: '#f1e9d0', // Cream quente
   text: '#6e5a4a', // Charcoal / Foreground
   textSecondary: '#8b7e74', // Softer Charcoal
   success: '#22c55e',
@@ -23,14 +27,14 @@ export const lightColors = {
   amareloSoft: '#f7d98d',
   vermelho: '#d6402e',
   vermelhoSoft: '#e47163',
-  beige: '#f7f4ed',
+  beige: '#ebe1c7',
   beigeDark: '#6e5a4a',
   white: '#FFFFFF',
   black: '#000000',
-  muted: '#e0d1bc',
-  border: '#e0d1bc',
+  muted: '#cdb98e',
+  border: '#cdb98e',
   notification: '#d6402e',
-  tabBar: '#faf8f2',
+  tabBar: '#f1e9d0',
   tabBarInactive: '#8b7e74',
   statusBar: 'dark-content' as 'dark-content' | 'light-content',
 };

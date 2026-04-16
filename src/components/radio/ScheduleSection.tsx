@@ -216,6 +216,10 @@ interface ScheduleSectionProps {
   isShowEnabled: (show: string) => boolean;
   isOperationPending: () => boolean;
   onToggleReminder: (item: GroupedSchedule) => void;
+  /** Number of shows with active reminders, used for the header bell badge */
+  activeReminderCount: number;
+  /** Opens the global "manage all reminders" bottom sheet */
+  onOpenReminders: () => void;
 }
 
 // How many days to show before the "show more" toggle kicks in.
@@ -233,6 +237,8 @@ export const ScheduleSection = memo(function ScheduleSection({
   isShowEnabled,
   isOperationPending,
   onToggleReminder,
+  activeReminderCount,
+  onOpenReminders,
 }: ScheduleSectionProps) {
   const { t } = useTranslation();
   const styles = useMemo(() => createScheduleStyles(colors, isDark), [colors, isDark]);
@@ -246,11 +252,43 @@ export const ScheduleSection = memo(function ScheduleSection({
   );
   const hiddenCount = scheduleByDay.length - DEFAULT_VISIBLE_DAYS;
 
+  const hasActive = activeReminderCount > 0;
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <MaterialCommunityIcons name="calendar" size={20} color={colors.secondary} />
-        <Text style={styles.title}>{t('radio.schedule.title')}</Text>
+        <View style={styles.headerLeft}>
+          <MaterialCommunityIcons name="calendar" size={20} color={colors.secondary} />
+          <Text style={styles.title}>{t('radio.schedule.title')}</Text>
+        </View>
+        <TouchableOpacity
+          style={[
+            styles.headerBell,
+            {
+              backgroundColor: hasActive ? colors.secondary : colors.background,
+              borderColor: hasActive ? colors.secondary : colors.muted,
+            },
+          ]}
+          onPress={onOpenReminders}
+          activeOpacity={0.7}
+          accessibilityLabel={
+            hasActive
+              ? t('radio.controls.notificationsActive', { count: activeReminderCount })
+              : t('radio.controls.configureNotifications')
+          }
+          accessibilityRole="button"
+        >
+          <MaterialCommunityIcons
+            name={hasActive ? 'bell-ring' : 'bell-outline'}
+            size={18}
+            color={hasActive ? '#FFFFFF' : colors.secondary}
+          />
+          {hasActive && (
+            <View style={[styles.headerBellBadge, { backgroundColor: colors.primary }]}>
+              <Text style={styles.headerBellBadgeText}>{activeReminderCount}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
       </View>
 
       {/* Error banner — shown when fetch failed but we still render the cached/fallback list */}

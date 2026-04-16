@@ -85,6 +85,13 @@ class PurchaseService {
   private purchaseErrorSubscription: PurchaseSubscription | null = null;
   private onPurchaseComplete: ((_success: boolean) => void) | null = null;
   private isPurchaseInProgress = false;
+  // Long-lived observer used by PremiumContext. Unlike onPurchaseComplete
+  // (a transient one-shot for the active flow), this is invoked for *every*
+  // valid purchase the store delivers — including late deliveries that
+  // arrive after a timeout, and pending purchases the store re-emits on
+  // app launch. Lets premium status converge without requiring an app
+  // restart in those edge cases.
+  private purchaseDetectedListeners: Set<() => void> = new Set();
 
   /**
    * Initialize connection with the store (Google Play / App Store)
@@ -137,11 +144,17 @@ class PurchaseService {
           await iap.finishTransaction({ purchase, isConsumable: false });
           logger.log('PurchaseService: Transaction finished');
 
-          // Notify success
+          // Notify the in-flight UI flow (one-shot) — may be null if the
+          // purchase arrives after the 2-min timeout in purchaseRemoveAds().
           if (this.onPurchaseComplete) {
             this.onPurchaseComplete(true);
             this.onPurchaseComplete = null;
           }
+
+          // Always notify long-lived observers so PremiumContext can
+          // converge even when the user closed the dialog before the
+          // store delivered the receipt.
+          this.notifyPurchaseDetected();
         } catch (error) {
           logger.error('PurchaseService: Error finishing transaction:', error);
         }
@@ -306,6 +319,29 @@ class PurchaseService {
    */
   async restorePurchases(): Promise<boolean> {
     return this.checkPurchaseStatus();
+  }
+
+  /**
+   * Subscribe to long-lived "any valid purchase detected" notifications.
+   * Used by PremiumContext to update premium state when late or pending
+   * purchases are delivered outside the explicit purchase flow. Returns
+   * an unsubscribe function.
+   */
+  onPurchaseDetected(listener: () => void): () => void {
+    this.purchaseDetectedListeners.add(listener);
+    return () => {
+      this.purchaseDetectedListeners.delete(listener);
+    };
+  }
+
+  private notifyPurchaseDetected(): void {
+    this.purchaseDetectedListeners.forEach((listener) => {
+      try {
+        listener();
+      } catch (error) {
+        logger.error('PurchaseService: purchase-detected listener threw:', error);
+      }
+    });
   }
 
   /**

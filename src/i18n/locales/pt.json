@@ -47,6 +47,8 @@
       "volume": "Volume",
       "notificationsActive": "Notificações ativas: {{count}} programas",
       "configureNotifications": "Configurar notificações de programas",
+      "keepAwakeOn": "Manter ecrã ligado: ativado",
+      "keepAwakeOff": "Manter ecrã ligado: desativado",
       "expoGoWarning": "Áudio disponível apenas no build nativo."
     },
     "nowPlaying": "A tocar agora",
@@ -210,6 +212,13 @@
     "openSourceErrorTitle": "Não foi possível abrir o link",
     "openSourceErrorMessage": "Verifique a sua ligação à internet e tente novamente.",
     "detailError": "Erro ao carregar notícia.",
+    "notFound": "Notícia não encontrada.",
+    "errors": {
+      "offline": "Sem ligação à internet. Verifique a sua rede e tente novamente.",
+      "timeout": "O servidor demorou demasiado a responder. Tente novamente.",
+      "notFound": "Notícia não encontrada.",
+      "server": "O servidor está com problemas. Tente novamente em instantes."
+    },
     "accessibility": {
       "newsItem": "Notícia: {{title}}. Categoria: {{category}}. Publicado em {{date}}",
       "tapToRead": "Toque para ler a notícia completa"

@@ -16,12 +16,18 @@ export interface RadioSettings {
   stopOnClose: boolean;
 }
 
+// stopOnClose:false by default so a fresh install honours backgroundPlayback
+// out of the box — pressing Home / locking the screen keeps the radio playing.
+// The native plugin `withStopAudioOnTaskRemoved` still handles the
+// swipe‑to‑kill case at the Android service level, so the user can stop
+// playback by swiping the app away from recents. Existing users keep their
+// chosen value: `load()` does `{ ...DEFAULT_SETTINGS, ...stored }`.
 const DEFAULT_SETTINGS: RadioSettings = {
   backgroundPlayback: true,
   autoPlayOnStart: false,
   autoReconnect: true,
   volume: 1.0,
-  stopOnClose: true,
+  stopOnClose: false,
 };
 
 class RadioSettingsService {

@@ -21,14 +21,15 @@ export interface RadioControlsProps {
   isReconnecting?: boolean;
   showExpoGoWarning: boolean;
   volume: number;
-  hasActiveNotifications: boolean;
-  notificationCount: number;
+  /** Whether the "keep screen on" toggle is currently active */
+  keepAwake: boolean;
   colors: ThemeColors;
   isDark: boolean;
   onTogglePlayPause: () => void;
   onVolumeChange: (value: number) => void;
   onRefresh: () => void;
-  onNotificationPress: () => void;
+  /** Toggle the "keep screen on" mode */
+  onToggleKeepAwake: () => void;
 }
 
 export interface NowPlayingProps {

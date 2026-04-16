@@ -9,7 +9,7 @@ import * as Location from 'expo-location';
 import { LocationCoords } from '../types/weather';
 import { logger } from '../utils/logger';
 
-export type PermissionStatus = 'undetermined' | 'granted' | 'denied';
+export type PermissionStatus = 'undetermined' | 'granted' | 'denied' | 'denied-permanent';
 
 // Lisboa como localização padrão
 const DEFAULT_LOCATION: LocationCoords = {
@@ -37,12 +37,17 @@ export function useLocation(): UseLocationResult {
 
   const checkPermission = useCallback(async (): Promise<PermissionStatus> => {
     try {
-      const { status } = await Location.getForegroundPermissionsAsync();
+      const { status, canAskAgain } = await Location.getForegroundPermissionsAsync();
+      // 'denied-permanent' means the system will no longer show the permission
+      // dialog — the WeatherScreen should offer "Open Settings" rather than
+      // "Try again". Important on Android where users can pick "Don't ask again".
       const mappedStatus: PermissionStatus =
         status === Location.PermissionStatus.GRANTED
           ? 'granted'
           : status === Location.PermissionStatus.DENIED
-            ? 'denied'
+            ? canAskAgain
+              ? 'denied'
+              : 'denied-permanent'
             : 'undetermined';
       setPermissionStatus(mappedStatus);
       lastPermissionRef.current = mappedStatus;
@@ -98,13 +103,17 @@ export function useLocation(): UseLocationResult {
       setError(null);
       const { status, canAskAgain } = await Location.requestForegroundPermissionsAsync();
       const granted = status === Location.PermissionStatus.GRANTED;
-      const mappedStatus: PermissionStatus = granted ? 'granted' : 'denied';
+      const mappedStatus: PermissionStatus = granted
+        ? 'granted'
+        : canAskAgain
+          ? 'denied'
+          : 'denied-permanent';
       setPermissionStatus(mappedStatus);
       lastPermissionRef.current = mappedStatus;
 
       if (granted) {
         await fetchLocation();
-      } else if (!canAskAgain) {
+      } else if (mappedStatus === 'denied-permanent') {
         // System will no longer show the dialog — caller should offer Settings
         logger.log('Location permission permanently denied (canAskAgain=false)');
       }

@@ -191,7 +191,11 @@ export function NewsDetailScreen() {
             color={colors.textSecondary}
           />
           <Text style={[styles.errorText, { color: colors.textSecondary }]}>
-            {error ? t(error) : t('news.notFound')}
+            {error
+              ? // useNews maps errors to news.errors.* keys; the second arg is
+                // a defensive fallback in case a raw string slipped through.
+                t(error, { defaultValue: t('news.detailError') })
+              : t('news.notFound')}
           </Text>
           <TouchableOpacity
             style={[

@@ -230,7 +230,7 @@ export function AnimatedSplash({ isReady, onAnimationEnd }: AnimatedSplashProps)
   return (
     <Animated.View style={[styles.container, { opacity: fadeOut }]}>
       <LinearGradient
-        colors={['#f7f4ed', '#efe8da', '#e8dcc8']}
+        colors={['#ebe1c7', '#e3d8b8', '#d8caa3']}
         style={styles.gradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}

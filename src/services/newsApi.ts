@@ -113,14 +113,28 @@ export function invalidateNewsCache(): void {
 }
 
 /**
- * Fetch a single news post by slug
+ * Fetch a single news post by slug.
+ *
+ * Returns `null` only when the slug genuinely doesn't exist (Supabase
+ * `PGRST116` from `.single()` on zero rows). Network / server errors are
+ * thrown so the hook can distinguish "post not found" from "we couldn't
+ * even reach the server" — that distinction matters for the user.
  */
 export async function fetchNewsById(slug: string): Promise<BlogPost | null> {
+  if (!slug || !slug.trim()) {
+    // Empty slug => treat as not found rather than firing a query.
+    return null;
+  }
+
   const { data, error } = await supabase.from('blog_posts').select('*').eq('slug', slug).single();
 
   if (error) {
+    if (error.code === 'PGRST116') {
+      // Genuine "no row" — let the screen show the not-found state.
+      return null;
+    }
     logger.error('Error fetching news by slug:', error);
-    return null;
+    throw error;
   }
 
   return data;

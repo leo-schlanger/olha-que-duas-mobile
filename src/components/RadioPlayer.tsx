@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useTranslation } from 'react-i18next';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useRadio } from '../hooks/useRadio';
 import { radioService } from '../services/radioService';
 import { useNowPlaying } from '../hooks/useNowPlaying';
@@ -30,6 +31,11 @@ import { logger } from '../utils/logger';
 import { environment } from '../config/environment';
 import { AboutBottomSheet } from './AboutBottomSheet';
 import { RemindersBottomSheet } from './RemindersBottomSheet';
+
+// Tag used with expo-keep-awake. A unique tag means we can activate/deactivate
+// idempotently without colliding with other parts of the app (other screens
+// or libs) that might use the default tag.
+const KEEP_AWAKE_TAG = 'olhaqueduas-radio';
 
 // Import radio sub-components
 import {
@@ -105,7 +111,44 @@ export function RadioPlayer() {
 
   const [showAboutSheet, setShowAboutSheet] = useState(false);
   const [showRemindersSheet, setShowRemindersSheet] = useState(false);
+  const [keepAwake, setKeepAwake] = useState(false);
   const showExpoGoWarning = environment.isExpoGo;
+
+  // Toggle the OS-level "keep screen on" mode. expo-keep-awake uses
+  // android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON / iOS
+  // UIApplication.shared.isIdleTimerDisabled under the hood, so it costs
+  // nothing while inactive and only prevents the screen from sleeping
+  // while activated. We always deactivate on unmount so leaving the radio
+  // screen never leaves the device awake forever.
+  const handleToggleKeepAwake = useCallback(() => {
+    setKeepAwake((current) => {
+      const next = !current;
+      if (next) {
+        activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch((err) =>
+          logger.error('activateKeepAwake failed', err)
+        );
+      } else {
+        try {
+          deactivateKeepAwake(KEEP_AWAKE_TAG);
+        } catch (err) {
+          logger.error('deactivateKeepAwake failed', err);
+        }
+      }
+      return next;
+    });
+  }, []);
+
+  // Make sure we never leak the wake lock if the component unmounts while
+  // keep-awake is on (e.g. user navigates away with the toggle active).
+  useEffect(() => {
+    return () => {
+      try {
+        deactivateKeepAwake(KEEP_AWAKE_TAG);
+      } catch {
+        // ignore — best effort
+      }
+    };
+  }, []);
 
   // Optimistic mirror of notificationPrefs.enabledShows. The bell icon on each
   // schedule row is rendered from THIS so taps feel instant. The async
@@ -392,9 +435,7 @@ export function RadioPlayer() {
     Linking.openURL(url);
   }, []);
 
-  // Use the optimistic mirror so the bell badge reflects taps instantly,
-  // before the async operation has confirmed.
-  const hasActiveNotifications = optimisticEnabledShows.size > 0;
+  // Schedule section's bell button shows the badge with this count.
   const optimisticEnabledCount = optimisticEnabledShows.size;
 
   // The hook already returns a stable, classified NowPlayingData — pass it
@@ -460,14 +501,13 @@ export function RadioPlayer() {
           isReconnecting={isReconnecting}
           showExpoGoWarning={showExpoGoWarning}
           volume={volume}
-          hasActiveNotifications={hasActiveNotifications}
-          notificationCount={optimisticEnabledCount}
+          keepAwake={keepAwake}
           colors={colors}
           isDark={isDark}
           onTogglePlayPause={togglePlayPause}
           onVolumeChange={setVolume}
           onRefresh={handleRefresh}
-          onNotificationPress={handleOpenNotificationSettings}
+          onToggleKeepAwake={handleToggleKeepAwake}
         />
 
         {/* Visualizer */}
@@ -500,6 +540,8 @@ export function RadioPlayer() {
           isShowEnabled={isOptimisticallyEnabled}
           isOperationPending={noOpIsOperationPending}
           onToggleReminder={handleToggleReminder}
+          activeReminderCount={optimisticEnabledCount}
+          onOpenReminders={handleOpenNotificationSettings}
         />
       </View>
 

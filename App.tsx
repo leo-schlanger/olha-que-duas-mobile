@@ -63,8 +63,18 @@ function AppContent() {
 
   // Ref to store notification response listener subscription
   const notificationResponseListener = useRef<Notifications.EventSubscription | null>(null);
+  // Guard against concurrent initializeServices() calls — the retry button
+  // (and React StrictMode in dev) can otherwise fire two parallel runs that
+  // both flip initState and race to initialise the same singletons.
+  const initInFlightRef = useRef(false);
 
   const initializeServices = useCallback(async () => {
+    if (initInFlightRef.current) {
+      logger.log("Init already in progress, ignoring");
+      return;
+    }
+    initInFlightRef.current = true;
+
     try {
       setInitState('loading');
 
@@ -98,6 +108,8 @@ function AppContent() {
       logger.error("Error initializing services:", error);
       // Still allow app to render - some services may work
       setInitState('failed');
+    } finally {
+      initInFlightRef.current = false;
     }
   }, []);
 

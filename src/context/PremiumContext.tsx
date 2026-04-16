@@ -25,6 +25,7 @@ interface PurchaseServiceType {
   checkPurchaseStatus: () => Promise<boolean>;
   purchaseRemoveAds: () => Promise<boolean>;
   restorePurchases: () => Promise<boolean>;
+  onPurchaseDetected: (_listener: () => void) => () => void;
 }
 
 // Lazy load purchase service only when native modules are available
@@ -109,8 +110,24 @@ export function PremiumProvider({ children }: PremiumProviderProps) {
 
     loadPremiumStatus();
 
+    // Listen for late or pending purchases delivered outside the explicit
+    // purchase flow (e.g. Google Play resending a receipt after the 2-min
+    // timeout in purchaseRemoveAds). Without this, a user who paid would
+    // need to restart the app to see the premium state apply.
+    let unsubscribe: (() => void) | null = null;
+    if (purchaseService && environment.features.purchases) {
+      unsubscribe = purchaseService.onPurchaseDetected(() => {
+        if (!mounted) return;
+        setIsPremium(true);
+        AsyncStorage.setItem(PREMIUM_STORAGE_KEY, 'true').catch((err) =>
+          logger.error('Error persisting premium after late purchase:', err)
+        );
+      });
+    }
+
     return () => {
       mounted = false;
+      unsubscribe?.();
     };
   }, []);
 

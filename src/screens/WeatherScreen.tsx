@@ -52,6 +52,12 @@ export function WeatherScreen() {
   }, [refreshLocation, refreshWeather]);
 
   const handleRetry = useCallback(async () => {
+    // Permanently denied: the system won't show the dialog again, so going
+    // straight to Settings is the only path the user has to recover.
+    if (permissionStatus === 'denied-permanent') {
+      Linking.openSettings();
+      return;
+    }
     if (permissionStatus === 'denied') {
       const granted = await requestPermission();
       if (!granted) {
@@ -119,7 +125,11 @@ export function WeatherScreen() {
               style={[styles.button, { backgroundColor: colors.primary }]}
               onPress={handleRetry}
             >
-              <Text style={styles.buttonText}>{t('common.retry')}</Text>
+              <Text style={styles.buttonText}>
+                {permissionStatus === 'denied-permanent'
+                  ? t('common.openSettings')
+                  : t('common.retry')}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>

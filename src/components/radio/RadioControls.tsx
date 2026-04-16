@@ -16,44 +16,41 @@ export const RadioControls = memo(function RadioControls({
   isReconnecting = false,
   showExpoGoWarning,
   volume,
-  hasActiveNotifications,
-  notificationCount,
+  keepAwake,
   colors,
   isDark,
   onTogglePlayPause,
   onVolumeChange,
   onRefresh,
-  onNotificationPress,
+  onToggleKeepAwake,
 }: RadioControlsProps) {
   const { t } = useTranslation();
   const styles = useMemo(() => createRadioControlsStyles(colors, isDark), [colors, isDark]);
 
   return (
     <>
-      {/* Main Controls: Bell | Play | Refresh */}
+      {/* Main Controls: KeepAwake | Play | Refresh */}
       <View style={styles.mainControls}>
-        {/* Notification Bell */}
+        {/* Keep screen awake toggle — when ON the screen won't sleep while
+            the user is on this screen (useful while listening to the radio
+            in the kitchen / car cradle / similar). */}
         <TouchableOpacity
-          style={[styles.sideButton, hasActiveNotifications && styles.sideButtonActive]}
-          onPress={onNotificationPress}
+          style={[styles.sideButton, keepAwake && styles.sideButtonActive]}
+          onPress={onToggleKeepAwake}
           activeOpacity={0.7}
           accessibilityLabel={
-            hasActiveNotifications
-              ? t('radio.controls.notificationsActive', { count: notificationCount })
-              : t('radio.controls.configureNotifications')
+            keepAwake
+              ? t('radio.controls.keepAwakeOn')
+              : t('radio.controls.keepAwakeOff')
           }
-          accessibilityRole="button"
+          accessibilityRole="switch"
+          accessibilityState={{ checked: keepAwake }}
         >
           <MaterialCommunityIcons
-            name={hasActiveNotifications ? 'bell-ring' : 'bell-outline'}
+            name={keepAwake ? 'lightbulb-on' : 'lightbulb-outline'}
             size={24}
-            color={hasActiveNotifications ? colors.white : colors.secondary}
+            color={keepAwake ? colors.white : colors.secondary}
           />
-          {hasActiveNotifications && (
-            <View style={styles.notificationBadge}>
-              <Text style={styles.notificationBadgeText}>{notificationCount}</Text>
-            </View>
-          )}
         </TouchableOpacity>
 
         {/* Play Button */}

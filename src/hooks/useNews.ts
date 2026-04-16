@@ -4,6 +4,39 @@ import { BlogPost, BlogFilters } from '../types/blog';
 import { logger } from '../utils/logger';
 
 /**
+ * Map a thrown error to an i18n key the UI can show. Distinguishes the
+ * common cases (offline / timeout / not-found / server) so the user gets
+ * actionable feedback instead of a single opaque "loadError" string.
+ *
+ * Add the matching keys to pt.json/en.json under `news.errors.*`.
+ */
+function mapNewsErrorToKey(err: unknown, fallback: string): string {
+  if (!err || typeof err !== 'object') return fallback;
+  const e = err as { message?: string; code?: string; status?: number; name?: string };
+  const msg = (e.message ?? '').toLowerCase();
+
+  // Offline / DNS / connection refused — fetch throws TypeError
+  if (e.name === 'TypeError' && msg.includes('network')) return 'news.errors.offline';
+  if (msg.includes('failed to fetch') || msg.includes('network request failed'))
+    return 'news.errors.offline';
+
+  // AbortError from fetchWithTimeout
+  if (e.name === 'AbortError' || msg.includes('timeout') || msg.includes('aborted'))
+    return 'news.errors.timeout';
+
+  // Supabase: PGRST116 = "Results contain 0 rows"
+  if (e.code === 'PGRST116') return 'news.errors.notFound';
+
+  // 4xx → user error; 5xx → server
+  if (typeof e.status === 'number') {
+    if (e.status === 404) return 'news.errors.notFound';
+    if (e.status >= 500) return 'news.errors.server';
+  }
+
+  return fallback;
+}
+
+/**
  * Hook for fetching and managing news list with pagination
  */
 export function useNews(initialFilters: BlogFilters = {}) {
@@ -50,7 +83,7 @@ export function useNews(initialFilters: BlogFilters = {}) {
     } catch (err) {
       // Only set error if this is still the latest request
       if (currentRequestId !== requestIdRef.current) return;
-      setError('news.loadError');
+      setError(mapNewsErrorToKey(err, 'news.loadError'));
       logger.error('Error loading news:', err);
     } finally {
       if (currentRequestId === requestIdRef.current) {
@@ -111,7 +144,7 @@ export function useNewsDetail(slug: string) {
         const result = await fetchNewsById(slug);
         setPost(result);
       } catch (err) {
-        setError('news.detailError');
+        setError(mapNewsErrorToKey(err, 'news.detailError'));
         logger.error('Error loading news detail:', err);
       } finally {
         setIsLoading(false);

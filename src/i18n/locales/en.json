@@ -47,6 +47,8 @@
       "volume": "Volume",
       "notificationsActive": "Notifications active: {{count}} shows",
       "configureNotifications": "Configure show notifications",
+      "keepAwakeOn": "Keep screen on: enabled",
+      "keepAwakeOff": "Keep screen on: disabled",
       "expoGoWarning": "Audio only available in native build."
     },
     "nowPlaying": "Now playing",
@@ -210,6 +212,13 @@
     "openSourceErrorTitle": "Could not open link",
     "openSourceErrorMessage": "Check your internet connection and try again.",
     "detailError": "Error loading article.",
+    "notFound": "Article not found.",
+    "errors": {
+      "offline": "No internet connection. Check your network and try again.",
+      "timeout": "The server took too long to respond. Please try again.",
+      "notFound": "Article not found.",
+      "server": "The server is having issues. Please try again shortly."
+    },
     "accessibility": {
       "newsItem": "News: {{title}}. Category: {{category}}. Published on {{date}}",
       "tapToRead": "Tap to read the full article"

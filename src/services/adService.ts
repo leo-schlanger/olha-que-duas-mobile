@@ -176,43 +176,62 @@ class AdService {
       return;
     }
 
+    // Track unsubscribers as we attach them so failures partway through
+    // don't leave orphan listeners behind. Each addAdEventListener call may
+    // throw; if it does, we still need to clean up whatever DID succeed.
+    const unsubsSoFar: Array<() => void> = [];
     try {
       const adUnitId = this.getInterstitialAdUnitId();
       this.interstitialAd = InterstitialAd.createForAdRequest(adUnitId, {
         requestNonPersonalizedAdsOnly: !this.personalizedAds,
       });
 
-      const loadedUnsub = this.interstitialAd.addAdEventListener(AdEventType.LOADED, () => {
-        this.isInterstitialLoaded = true;
-        // Reset retry counter on successful load
-        this.interstitialRetryCount = 0;
-        if (this.interstitialRetryTimeout) {
-          clearTimeout(this.interstitialRetryTimeout);
-          this.interstitialRetryTimeout = null;
-        }
-        logger.log('AdService: Interstitial loaded');
-      });
+      unsubsSoFar.push(
+        this.interstitialAd.addAdEventListener(AdEventType.LOADED, () => {
+          this.isInterstitialLoaded = true;
+          // Reset retry counter on successful load
+          this.interstitialRetryCount = 0;
+          if (this.interstitialRetryTimeout) {
+            clearTimeout(this.interstitialRetryTimeout);
+            this.interstitialRetryTimeout = null;
+          }
+          logger.log('AdService: Interstitial loaded');
+        })
+      );
 
-      const closedUnsub = this.interstitialAd.addAdEventListener(AdEventType.CLOSED, () => {
-        logger.log('AdService: Interstitial closed, reloading');
-        this.isInterstitialLoaded = false;
-        this.interstitialRetryCount = 0;
-        // Reload for next time
-        this.interstitialAd?.load();
-      });
+      unsubsSoFar.push(
+        this.interstitialAd.addAdEventListener(AdEventType.CLOSED, () => {
+          logger.log('AdService: Interstitial closed, reloading');
+          this.isInterstitialLoaded = false;
+          this.interstitialRetryCount = 0;
+          // Reload for next time
+          this.interstitialAd?.load();
+        })
+      );
 
-      const errorUnsub = this.interstitialAd.addAdEventListener(AdEventType.ERROR, (error) => {
-        this.isInterstitialLoaded = false;
-        logger.warn('AdService: Interstitial load error', error);
-        // Schedule a retry with exponential backoff. We don't want a single
-        // network blip to kill the interstitial slot until the app restarts.
-        this.scheduleInterstitialRetry();
-      });
+      unsubsSoFar.push(
+        this.interstitialAd.addAdEventListener(AdEventType.ERROR, (error) => {
+          this.isInterstitialLoaded = false;
+          logger.warn('AdService: Interstitial load error', error);
+          // Schedule a retry with exponential backoff. We don't want a single
+          // network blip to kill the interstitial slot until the app restarts.
+          this.scheduleInterstitialRetry();
+        })
+      );
 
-      this.interstitialUnsubscribers = [loadedUnsub, closedUnsub, errorUnsub];
+      this.interstitialUnsubscribers = unsubsSoFar;
       this.interstitialAd.load();
     } catch (error) {
       logger.error('AdService: Failed to create interstitial', error);
+      // Clean up any listeners we did manage to attach before the failure.
+      unsubsSoFar.forEach((unsub) => {
+        try {
+          unsub();
+        } catch {
+          // ignore — best effort
+        }
+      });
+      this.interstitialUnsubscribers = [];
       this.interstitialAd = null;
       this.isInterstitialLoaded = false;
     }
