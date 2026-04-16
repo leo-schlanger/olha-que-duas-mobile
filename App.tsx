@@ -175,21 +175,30 @@ function AppContent() {
       return;
     }
 
+    // Diferimos a init do AdMob 4s para depois do app abrir. Razão: o stream
+    // da rádio precisa de TCP handshake + prebuffer no arranque (1-3s) e o
+    // ad SDK init faz network calls + decoder init que competem pelo mesmo
+    // CPU/network e amplificam o tempo até a rádio começar a tocar suave.
+    // 4s dá margem para o stream estabilizar antes de pedir ads.
     let cancelled = false;
-    (async () => {
-      try {
-        await adService.initialize(adsConsent);
-        if (cancelled) return;
-        // Pre-load the interstitial so it's ready when the user opens the
-        // 4th news article. Auto-reloads after each show.
-        adService.loadInterstitial?.();
-      } catch (err) {
-        logger.error("Failed to initialize ads", err);
-      }
-    })();
+    const deferredInit = setTimeout(() => {
+      if (cancelled) return;
+      (async () => {
+        try {
+          await adService.initialize(adsConsent);
+          if (cancelled) return;
+          // Pre-load the interstitial so it's ready when the user opens the
+          // 4th news article. Auto-reloads after each show.
+          adService.loadInterstitial?.();
+        } catch (err) {
+          logger.error("Failed to initialize ads", err);
+        }
+      })();
+    }, 4000);
 
     return () => {
       cancelled = true;
+      clearTimeout(deferredInit);
     };
   }, [adsConsent, isPremium, isPremiumLoading]);
 

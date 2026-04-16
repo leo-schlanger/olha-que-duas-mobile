@@ -137,7 +137,7 @@
     },
     "noActiveReminders": {
       "title": "Sem Lembretes Ativos",
-      "message": "Pode ativar lembretes tocando no sininho ao lado de cada programa na lista abaixo."
+      "message": "Toque no sino ao lado de qualquer programa na grelha semanal para receber um aviso antes de começar."
     },
     "programReminders": "Lembretes de programas",
     "receiveNotifications": "Receber notificações antes dos programas",
@@ -153,7 +153,7 @@
       "subtitle_one": "{{count}} lembrete ativo",
       "subtitle_other": "{{count}} lembretes ativos",
       "empty": "Sem lembretes ativos",
-      "emptyHint": "Toque no sino ao lado de cada programa na programação semanal para receber um aviso antes de começar.",
+      "emptyHint": "Toque no sino ao lado de qualquer programa na grelha semanal, ou use o sino do cabeçalho para gerir todos os lembretes de uma vez.",
       "warnBefore": "Avisar com antecedência",
       "disableAll": "Desativar todos os lembretes",
       "disableAllConfirm": "Desativar todos os lembretes?",
@@ -246,7 +246,7 @@
       "autoPlay": "Reprodução automática",
       "autoPlayDesc": "Iniciar a rádio ao abrir a aplicação",
       "stopOnClose": "Parar ao fechar aplicação",
-      "stopOnCloseDesc": "A rádio para quando fechar a aplicação"
+      "stopOnCloseDesc": "Por defeito a rádio continua a tocar em background. Ative para parar quando fechar a app."
     },
     "premium": {
       "title": "Premium",

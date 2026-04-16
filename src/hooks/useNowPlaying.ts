@@ -9,6 +9,7 @@ const IDLE: NowPlayingData = {
   podcastArt: '',
   announcementName: '',
   announcementArt: '',
+  localArtUri: null,
   isMusic: false,
 };
 

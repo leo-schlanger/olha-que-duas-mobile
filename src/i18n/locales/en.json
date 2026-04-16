@@ -137,7 +137,7 @@
     },
     "noActiveReminders": {
       "title": "No Active Reminders",
-      "message": "You can activate reminders by tapping the bell icon next to each show in the list below."
+      "message": "Tap the bell next to any show in the weekly schedule to get a heads-up before it starts."
     },
     "programReminders": "Show reminders",
     "receiveNotifications": "Receive notifications before shows",
@@ -153,7 +153,7 @@
       "subtitle_one": "{{count}} active reminder",
       "subtitle_other": "{{count}} active reminders",
       "empty": "No active reminders",
-      "emptyHint": "Tap the bell next to a show in the weekly schedule to get a heads-up before it starts.",
+      "emptyHint": "Tap the bell next to any show in the weekly schedule, or use the bell in the header to manage all reminders at once.",
       "warnBefore": "Warn me ahead of time",
       "disableAll": "Disable all reminders",
       "disableAllConfirm": "Disable all reminders?",
@@ -246,7 +246,7 @@
       "autoPlay": "Auto play",
       "autoPlayDesc": "Start radio when opening the app",
       "stopOnClose": "Stop on close",
-      "stopOnCloseDesc": "Radio stops when closing the app"
+      "stopOnCloseDesc": "By default the radio keeps playing in the background. Enable to stop when closing the app."
     },
     "premium": {
       "title": "Premium",

@@ -1,20 +1,31 @@
 # Olha que Duas Mobile
 
-A hybrid mobile app for Android and iOS built with Expo/React Native. Features live radio streaming with background audio support and news feed from Supabase.
+A hybrid mobile app for Android and iOS built with Expo/React Native. Features live radio streaming with background audio support, weather, news, and program reminders.
 
 ## Features
 
-- **Radio Player**: Live streaming with background audio support (works when device is locked)
-- **News Feed**: Browse and read news articles from Supabase
-- **Cross-platform**: Works on both Android and iOS
+- **Radio Player**: Live streaming with lock-screen / media-notification controls. Plays in the background by default; auto-reconnects on transient network drops.
+- **Now Playing in real time**: Server-Sent Events from AzuraCast deliver track / show changes in <200ms; album art is pre-cached so the lock screen updates without download delay.
+- **Keep Screen Awake**: Toggle next to play to prevent the screen from sleeping while listening.
+- **Program Reminders**: Per-show bell to schedule a notification before the program starts; manage all reminders from the schedule header or Settings.
+- **Weather**: Current conditions and 7-day forecast for the device location (falls back to Lisbon if permission denied).
+- **News Feed**: Articles from the Supabase backend, with deep linking from `olhaqueduas.com/noticias/...`.
+- **Light / Dark Themes**: Warm beige light theme and contrast-tuned dark theme; follows system or user preference.
+- **Internationalisation**: Portuguese (default) and English with runtime switching.
+- **Premium IAP**: Optional one-time purchase to remove ads.
+- **Cross-platform**: Android and iOS.
 
 ## Tech Stack
 
-- **Framework**: Expo SDK 55 / React Native 0.83
-- **Navigation**: React Navigation 7
-- **Audio**: expo-av with background audio support
+- **Framework**: Expo SDK 54 / React Native 0.81
+- **Navigation**: React Navigation 6
+- **Audio**: expo-audio with background playback + media-session controls
+- **Now Playing**: react-native-sse (Server-Sent Events) with polling fallback
 - **Database**: Supabase
-- **Language**: TypeScript
+- **Notifications**: expo-notifications (exact alarms via `setExactAndAllowWhileIdle`)
+- **Ads**: react-native-google-mobile-ads (banner + interstitial)
+- **In-App Purchases**: react-native-iap
+- **Language**: TypeScript (strict)
 
 ## Getting Started
 
@@ -92,15 +103,15 @@ src/
 
 ## Background Audio
 
-The app uses `expo-av` configured for background audio playback:
+The app uses `expo-audio` (not the legacy `expo-av`) with a foreground media service:
 
-- **iOS**: Configured with `UIBackgroundModes: ["audio"]` in app.json
-- **Android**: Uses `FOREGROUND_SERVICE` permission for background playback
+- **iOS**: `UIBackgroundModes: ["audio", "fetch", "remote-notification"]` in app.json.
+- **Android**: `FOREGROUND_SERVICE` + `FOREGROUND_SERVICE_MEDIA_PLAYBACK` permissions; the `withStopAudioOnTaskRemoved` config plugin makes the service stop cleanly when the user swipes the app away from recents.
 
 The radio continues playing when:
-- The app is in the background
-- The device screen is locked
-- Other apps are in use
+- The app is in the background (Home pressed, screen locked, other app on top).
+- The user can pause / resume from the lock screen and notification shade.
+- The artwork shown on the lock screen updates without download delay — covers are pre-fetched to local files via `expo-file-system` and passed as `file://` URIs.
 
 ## Building for Production
 

@@ -1,9 +1,11 @@
 import { AppState, AppStateStatus } from 'react-native';
 import EventSource, { ErrorEvent, MessageEvent } from 'react-native-sse';
+import { Image as ExpoImage } from 'expo-image';
 import { siteConfig } from '../config/site';
 import { logger } from '../utils/logger';
 import { fetchWithTimeout } from '../utils/fetchWithTimeout';
 import { TIMING, LIMITS } from '../config/constants';
+import { getCachedArtwork, getLocalArtwork } from '../utils/artworkCache';
 
 export interface NowPlayingSong {
   title: string;
@@ -32,6 +34,14 @@ export interface NowPlayingData {
   /** Populated only when mode === 'announcement' */
   announcementName: string;
   announcementArt: string;
+  /**
+   * `file://` URI of the pre-downloaded artwork, when available. Set
+   * shortly after `emit` once the artworkCache finishes the download.
+   * Consumers (radioService → updateLockScreenMetadata) should prefer
+   * this over the remote URL because the native side loads file:// in
+   * <10ms vs hundreds of ms for a remote fetch.
+   */
+  localArtUri: string | null;
   /** Legacy boolean kept for backwards compatibility — equals (mode === 'music') */
   isMusic: boolean;
 }
@@ -44,6 +54,7 @@ const IDLE_DATA: NowPlayingData = {
   podcastArt: '',
   announcementName: '',
   announcementArt: '',
+  localArtUri: null,
   isMusic: false,
 };
 
@@ -180,6 +191,10 @@ function pickAudibleEntry(
 
 function dataChanged(prev: NowPlayingData, next: NowPlayingData): boolean {
   if (prev.mode !== next.mode) return true;
+  // localArtUri changing must trigger a re-emit so the lock screen can swap
+  // from "remote URL with download delay" to "local file:// instant" once the
+  // pre-download finishes. Otherwise the only-art-changed re-emit is dropped.
+  if (prev.localArtUri !== next.localArtUri) return true;
   switch (next.mode) {
     case 'music':
       return (
@@ -593,8 +608,31 @@ class NowPlayingService {
   }
 
   private emit(data: NowPlayingData) {
+    // Determine the artwork remote URL for this data (if any).
+    let artUrl: string | null = null;
+    if (data.mode === 'music' && data.song?.art) artUrl = data.song.art;
+    else if (data.mode === 'podcast' && data.podcastArt) artUrl = data.podcastArt;
+    else if (data.mode === 'announcement' && data.announcementArt) artUrl = data.announcementArt;
+
+    // Sync cache hit — if we have already downloaded this art, populate
+    // localArtUri before the FIRST emit so the lock screen never shows the
+    // remote URL (which would cost a network fetch on the native side).
+    if (artUrl) {
+      data.localArtUri = getCachedArtwork(artUrl);
+    }
+
     if (!dataChanged(this.currentData, data)) return;
     this.currentData = data;
+
+    // 1) Warm the in-app expo-image cache so the on-screen <Image>
+    //    component shows instantly when it mounts/re-renders.
+    if (artUrl) {
+      ExpoImage.prefetch(artUrl).catch(() => {
+        // Best-effort — failure here doesn't break the UI; the <Image>
+        // component will retry on its own when it mounts.
+      });
+    }
+
     if (data.mode === 'music' && data.song) {
       logger.log('NowPlaying [music]:', data.song.title, '-', data.song.artist);
     } else if (data.mode === 'liveShow') {
@@ -605,6 +643,37 @@ class NowPlayingService {
       logger.log('NowPlaying [announcement]:', data.announcementName);
     }
     this.listeners.forEach((l) => l(data));
+
+    // 2) Asynchronously pre-download the artwork to a local file. When it
+    //    finishes, re-emit (only) if THIS song is still the current one,
+    //    so the lock screen can swap from remote URL to file:// (instant
+    //    load on native side). If the cache already had it (above),
+    //    localArtUri is set already and this is a no-op.
+    if (artUrl && !data.localArtUri) {
+      const artUrlAtDispatch = artUrl;
+      getLocalArtwork(artUrlAtDispatch)
+        .then((localUri) => {
+          if (!localUri) return;
+          // Resolve race: only re-emit if the now-playing data hasn't
+          // moved on to a different song while we were downloading.
+          const stillCurrent = this.currentData;
+          let stillSameUrl: string | null = null;
+          if (stillCurrent.mode === 'music' && stillCurrent.song?.art)
+            stillSameUrl = stillCurrent.song.art;
+          else if (stillCurrent.mode === 'podcast') stillSameUrl = stillCurrent.podcastArt;
+          else if (stillCurrent.mode === 'announcement')
+            stillSameUrl = stillCurrent.announcementArt;
+          if (stillSameUrl !== artUrlAtDispatch) return;
+          if (stillCurrent.localArtUri === localUri) return;
+
+          const updated: NowPlayingData = { ...stillCurrent, localArtUri: localUri };
+          this.currentData = updated;
+          this.listeners.forEach((l) => l(updated));
+        })
+        .catch(() => {
+          // Best effort. Lock screen will use the remote URL as fallback.
+        });
+    }
   }
 }
 

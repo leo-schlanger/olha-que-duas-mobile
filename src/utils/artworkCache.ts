@@ -1,0 +1,166 @@
+/**
+ * Artwork pre-download cache.
+ *
+ * The lock-screen / media-notification on Android (expo-audio's
+ * AudioControlsService) downloads artwork via `URL.openConnection()` from
+ * whatever URL we pass to `setActiveForLockScreen()` /
+ * `updateLockScreenMetadata()`. That fetch happens on every metadata
+ * change AND has no cache — same URL → fetched again. In background, on
+ * cellular, or with battery saver, that fetch can take 200ms-2s or fail
+ * silently leaving the user looking at the previous song's cover.
+ *
+ * This module pre-downloads the artwork to a stable local file the moment
+ * the now-playing service learns about it (via SSE). When we then call
+ * `updateLockScreenMetadata({ artworkUrl: localUri })`, the native side
+ * loads from disk in <10ms — no network round-trip, works in background
+ * regardless of throttling.
+ *
+ * Cache lives in `Paths.cache/olhaqueduas-covers`. Filenames are an FNV-1a
+ * hash of the remote URL so the same artwork is reused across replays of
+ * the same song. The cache is pruned to the most recent N files to bound
+ * disk usage.
+ */
+
+import { Directory, File, Paths } from 'expo-file-system';
+import { logger } from './logger';
+
+const COVERS_DIR_NAME = 'olhaqueduas-covers';
+const MAX_CACHE_FILES = 25;
+const PRUNE_EVERY_N_DOWNLOADS = 10;
+
+let coversDir: Directory | null = null;
+let downloadCount = 0;
+const pendingDownloads = new Map<string, Promise<string | null>>();
+
+/** FNV-1a 32-bit hash. Deterministic, dependency-free. */
+function hashUrl(url: string): string {
+  let h = 2166136261;
+  for (let i = 0; i < url.length; i++) {
+    h ^= url.charCodeAt(i);
+    h = (h * 16777619) >>> 0;
+  }
+  return h.toString(16).padStart(8, '0');
+}
+
+function ensureDir(): Directory {
+  if (coversDir) return coversDir;
+  const dir = new Directory(Paths.cache, COVERS_DIR_NAME);
+  if (!dir.exists) {
+    try {
+      dir.create({ idempotent: true, intermediates: true });
+    } catch (err) {
+      logger.error('artworkCache: failed to create dir', err);
+    }
+  }
+  coversDir = dir;
+  return dir;
+}
+
+function inferExtension(url: string): string {
+  // Strip query string before checking extension — AzuraCast sometimes
+  // appends `?timestamp` which would break a naive endsWith match.
+  const path = url.split('?')[0].toLowerCase();
+  if (path.endsWith('.png')) return 'png';
+  if (path.endsWith('.webp')) return 'webp';
+  if (path.endsWith('.gif')) return 'gif';
+  if (path.endsWith('.jpeg') || path.endsWith('.jpg')) return 'jpg';
+  return 'jpg'; // sensible default for album art
+}
+
+/**
+ * Returns a `file://` URI for the artwork at `remoteUrl`, downloading it
+ * first if not yet cached. Returns `null` only if the URL is invalid or
+ * the download fails — callers should fall back to the remote URL in that
+ * case so the lock screen still shows *something*.
+ *
+ * Concurrent calls for the same URL are coalesced into a single download.
+ */
+export async function getLocalArtwork(remoteUrl: string): Promise<string | null> {
+  if (!remoteUrl || (!remoteUrl.startsWith('http://') && !remoteUrl.startsWith('https://'))) {
+    return null;
+  }
+
+  const dir = ensureDir();
+  const filename = `${hashUrl(remoteUrl)}.${inferExtension(remoteUrl)}`;
+  const file = new File(dir, filename);
+
+  if (file.exists) {
+    return file.uri;
+  }
+
+  const inFlight = pendingDownloads.get(remoteUrl);
+  if (inFlight) return inFlight;
+
+  const promise: Promise<string | null> = (async () => {
+    try {
+      const downloaded = await File.downloadFileAsync(remoteUrl, file);
+      downloadCount++;
+      if (downloadCount % PRUNE_EVERY_N_DOWNLOADS === 0) {
+        // Don't await — pruning is a background maintenance task.
+        pruneCache().catch((err) => logger.warn('artworkCache: prune failed', err));
+      }
+      return downloaded.uri;
+    } catch (err) {
+      logger.warn('artworkCache: download failed for', remoteUrl, err);
+      return null;
+    } finally {
+      pendingDownloads.delete(remoteUrl);
+    }
+  })();
+
+  pendingDownloads.set(remoteUrl, promise);
+  return promise;
+}
+
+/**
+ * Synchronous lookup: returns the cached file URI if present, else null.
+ * Used when we want to update the lock screen *immediately* with whatever
+ * we have cached and not block on a download.
+ */
+export function getCachedArtwork(remoteUrl: string): string | null {
+  if (!remoteUrl || (!remoteUrl.startsWith('http://') && !remoteUrl.startsWith('https://'))) {
+    return null;
+  }
+  try {
+    const filename = `${hashUrl(remoteUrl)}.${inferExtension(remoteUrl)}`;
+    const file = new File(ensureDir(), filename);
+    return file.exists ? file.uri : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Prunes the artwork cache to the most recent MAX_CACHE_FILES files,
+ * deleting the oldest by modification time. Called periodically from
+ * `getLocalArtwork()` so we don't grow unbounded.
+ */
+async function pruneCache(): Promise<void> {
+  const dir = ensureDir();
+  if (!dir.exists) return;
+
+  const entries = dir.list();
+  const files = entries.filter((e): e is File => e instanceof File);
+  if (files.length <= MAX_CACHE_FILES) return;
+
+  // Sort oldest-first by modificationTime; mtime is in seconds since epoch.
+  const withMtime = files.map((file) => {
+    let mtime = 0;
+    try {
+      mtime = file.info().modificationTime ?? 0;
+    } catch {
+      // ignore — treat as oldest so it's eligible for deletion
+    }
+    return { file, mtime };
+  });
+  withMtime.sort((a, b) => a.mtime - b.mtime);
+
+  const toDelete = withMtime.slice(0, withMtime.length - MAX_CACHE_FILES);
+  for (const { file } of toDelete) {
+    try {
+      file.delete();
+    } catch {
+      // ignore — best effort
+    }
+  }
+}

@@ -34,9 +34,14 @@ class RadioService {
   // não avança. Reset a 0 quando volta a tocar normalmente.
   private bufferingStartedAt: number = 0;
   // Cache do último metadata enviado para o lock screen. Evita chamadas
-  // redundantes a setActiveForLockScreen() — cada chamada pode causar microcortes
-  // no áudio em alguns devices Android.
+  // redundantes ao caminho nativo.
   private lastLockScreenMetaKey: string = '';
+  // True depois do PRIMEIRO setActiveForLockScreen(true, meta) ter sido feito
+  // para o player corrente. Trocas de música subsequentes usam o caminho
+  // leve `updateLockScreenMetadata` que NÃO recria a MediaSession nem
+  // reinicia o foreground service — crítico para que a foto/título
+  // actualizem no notification em background.
+  private lockScreenSessionActive: boolean = false;
 
   private clearReconnectTimeout() {
     if (this.reconnectTimeout) {
@@ -61,16 +66,28 @@ class RadioService {
 
   /**
    * Actualiza o lock screen apenas se o metadata mudou desde a última vez.
-   * Cada chamada a setActiveForLockScreen() faz round-trip JS<->native e pode
-   * causar microcortes no áudio em alguns devices Android — minimizar é crítico
-   * para a qualidade da reprodução.
+   *
+   * Usa DOIS caminhos do expo-audio:
+   *   1. `setActiveForLockScreen(true, meta)` — pesado: instala o player
+   *      como o "active for lock screen", recria a MediaSession e (re)inicia
+   *      o foreground service de mídia. Usado UMA VEZ por player.
+   *   2. `updateLockScreenMetadata(meta)` — leve: só substitui o metadata
+   *      e refresca a notificação (carrega a nova arte e re-posta). NÃO
+   *      recria a session nem mexe no foreground service. É o que
+   *      precisamos para mudar de música em background sem o Android
+   *      atrasar/perder a actualização.
    */
   private updateLockScreen(meta: { title: string; artist: string; artworkUrl: string }) {
     if (!this.player || this.isIntentionallyStopped) return;
     const key = `${meta.title}\x00${meta.artist}\x00${meta.artworkUrl}`;
     if (key === this.lastLockScreenMetaKey) return;
     try {
-      this.player.setActiveForLockScreen(true, meta);
+      if (!this.lockScreenSessionActive) {
+        this.player.setActiveForLockScreen(true, meta);
+        this.lockScreenSessionActive = true;
+      } else {
+        this.player.updateLockScreenMetadata(meta);
+      }
       this.lastLockScreenMetaKey = key;
     } catch (error) {
       logger.error('Error updating lock screen:', error);
@@ -79,6 +96,7 @@ class RadioService {
 
   private resetLockScreenCache() {
     this.lastLockScreenMetaKey = '';
+    this.lockScreenSessionActive = false;
   }
 
   private stopStatusPolling() {
@@ -158,7 +176,8 @@ class RadioService {
       const isLoading = !this.isPlaying && !this.isIntentionallyStopped;
 
       if (wasPlaying !== this.isPlaying || wasBuffering !== this.isBuffering) {
-        logger.log('Polling status:', { isPlaying: this.isPlaying, isBuffering: this.isBuffering });
+        // logger.log removido — disparava a cada mudança de estado e era
+        // ruído que enchia o console em playback normal.
         this.emitStatus(isLoading);
       }
     } catch (error) {
@@ -301,7 +320,6 @@ class RadioService {
     try {
       this.isIntentionallyStopped = false;
       this.bufferingStartedAt = 0;
-      this.resetLockScreenCache();
       this.clearReconnectTimeout();
       this.clearLockScreenTimeout();
       this.stopStatusPolling();
@@ -311,28 +329,38 @@ class RadioService {
         await this.initialize();
       }
 
-      // Release previous player if exists
+      // FAST PATH — reusar o player existente. Acontece quando o utilizador
+      // faz pause→play: a connection HTTP/ICY do stream pode ainda estar
+      // alive e o ExoPlayer/AVPlayer reanuncia em <100ms, em vez dos 1-3s
+      // do recreate completo (TCP handshake + prebuffer + decoder warmup).
       if (this.player) {
-        // Deactivate lock screen before releasing to prevent orphan notifications
         try {
-          this.player.setActiveForLockScreen(false);
-        } catch {
-          // Ignore if already released
+          this.player.play();
+          this.subscribeToNowPlaying();
+          this.startStatusPolling();
+          this.reconnectAttempts = 0;
+          this.emitStatus(true);
+          logger.log('Radio stream resumed (player reused)');
+          return true;
+        } catch (resumeError) {
+          // Se o player nativo morreu silenciosamente durante o pause
+          // (ex.: process killed and restored sem JS context), cai no slow
+          // path e recriamos o player do zero.
+          logger.warn('Resume failed, falling back to recreate:', resumeError);
+          this.removePlayerListener();
+          try {
+            this.player.release();
+          } catch {
+            // ignore
+          }
+          this.player = null;
+          this.resetLockScreenCache();
         }
-        this.removePlayerListener();
-        try {
-          this.player.release();
-        } catch (releaseError) {
-          // release() pode falhar se o player nativo já foi destruído.
-          // Apenas registar — vamos criar um player novo de qualquer forma.
-          logger.error('Error releasing previous player:', releaseError);
-        }
-        this.player = null;
       }
 
+      // SLOW PATH — primeiro play, ou recreate após resume falhar.
       logger.log('Creating audio player for:', siteConfig.radio.streamUrl);
 
-      // Create new player
       this.player = createAudioPlayer({ uri: siteConfig.radio.streamUrl });
       this.player.volume = this.volume;
 
@@ -443,10 +471,8 @@ class RadioService {
     const isLoading = !this.isPlaying && !this.isIntentionallyStopped;
 
     if (wasPlaying !== this.isPlaying || wasBuffering !== this.isBuffering) {
-      logger.log('Playback status changed:', {
-        isPlaying: this.isPlaying,
-        isBuffering: this.isBuffering,
-      });
+      // logger.log removido — disparava em todo o playbackStatusUpdate
+      // (até 2x/segundo a default 500ms) e enchia o console.
       this.emitStatus(isLoading);
     }
   }
@@ -463,6 +489,16 @@ class RadioService {
       // Verificar se ainda estamos tocando antes de atualizar lock screen
       if (!this.player || this.isIntentionallyStopped) return;
 
+      // Prefer the pre-downloaded local file URI when available.
+      // nowPlayingService maintains an artwork cache and emits twice per
+      // song change: first with localArtUri=null (just the remote URL), then
+      // again with localArtUri set once the download finishes. The native
+      // expo-audio side loads `file://` URIs in <10ms vs hundreds of ms for
+      // a remote fetch — and works in background without network throttling
+      // affecting the lock-screen image.
+      const pickArt = (remote: string | undefined): string =>
+        data.localArtUri || remote || siteConfig.radio.logoUrl;
+
       // Mirror the on-screen classification on the lock screen so the user
       // sees "Programa ao vivo: X", "Podcast: Y", etc. instead of just the
       // radio name when something other than music is playing.
@@ -472,7 +508,7 @@ class RadioService {
             this.updateLockScreen({
               title: data.song.title,
               artist: data.song.artist,
-              artworkUrl: data.song.art || siteConfig.radio.logoUrl,
+              artworkUrl: pickArt(data.song.art),
             });
             return;
           }
@@ -488,14 +524,14 @@ class RadioService {
           this.updateLockScreen({
             title: data.podcastName,
             artist: siteConfig.radio.name,
-            artworkUrl: data.podcastArt || siteConfig.radio.logoUrl,
+            artworkUrl: pickArt(data.podcastArt),
           });
           return;
         case 'announcement':
           this.updateLockScreen({
             title: data.announcementName,
             artist: siteConfig.radio.name,
-            artworkUrl: data.announcementArt || siteConfig.radio.logoUrl,
+            artworkUrl: pickArt(data.announcementArt),
           });
           return;
       }
@@ -557,7 +593,11 @@ class RadioService {
     this.isPlaying = false;
     this.reconnectAttempts = 0;
     this.bufferingStartedAt = 0;
-    this.resetLockScreenCache();
+    // NOTA: NÃO chamamos `resetLockScreenCache()` aqui — queremos manter a
+    // MediaSession viva durante o pause para que o utilizador possa retomar
+    // do lock screen e para o `play()` reaproveitar o player sem recriar
+    // toda a sessão de notificação. O reset acontece apenas em `stop()`/
+    // `cleanup()`/recreate do player.
 
     // Cancel pending lock screen timeout
     this.clearLockScreenTimeout();
