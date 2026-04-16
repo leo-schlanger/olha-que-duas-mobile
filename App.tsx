@@ -30,6 +30,8 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { radioService } from "./src/services/radioService";
 import { radioSettingsService } from "./src/services/radioSettingsService";
 import { notificationService } from "./src/services/notificationService";
+import { prefetchLogo } from "./src/utils/artworkCache";
+import { siteConfig } from "./src/config/site";
 
 // Lazy load native-only services
 let adService: any = null;
@@ -87,6 +89,15 @@ function AppContent() {
         const settings = await radioSettingsService.load();
         await radioService.initialize(settings);
         logger.log("Radio service initialized");
+
+        // Pre-cache the radio logo to a local file so the lock screen
+        // never has to fetch a remote URL — even the fallback artwork is
+        // a file:// URI loaded in <10ms by the native side. Fire and
+        // forget; if it fails, lock screen falls back to the remote URL
+        // (slow but functional).
+        prefetchLogo(siteConfig.radio.logoUrl).catch((err) =>
+          logger.warn("Logo prefetch failed:", err)
+        );
 
         // Initialize notification service
         await notificationService.initialize();

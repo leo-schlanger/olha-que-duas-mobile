@@ -3,6 +3,7 @@ import { AppState, AppStateStatus } from 'react-native';
 import { siteConfig } from '../config/site';
 import { radioSettingsService, RadioSettings } from './radioSettingsService';
 import { nowPlayingService } from './nowPlayingService';
+import { getLogoUri } from '../utils/artworkCache';
 import { logger } from '../utils/logger';
 import { TIMING, LIMITS } from '../config/constants';
 
@@ -372,15 +373,15 @@ class RadioService {
       // Start playback first
       this.player.play();
 
-      // Enable lock screen controls after playback starts (avoid blocking)
-      // Use remote URL for artwork as local file:// URIs may not work in release builds
-      // Store timeout reference so it can be cancelled if pause/stop is called
+      // Enable lock screen controls after playback starts (avoid blocking).
+      // Use the pre-cached file:// logo URI — never the remote URL, which
+      // would block the native side on a slow openConnection() fetch.
       this.lockScreenTimeout = setTimeout(() => {
         this.lockScreenTimeout = null;
         this.updateLockScreen({
           title: siteConfig.radio.name,
           artist: siteConfig.radio.tagline,
-          artworkUrl: siteConfig.radio.logoUrl,
+          artworkUrl: getLogoUri(siteConfig.radio.logoUrl),
         });
       }, TIMING.RADIO_LOCK_SCREEN_DELAY);
 
@@ -489,15 +490,18 @@ class RadioService {
       // Verificar se ainda estamos tocando antes de atualizar lock screen
       if (!this.player || this.isIntentionallyStopped) return;
 
-      // Prefer the pre-downloaded local file URI when available.
-      // nowPlayingService maintains an artwork cache and emits twice per
-      // song change: first with localArtUri=null (just the remote URL), then
-      // again with localArtUri set once the download finishes. The native
-      // expo-audio side loads `file://` URIs in <10ms vs hundreds of ms for
-      // a remote fetch — and works in background without network throttling
-      // affecting the lock-screen image.
-      const pickArt = (remote: string | undefined): string =>
-        data.localArtUri || remote || siteConfig.radio.logoUrl;
+      // CRITICAL: nunca passar uma URL remota ao native side. O caminho
+      // nativo do expo-audio (`AudioControlsService.kt:loadArtworkFromUrl`)
+      // faz `URL.openConnection().getInputStream()` SEM cache, SEM timeout,
+      // SEM User-Agent. Em background com cellular ou battery saver isso
+      // pode bloquear 9-16s e às vezes falhar silenciosamente — fazendo a
+      // foto não actualizar.
+      //
+      // Estratégia: usar APENAS file:// URIs (do artworkCache) ou o logo
+      // pré-cacheado via `prefetchLogo()` ao boot. Tudo é sempre local =
+      // load nativo em <10ms, fiável em background.
+      const fallbackArt = getLogoUri(siteConfig.radio.logoUrl);
+      const pickArt = (): string => data.localArtUri || fallbackArt;
 
       // Mirror the on-screen classification on the lock screen so the user
       // sees "Programa ao vivo: X", "Podcast: Y", etc. instead of just the
@@ -508,7 +512,7 @@ class RadioService {
             this.updateLockScreen({
               title: data.song.title,
               artist: data.song.artist,
-              artworkUrl: pickArt(data.song.art),
+              artworkUrl: pickArt(),
             });
             return;
           }
@@ -517,21 +521,21 @@ class RadioService {
           this.updateLockScreen({
             title: data.liveShowName || siteConfig.radio.name,
             artist: siteConfig.radio.name,
-            artworkUrl: siteConfig.radio.logoUrl,
+            artworkUrl: fallbackArt,
           });
           return;
         case 'podcast':
           this.updateLockScreen({
             title: data.podcastName,
             artist: siteConfig.radio.name,
-            artworkUrl: pickArt(data.podcastArt),
+            artworkUrl: pickArt(),
           });
           return;
         case 'announcement':
           this.updateLockScreen({
             title: data.announcementName,
             artist: siteConfig.radio.name,
-            artworkUrl: pickArt(data.announcementArt),
+            artworkUrl: pickArt(),
           });
           return;
       }
@@ -540,7 +544,7 @@ class RadioService {
       this.updateLockScreen({
         title: siteConfig.radio.name,
         artist: siteConfig.radio.tagline,
-        artworkUrl: siteConfig.radio.logoUrl,
+        artworkUrl: fallbackArt,
       });
     });
   }

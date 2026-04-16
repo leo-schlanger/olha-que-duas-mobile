@@ -130,6 +130,32 @@ export function getCachedArtwork(remoteUrl: string): string | null {
   }
 }
 
+// Cached logo URI — populated by `prefetchLogo()` at app boot. Used as the
+// lock-screen artwork fallback so we NEVER pass a remote URL to expo-audio
+// (which would make the native side block on `URL.openConnection()` with no
+// timeout — confirmed source of multi-second delays in background).
+let cachedLogoUri: string | null = null;
+
+/**
+ * Pre-downloads the radio logo to local storage. Call once at app boot.
+ * The result is exposed via `getLogoUri()` so consumers can synchronously
+ * fall back to a file:// URI for the logo instead of using the remote URL.
+ */
+export async function prefetchLogo(remoteLogoUrl: string): Promise<void> {
+  const local = await getLocalArtwork(remoteLogoUrl);
+  if (local) {
+    cachedLogoUri = local;
+  }
+}
+
+/**
+ * Returns the cached file:// URI for the radio logo if `prefetchLogo`
+ * has run, else returns the remote URL as fallback. Synchronous.
+ */
+export function getLogoUri(remoteLogoUrl: string): string {
+  return cachedLogoUri ?? remoteLogoUrl;
+}
+
 /**
  * Prunes the artwork cache to the most recent MAX_CACHE_FILES files,
  * deleting the oldest by modification time. Called periodically from
