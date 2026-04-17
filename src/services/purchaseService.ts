@@ -1,11 +1,12 @@
 /**
  * Purchase Service - In-App Purchases
  *
- * Handles Google Play Store purchases for removing ads
- * Compatible with react-native-iap v14+
+ * Handles Google Play Store purchases for removing ads.
+ * Uses expo-iap (Expo module, NewArch-native) — replaces the old
+ * react-native-iap which crashed on SDK 55 / New Architecture.
  *
- * Note: When running in Expo Go, Metro resolves react-native-iap
- * to a mock module (see metro.config.js) that provides stub implementations.
+ * expo-iap exports the same listener-based API (initConnection,
+ * purchaseUpdatedListener, etc.) so the service logic is preserved.
  */
 
 import { Platform } from 'react-native';
@@ -21,7 +22,7 @@ const PRODUCT_SKUS = Platform.select({
   ios: [REMOVE_ADS_SKU],
 }) as string[];
 
-// Subscription type from react-native-iap
+// Subscription type — expo-iap listeners return { remove() }
 type PurchaseSubscription = { remove: () => void };
 
 // Generic product type for cross-platform compatibility
@@ -39,13 +40,13 @@ type IAP_Product = {
   };
 };
 
-// IAP module interface (subset of react-native-iap we actually use)
+// IAP module interface (subset of expo-iap we actually use)
 interface IAPModule {
   initConnection: () => Promise<boolean>;
   endConnection: () => Promise<void>;
   getAvailablePurchases: () => Promise<Array<{ productId: string }>>;
   fetchProducts: (params: { skus: string[] }) => Promise<IAP_Product[]>;
-  requestPurchase: (params: { request: unknown; type: string }) => Promise<void>;
+  requestPurchase: (params: { request: unknown; type?: string }) => Promise<void>;
   finishTransaction: (params: { purchase: unknown; isConsumable: boolean }) => Promise<void>;
   purchaseUpdatedListener: (
     callback: (purchase: { transactionId?: string }) => void
@@ -66,11 +67,9 @@ function getIAPModule(): IAPModule | null {
 
   if (iapModule === null) {
     try {
-      // Metro config handles mocking in Expo Go
-
-      iapModule = require('react-native-iap') as IAPModule;
+      iapModule = require('expo-iap') as IAPModule;
     } catch (error) {
-      logger.error('PurchaseService: Failed to load react-native-iap:', error);
+      logger.error('PurchaseService: Failed to load expo-iap:', error);
       return null;
     }
   }

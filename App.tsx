@@ -26,12 +26,13 @@ import {
 } from "react-native-paper";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
-// Services - expo-av works everywhere
+// Services
 import { radioService } from "./src/services/radioService";
 import { radioSettingsService } from "./src/services/radioSettingsService";
 import { notificationService } from "./src/services/notificationService";
 import { prefetchLogo } from "./src/utils/artworkCache";
 import { siteConfig } from "./src/config/site";
+import { preload as preloadAudio } from "expo-audio";
 
 // Lazy load native-only services
 let adService: any = null;
@@ -97,6 +98,15 @@ function AppContent() {
         // (slow but functional).
         prefetchLogo(siteConfig.radio.logoUrl).catch((err) =>
           logger.warn("Logo prefetch failed:", err)
+        );
+
+        // Warm-up the stream connection at native level. expo-audio@55's
+        // preload establishes TCP/TLS and starts filling the ExoPlayer
+        // buffer in background — so when the user taps play, the
+        // connection is already open and some data is buffered, reducing
+        // tap-to-audio latency from ~3s to near-instant.
+        preloadAudio({ uri: siteConfig.radio.streamUrl }).catch((err) =>
+          logger.warn("Stream preload failed:", err)
         );
 
         // Initialize notification service

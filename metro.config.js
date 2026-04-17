@@ -2,8 +2,11 @@ const { getDefaultConfig } = require('expo/metro-config');
 
 const config = getDefaultConfig(__dirname);
 
-// Modules that require native code and should be mocked in Expo Go
-const nativeOnlyModules = ['react-native-iap', 'react-native-nitro-modules'];
+// Modules that require native code and should be mocked in Expo Go.
+// expo-iap replaces react-native-iap (SDK 55); it's an Expo module so it
+// handles Expo Go gracefully (returns no-op / throws), but we still mock
+// it for a cleaner dev experience.
+const nativeOnlyModules = ['expo-iap'];
 
 // Check if we're running in Expo Go (no native modules)
 const isExpoGo = !process.env.EAS_BUILD && !process.env.EXPO_DEV_CLIENT_NETWORK;
