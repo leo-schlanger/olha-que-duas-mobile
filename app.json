@@ -96,7 +96,6 @@
     },
     "plugins": [
       "expo-font",
-      "react-native-iap",
       [
         "expo-location",
         {
