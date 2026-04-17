@@ -67,9 +67,9 @@ function getIAPModule(): IAPModule | null {
 
   if (iapModule === null) {
     try {
-      iapModule = require('expo-iap') as IAPModule;
+      iapModule = require('react-native-iap') as IAPModule;
     } catch (error) {
-      logger.error('PurchaseService: Failed to load expo-iap:', error);
+      logger.error('PurchaseService: Failed to load react-native-iap:', error);
       return null;
     }
   }

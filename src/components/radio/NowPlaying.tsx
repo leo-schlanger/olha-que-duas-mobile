@@ -32,7 +32,7 @@ export const NowPlaying = memo(function NowPlaying({
         <View style={styles.albumArtContainer}>
           {nowPlaying.song.art ? (
             <Image
-              source={{ uri: nowPlaying.song.art }}
+              source={{ uri: nowPlaying.localArtUri || nowPlaying.song.art }}
               style={styles.albumArt}
               contentFit="cover"
               cachePolicy="memory-disk"
@@ -81,7 +81,7 @@ export const NowPlaying = memo(function NowPlaying({
         <View style={styles.albumArtContainer}>
           {nowPlaying.podcastArt ? (
             <Image
-              source={{ uri: nowPlaying.podcastArt }}
+              source={{ uri: nowPlaying.localArtUri || nowPlaying.podcastArt }}
               style={styles.albumArt}
               contentFit="cover"
               cachePolicy="memory-disk"
@@ -110,7 +110,7 @@ export const NowPlaying = memo(function NowPlaying({
         <View style={styles.albumArtContainer}>
           {nowPlaying.announcementArt ? (
             <Image
-              source={{ uri: nowPlaying.announcementArt }}
+              source={{ uri: nowPlaying.localArtUri || nowPlaying.announcementArt }}
               style={styles.albumArt}
               contentFit="cover"
               cachePolicy="memory-disk"

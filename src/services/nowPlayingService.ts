@@ -124,6 +124,12 @@ const HOLD_PREVIOUS_ON_GAP_SECONDS = 8;
 const SSE_RECONNECT_BASE_DELAY = 1000;
 const SSE_RECONNECT_MAX_DELAY = 30000;
 
+// How long (seconds) to hold the anti-flicker lock after a new track is
+// anticipated. 10s covers the worst-case Icecast burst buffer (~3s) +
+// decoder latency (~2s) + network jitter (~5s). After expiry, the
+// normal pickAudibleEntry takes over.
+const ANTI_FLICKER_LOCK_S = 10;
+
 interface AzuraEntry {
   played_at?: number;
   duration?: number;
@@ -226,6 +232,7 @@ class NowPlayingService {
   private sseUrl: string;
   private channel: string;
   private isInBackground = false;
+  private isFetching = false;
   private appStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null;
   private isStarted = false;
 
@@ -239,6 +246,19 @@ class NowPlayingService {
   private lastPayload: AzuraNowPlayingPayload | null = null;
   private lastAudibleEndAt: number | null = null;
   private smartReemitTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // Anti-flicker lock (ported from the web sister project).
+  // When the server pushes a new track but the listener is still hearing
+  // the tail of the previous track (due to Icecast buffer), `pickAudibleEntry`
+  // would bounce back to the old track, causing a visual flicker. The lock
+  // "pins" the UI to the new track for a few seconds until the listener
+  // buffer catches up. Expires after LOCK_DURATION_S.
+  private anticipatedTrack: {
+    title: string;
+    artist: string;
+    playedAt: number;
+    lockUntil: number;
+  } | null = null;
 
   constructor() {
     const url = new URL(siteConfig.radio.streamUrl);
@@ -350,6 +370,11 @@ class NowPlayingService {
   }
 
   private async fetchNowPlaying() {
+    // Guard against concurrent fetches — SSE callback + poll timer can
+    // fire at the same time, doubling network requests and processPayload
+    // calls on the JS thread.
+    if (this.isFetching) return;
+    this.isFetching = true;
     try {
       const response = await fetchWithTimeout(this.pollingUrl, { timeout: 10000 });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -357,6 +382,8 @@ class NowPlayingService {
       this.processPayload(data);
     } catch (error) {
       logger.error('NowPlaying fetch error:', error);
+    } finally {
+      this.isFetching = false;
     }
   }
 
@@ -532,7 +559,25 @@ class NowPlayingService {
     // 2. Pick the entry the listener is actually hearing right now (with
     //    LISTENER_BUFFER_SECONDS offset against song_history).
     const history = Array.isArray(data.song_history) ? data.song_history : [];
-    const audible = pickAudibleEntry(data.now_playing, history, Date.now() / 1000);
+    let audible = pickAudibleEntry(data.now_playing, history, Date.now() / 1000);
+
+    // Anti-flicker: if the lock is active and the audible entry would
+    // bounce back to a DIFFERENT track (old one still in buffer), override
+    // with the server's now_playing so the UI stays pinned on the new track.
+    if (this.anticipatedTrack && Date.now() / 1000 < this.anticipatedTrack.lockUntil) {
+      const anticipated = this.anticipatedTrack;
+      const audibleTitle = audible?.song?.title ?? '';
+      const audibleArtist = audible?.song?.artist ?? '';
+      if (audibleTitle !== anticipated.title || audibleArtist !== anticipated.artist) {
+        // Override: use now_playing (server's latest) instead of the
+        // buffer-delayed audible entry. This prevents the brief flash
+        // back to the previous track during the buffer transition.
+        audible = data.now_playing;
+      }
+    } else {
+      // Lock expired — clear it
+      this.anticipatedTrack = null;
+    }
 
     // 3. No audible entry — typically a jingle gap. Hold the previous state
     //    for HOLD_PREVIOUS_ON_GAP_SECONDS to avoid flashing the radio logo.
@@ -557,6 +602,17 @@ class NowPlayingService {
     // 4. Valid music — most common path.
     if (isValidSong(songData)) {
       this.recordAudibleEnd(audible);
+
+      // Anti-flicker: lock on this track so that subsequent polls don't
+      // bounce back to the previous track while the listener buffer
+      // catches up. The lock auto-expires after ANTI_FLICKER_LOCK_S.
+      const nowEpochSec = Date.now() / 1000;
+      this.anticipatedTrack = {
+        title: songData.title,
+        artist: songData.artist,
+        playedAt: audible.played_at ?? nowEpochSec,
+        lockUntil: nowEpochSec + ANTI_FLICKER_LOCK_S,
+      };
       this.emit({
         ...IDLE_DATA,
         mode: 'music',

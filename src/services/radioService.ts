@@ -490,29 +490,30 @@ class RadioService {
       // Verificar se ainda estamos tocando antes de atualizar lock screen
       if (!this.player || this.isIntentionallyStopped) return;
 
-      // CRITICAL: nunca passar uma URL remota ao native side. O caminho
-      // nativo do expo-audio (`AudioControlsService.kt:loadArtworkFromUrl`)
-      // faz `URL.openConnection().getInputStream()` SEM cache, SEM timeout,
-      // SEM User-Agent. Em background com cellular ou battery saver isso
-      // pode bloquear 9-16s e às vezes falhar silenciosamente — fazendo a
-      // foto não actualizar.
-      //
-      // Estratégia: usar APENAS file:// URIs (do artworkCache) ou o logo
-      // pré-cacheado via `prefetchLogo()` ao boot. Tudo é sempre local =
-      // load nativo em <10ms, fiável em background.
-      const fallbackArt = getLogoUri(siteConfig.radio.logoUrl);
-      const pickArt = (): string => data.localArtUri || fallbackArt;
+      // Prefer the pre-downloaded file:// URI (instant native load <10ms).
+      // If not yet cached, fall back to the REMOTE song art URL so the
+      // native side downloads it (slower, but the image WILL change).
+      // We used to fall back to the logo URL, but because the native side
+      // caches by URL comparison (`if (url == currentArtworkUrl) skip`),
+      // the logo URL would get cached after the first call and ALL
+      // subsequent songs would show the logo forever (title updated but
+      // image never changed — exactly what the user reported).
+      const fallbackLogo = getLogoUri(siteConfig.radio.logoUrl);
 
       // Mirror the on-screen classification on the lock screen so the user
       // sees "Programa ao vivo: X", "Podcast: Y", etc. instead of just the
-      // radio name when something other than music is playing.
+      // For each mode, pick the best artwork: file:// (instant) > remote
+      // song art (slow but changes) > logo (static fallback).
+      const pickArt = (remote: string | undefined): string =>
+        data.localArtUri || remote || fallbackLogo;
+
       switch (data.mode) {
         case 'music':
           if (data.song) {
             this.updateLockScreen({
               title: data.song.title,
               artist: data.song.artist,
-              artworkUrl: pickArt(),
+              artworkUrl: pickArt(data.song.art),
             });
             return;
           }
@@ -521,21 +522,21 @@ class RadioService {
           this.updateLockScreen({
             title: data.liveShowName || siteConfig.radio.name,
             artist: siteConfig.radio.name,
-            artworkUrl: fallbackArt,
+            artworkUrl: fallbackLogo,
           });
           return;
         case 'podcast':
           this.updateLockScreen({
             title: data.podcastName,
             artist: siteConfig.radio.name,
-            artworkUrl: pickArt(),
+            artworkUrl: pickArt(data.podcastArt),
           });
           return;
         case 'announcement':
           this.updateLockScreen({
             title: data.announcementName,
             artist: siteConfig.radio.name,
-            artworkUrl: pickArt(),
+            artworkUrl: pickArt(data.announcementArt),
           });
           return;
       }
@@ -544,7 +545,7 @@ class RadioService {
       this.updateLockScreen({
         title: siteConfig.radio.name,
         artist: siteConfig.radio.tagline,
-        artworkUrl: fallbackArt,
+        artworkUrl: fallbackLogo,
       });
     });
   }
