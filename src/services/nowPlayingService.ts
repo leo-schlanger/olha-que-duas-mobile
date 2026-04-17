@@ -327,12 +327,18 @@ class NowPlayingService {
 
   private startPolling() {
     this.stopPolling();
-    // SSE is now kept alive in background, so polling here is a fallback for
-    // the rare cases where the socket drops. 6s is a reasonable compromise
-    // between battery and lock-screen artwork freshness when SSE is gone.
-    const pollInterval = this.isInBackground
-      ? TIMING.NOW_PLAYING_POLL_INTERVAL * 2 // 6s in background
-      : TIMING.NOW_PLAYING_POLL_INTERVAL;
+    // Three cadences — matched to the web sister project strategy:
+    // 1) SSE active + foreground: 10s safety net (SSE handles real-time)
+    // 2) SSE down + foreground: 3s active polling
+    // 3) Background (any): 6s
+    let pollInterval: number;
+    if (this.isInBackground) {
+      pollInterval = TIMING.NOW_PLAYING_POLL_INTERVAL * 2; // 6s
+    } else if (this.sseConnected) {
+      pollInterval = 10000; // 10s safety net
+    } else {
+      pollInterval = TIMING.NOW_PLAYING_POLL_INTERVAL; // 3s active
+    }
     this.interval = setInterval(() => this.fetchNowPlaying(), pollInterval);
   }
 
@@ -409,8 +415,14 @@ class NowPlayingService {
     if (this.sseConnected) return;
     this.sseConnected = true;
     this.sseReconnectDelay = SSE_RECONNECT_BASE_DELAY;
-    this.stopPolling();
-    logger.log('NowPlayingService: SSE connected, polling stopped');
+    // CRITICAL: DO NOT stop polling. The web sister project
+    // (D:/Projetos/olha-que-duas) keeps 15s polling even with SSE active
+    // as a safety net. Centrifugo only pushes frames when metadata CHANGES
+    // (can be 3-5min between songs), and if the SSE silently drops, we'd
+    // have zero data flow until the heartbeat timeout detects it.
+    // Slow-cadence polling (10s) ensures we're never more than 10s stale.
+    this.startPolling();
+    logger.log('NowPlayingService: SSE connected, polling kept as safety net');
   }
 
   private handleSSEDisconnect() {

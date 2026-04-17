@@ -45,7 +45,7 @@ interface IAPModule {
   initConnection: () => Promise<boolean>;
   endConnection: () => Promise<void>;
   getAvailablePurchases: () => Promise<Array<{ productId: string }>>;
-  fetchProducts: (params: { skus: string[] }) => Promise<IAP_Product[]>;
+  fetchProducts: (params: { skus: string[]; type?: string }) => Promise<IAP_Product[]>;
   requestPurchase: (params: { request: unknown; type?: string }) => Promise<void>;
   finishTransaction: (params: { purchase: unknown; isConsumable: boolean }) => Promise<void>;
   purchaseUpdatedListener: (
@@ -180,7 +180,7 @@ class PurchaseService {
     if (!iap) return;
 
     try {
-      const products = await iap.fetchProducts({ skus: PRODUCT_SKUS });
+      const products = await iap.fetchProducts({ skus: PRODUCT_SKUS, type: 'in-app' });
       this.products = (products ?? []) as unknown as IAP_Product[];
       logger.log('PurchaseService: Products loaded:', this.products.length);
     } catch (error) {

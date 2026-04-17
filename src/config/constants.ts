@@ -6,10 +6,13 @@
 // Timeouts e intervalos (em milissegundos)
 export const TIMING = {
   // Radio
-  // Polling interval for player status. 500ms causa muita pressão na bridge
-  // JS<->native em devices Android low-end e contribui para jank/microcortes
-  // no áudio. 1500ms é suficiente para detectar pause/play do lock screen.
-  RADIO_STATUS_POLL_INTERVAL: 1500,
+  // Polling interval for player status. Cada poll lê player.playing +
+  // player.isBuffering via bridge JS↔native. Com NewArch (SDK 55) o
+  // overhead por call é menor mas queremos minimizar para reduzir
+  // contention durante streaming. 3s é suficiente para detectar
+  // play/pause do lock screen (o playbackStatusUpdate event-driven
+  // cobre os casos urgentes).
+  RADIO_STATUS_POLL_INTERVAL: 3000,
   RADIO_AUTOPLAY_DELAY: 500,
   RADIO_LOCK_SCREEN_DELAY: 200,
   RADIO_MAX_RECONNECT_DELAY: 30000,
