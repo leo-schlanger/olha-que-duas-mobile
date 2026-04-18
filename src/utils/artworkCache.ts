@@ -23,6 +23,7 @@
 
 import { Directory, File, Paths } from 'expo-file-system';
 import { logger } from './logger';
+import { TIMING } from '../config/constants';
 
 const COVERS_DIR_NAME = 'olhaqueduas-covers';
 const MAX_CACHE_FILES = 25;
@@ -93,7 +94,13 @@ export async function getLocalArtwork(remoteUrl: string): Promise<string | null>
 
   const promise: Promise<string | null> = (async () => {
     try {
-      const downloaded = await File.downloadFileAsync(remoteUrl, file);
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('artwork download timeout')), TIMING.ARTWORK_DOWNLOAD_TIMEOUT);
+      });
+      const downloaded = await Promise.race([
+        File.downloadFileAsync(remoteUrl, file),
+        timeoutPromise,
+      ]);
       downloadCount++;
       if (downloadCount % PRUNE_EVERY_N_DOWNLOADS === 0) {
         // Don't await — pruning is a background maintenance task.
@@ -101,6 +108,12 @@ export async function getLocalArtwork(remoteUrl: string): Promise<string | null>
       }
       return downloaded.uri;
     } catch (err) {
+      // Clean up partial download to avoid corrupted cache entries
+      try {
+        if (file.exists) file.delete();
+      } catch {
+        // ignore
+      }
       logger.warn('artworkCache: download failed for', remoteUrl, err);
       return null;
     } finally {

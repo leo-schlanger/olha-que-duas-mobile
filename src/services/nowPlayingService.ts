@@ -390,7 +390,10 @@ class NowPlayingService {
   // ---------- SSE (primary) ----------
 
   private connectSSE() {
-    if (this.eventSource || this.isInBackground || !this.isStarted) return;
+    // No isInBackground guard — the foreground media service keeps the JS
+    // context alive during playback, so SSE reconnection works in background
+    // and provides real-time lock-screen metadata updates.
+    if (this.eventSource || !this.isStarted) return;
 
     const cfConnect = encodeURIComponent(JSON.stringify({ subs: { [this.channel]: {} } }));
     const url = `${this.sseUrl}?cf_connect=${cfConnect}`;
@@ -455,7 +458,7 @@ class NowPlayingService {
   private handleSSEDisconnect() {
     const wasConnected = this.sseConnected;
     this.closeSSE();
-    if (!this.isStarted || this.isInBackground) return;
+    if (!this.isStarted) return;
 
     this.startPolling();
     if (wasConnected) this.fetchNowPlaying();

@@ -234,19 +234,20 @@ class RadioService {
 
     // App coming back to active from background/inactive
     if (this.lastAppState.match(/inactive|background/) && nextAppState === 'active') {
-      // Resume polling if player exists (needed to detect lock screen play/pause)
-      if (this.player && !this.statusPollingInterval) {
+      // Ensure polling is running (belt-and-suspenders — it should already
+      // be running from the background, but cover edge cases like OS killing
+      // and restoring the JS context).
+      if (this.player && !this.isIntentionallyStopped && !this.statusPollingInterval) {
         this.startStatusPolling();
       }
     }
 
-    // App going to background
+    // App going to background — polling stays alive. The foreground media
+    // service keeps the JS context running and the overhead of a status
+    // poll (two native bridge reads) is negligible next to the audio
+    // stream. Keeping it alive guarantees stall detection, auto-reconnect,
+    // and lock screen play/pause detection all work in background.
     if (nextAppState === 'background') {
-      // Stop polling in background to save battery
-      // Lock screen controls will be detected when app returns to foreground
-      if (this.statusPollingInterval) {
-        this.stopStatusPolling();
-      }
 
       // If stopOnClose is enabled, stop the radio when app goes to background
       // This must be fast and synchronous-like because the process may be killed

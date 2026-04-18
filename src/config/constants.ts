@@ -27,6 +27,9 @@ export const TIMING = {
   // AzuraCast endpoint. Background polling stays at 3x this in service code.
   NOW_PLAYING_POLL_INTERVAL: 3000,
   NOW_PLAYING_TRANSITION_DURATION: 350,
+  // Timeout para downloads de artwork — evita que downloads em redes
+  // lentas fiquem pendurados indefinidamente, bloqueando o lock screen.
+  ARTWORK_DOWNLOAD_TIMEOUT: 8000,
 
   // Purchases
   PURCHASE_TIMEOUT: 120000, // 2 minutos
