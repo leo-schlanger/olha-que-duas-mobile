@@ -29,12 +29,20 @@ const withStopAudioOnTaskRemoved = (config) => {
 
     if (existing) {
       existing.$['android:stopWithTask'] = 'true';
+      // Preserve foregroundServiceType if already set by expo-audio plugin;
+      // add it if missing — Android 14+ requires it in the manifest for
+      // startForeground() to succeed with FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK.
+      if (!existing.$['android:foregroundServiceType']) {
+        existing.$['android:foregroundServiceType'] = 'mediaPlayback';
+      }
       existing.$['tools:node'] = 'merge';
     } else {
       // Add a merge overlay for the AudioControlsService
       application.service.push({
         $: {
           'android:name': 'expo.modules.audio.service.AudioControlsService',
+          'android:foregroundServiceType': 'mediaPlayback',
+          'android:exported': 'false',
           'android:stopWithTask': 'true',
           'tools:node': 'merge',
         },

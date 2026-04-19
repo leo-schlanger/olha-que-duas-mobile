@@ -145,13 +145,13 @@ class RadioService {
       // Don't process further if intentionally stopped
       if (this.isIntentionallyStopped) return;
 
-      // Detect external pause (e.g., from lock screen controls)
-      // Skip during background transition grace period (native player
-      // may briefly report playing=false during Activity lifecycle).
+      // Detect external pause (e.g., from lock screen controls).
+      // Suppress in background — reconcile on foreground return.
       if (wasPlaying && !playerPlaying && !playerBuffering) {
+        const appInBackground = AppState.currentState !== 'active';
         const inGracePeriod = Date.now() - this.backgroundTransitionAt < TIMING.RADIO_BG_GRACE_PERIOD;
-        if (inGracePeriod) {
-          logger.log('Polling: Ignoring transient pause during background transition');
+        if (appInBackground || inGracePeriod) {
+          logger.log('Polling: Ignoring pause (app not active or grace period)');
           return;
         }
         logger.log('Polling: External pause detected');
@@ -247,10 +247,25 @@ class RadioService {
 
     // App coming back to active from background/inactive
     if (this.lastAppState.match(/inactive|background/) && nextAppState === 'active') {
-      // Ensure polling is running (belt-and-suspenders — it should already
-      // be running from the background, but cover edge cases like OS killing
-      // and restoring the JS context).
-      if (this.player && !this.isIntentionallyStopped && !this.statusPollingInterval) {
+      this.backgroundTransitionAt = 0; // clear grace period
+
+      if (this.player && !this.isIntentionallyStopped) {
+        // Reconcile state: check if player was paused externally while in
+        // background (we suppress external-pause detection in BG to avoid
+        // false positives from Activity lifecycle transients).
+        const playerPlaying = this.player.playing ?? false;
+        if (!playerPlaying) {
+          logger.log('Player paused during background, marking as stopped');
+          this.isIntentionallyStopped = true;
+          this.isPlaying = false;
+          this.isBuffering = false;
+          this.unsubscribeFromNowPlaying();
+          this.emitStatus(false);
+        }
+      }
+
+      // Ensure polling is running at foreground cadence
+      if (this.player && !this.statusPollingInterval) {
         this.startStatusPolling();
       }
     }
@@ -465,14 +480,16 @@ class RadioService {
     const newIsPlaying = status.isPlaying ?? status.playing ?? false;
     const newIsBuffering = status.isBuffering ?? status.buffering ?? false;
 
-    // Detect external pause (e.g., from lock screen controls)
-    // If we were playing and now we're not (without error), it's an external pause.
-    // EXCEPT during the grace window after a background transition — the native
-    // player may briefly report playing=false while the Activity lifecycle settles.
+    // Detect external pause (e.g., from lock screen controls).
+    // Suppress detection when the app is NOT in foreground — the native
+    // player may transiently report playing=false during the Activity
+    // lifecycle change. We reconcile the real state when the app returns
+    // to foreground (see handleAppStateChange).
     if (wasPlaying && !newIsPlaying && !newIsBuffering) {
+      const appInBackground = AppState.currentState !== 'active';
       const inGracePeriod = Date.now() - this.backgroundTransitionAt < TIMING.RADIO_BG_GRACE_PERIOD;
-      if (inGracePeriod) {
-        logger.log('Ignoring transient pause during background transition');
+      if (appInBackground || inGracePeriod) {
+        logger.log('Ignoring transient pause (app not active or grace period)');
         return;
       }
       logger.log('External pause detected (lock screen or system)');
