@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { AppState } from 'react-native';
 import { nowPlayingService, NowPlayingData } from '../services/nowPlayingService';
 
 const IDLE: NowPlayingData = {
@@ -27,8 +28,21 @@ export function useNowPlaying(isPlaying: boolean): NowPlayingData {
       return undefined;
     }
     const unsubscribe = nowPlayingService.subscribe(setData);
+
+    // When the app returns to foreground, React may not have flushed the
+    // state updates that arrived while backgrounded. Force a fresh read
+    // from the service with a new object reference so expo-image picks up
+    // the latest artwork URI immediately.
+    const appStateSub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        const current = nowPlayingService.getCurrentData();
+        setData({ ...current });
+      }
+    });
+
     return () => {
       unsubscribe();
+      appStateSub.remove();
     };
   }, [isPlaying]);
 

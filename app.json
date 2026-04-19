@@ -2,7 +2,7 @@
   "expo": {
     "name": "Olha que Duas",
     "slug": "olha-que-duas",
-    "version": "1.11.6",
+    "version": "1.11.7",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -34,7 +34,7 @@
     },
     "android": {
       "package": "com.olhaqueduas.app",
-      "versionCode": 54,
+      "versionCode": 55,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#d6402e"
