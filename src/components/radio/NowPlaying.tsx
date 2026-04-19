@@ -5,8 +5,8 @@
  * `nowPlayingService` — this component is purely presentational.
  */
 
-import React, { memo, useMemo } from 'react';
-import { View, Text } from 'react-native';
+import React, { memo, useMemo, useRef, useState, useEffect } from 'react';
+import { View, Text, AppState } from 'react-native';
 import { Image } from 'expo-image';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useTranslation } from 'react-i18next';
@@ -24,22 +24,44 @@ export const NowPlaying = memo(function NowPlaying({
 }: NowPlayingProps) {
   const { t } = useTranslation();
   const styles = useMemo(() => createNowPlayingStyles(colors), [colors]);
+  const imageRef = useRef<Image>(null);
+
+  // Counter that increments each time the app returns to foreground.
+  // Including it in the Image `key` guarantees that React unmounts/remounts
+  // the Image component AFTER the Activity has resumed — so Glide's
+  // RequestManager is active and executes the load immediately instead of
+  // queueing it (which is what happens when the key changes while the
+  // Activity is still paused in the background).
+  const [fgCount, setFgCount] = useState(0);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        setFgCount((c) => c + 1);
+        // Belt-and-suspenders: also force a reload after the new component
+        // mounts, in case Glide still served a stale bitmap from cache.
+        setTimeout(() => {
+          imageRef.current?.reloadAsync();
+        }, 200);
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   // Music — the most common state.
   if (nowPlaying.mode === 'music' && nowPlaying.song) {
     const musicArtUri = nowPlaying.localArtUri || nowPlaying.song.art;
-    // key forces React to unmount/remount the Image when the song changes.
-    // recyclingKey alone was not enough — expo-image's native view did not
-    // pick up the new source after background → foreground transitions.
-    // Using key based on song identity (not URI) avoids a double remount
-    // when localArtUri arrives for the same song (remote → file://).
-    const songKey = `${nowPlaying.song.title}\0${nowPlaying.song.artist}`;
+    // key includes song identity + foreground count. The foreground count
+    // ensures the Image is remounted when returning from background (where
+    // Glide was paused), while song identity handles normal foreground
+    // transitions without unnecessary remounts.
+    const imageKey = `m\0${nowPlaying.song.title}\0${nowPlaying.song.artist}\0${fgCount}`;
     return (
       <View style={styles.container}>
         <View style={styles.albumArtContainer}>
           {nowPlaying.song.art ? (
             <Image
-              key={songKey}
+              ref={imageRef}
+              key={imageKey}
               source={{ uri: musicArtUri }}
               style={styles.albumArt}
               contentFit="cover"
@@ -85,12 +107,14 @@ export const NowPlaying = memo(function NowPlaying({
   // Podcast — long-form non-music content with its own artwork.
   if (nowPlaying.mode === 'podcast') {
     const podcastArtUri = nowPlaying.localArtUri || nowPlaying.podcastArt;
+    const imageKey = `p\0${nowPlaying.podcastName}\0${fgCount}`;
     return (
       <View style={styles.container}>
         <View style={styles.albumArtContainer}>
           {nowPlaying.podcastArt ? (
             <Image
-              key={nowPlaying.podcastName}
+              ref={imageRef}
+              key={imageKey}
               source={{ uri: podcastArtUri }}
               style={styles.albumArt}
               contentFit="cover"
@@ -116,12 +140,14 @@ export const NowPlaying = memo(function NowPlaying({
   // artwork itself is the message.
   if (nowPlaying.mode === 'announcement') {
     const announcementArtUri = nowPlaying.localArtUri || nowPlaying.announcementArt;
+    const imageKey = `a\0${nowPlaying.announcementName}\0${fgCount}`;
     return (
       <View style={styles.container}>
         <View style={styles.albumArtContainer}>
           {nowPlaying.announcementArt ? (
             <Image
-              key={nowPlaying.announcementName}
+              ref={imageRef}
+              key={imageKey}
               source={{ uri: announcementArtUri }}
               style={styles.albumArt}
               contentFit="cover"
