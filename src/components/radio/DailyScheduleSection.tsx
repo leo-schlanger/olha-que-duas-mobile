@@ -98,7 +98,7 @@ const SlotRow = memo(function SlotRow({
       {isSpecial && (
         <ProgramIcon name={slot.name} iconUrl={slot.iconUrl!} size={32} colors={colors} />
       )}
-      <Text style={s.name} numberOfLines={1}>
+      <Text style={s.name} numberOfLines={isSpecial ? 2 : 1}>
         {slot.name}
       </Text>
       {slot.duration ? <Text style={s.duration}>{slot.duration}</Text> : null}

@@ -1,6 +1,6 @@
 {
   "name": "olha-que-duas-mobile",
-  "version": "1.13.0",
+  "version": "1.13.1",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",

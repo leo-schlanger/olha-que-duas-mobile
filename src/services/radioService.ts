@@ -84,21 +84,17 @@ class RadioService {
    *      precisamos para mudar de música em background sem o Android
    *      atrasar/perder a actualização.
    */
-  private updateLockScreen(meta: { title: string; artist: string; artworkUrl?: string }) {
+  private updateLockScreen(meta: { title: string; artist: string; artworkUrl: string }) {
     if (!this.player || this.isIntentionallyStopped) return;
-    const key = `${meta.title}\x00${meta.artist}\x00${meta.artworkUrl || ''}`;
+    // Dedup key strips the fragment (#timestamp) from artworkUrl so that
+    // repeated calls for the same song with cache-busted logo URLs are
+    // properly deduplicated.
+    const artKeyBase = meta.artworkUrl.split('#')[0];
+    const key = `${meta.title}\x00${meta.artist}\x00${artKeyBase}`;
     if (key === this.lastLockScreenMetaKey) return;
     try {
       if (!this.lockScreenSessionActive) {
-        // First call: always include the logo URL so the native side
-        // downloads it into currentArtwork. This provides a fallback
-        // bitmap for subsequent notifications that have no artwork yet.
-        const fallbackLogo = getLogoUri(siteConfig.radio.logoUrl);
-        const initialMeta = {
-          ...meta,
-          artworkUrl: meta.artworkUrl || fallbackLogo,
-        };
-        this.player.setActiveForLockScreen(true, initialMeta);
+        this.player.setActiveForLockScreen(true, meta);
         this.lockScreenSessionActive = true;
       } else {
         this.player.updateLockScreenMetadata(meta);
@@ -541,18 +537,14 @@ class RadioService {
       if (!this.player || this.isIntentionallyStopped) return;
 
       // Pass file:// URIs when available (loads in <10ms from disk).
-      // When localArtUri isn't cached yet, pass undefined instead of the
-      // fallback logo. Reason: Android's AudioControlsService.loadArtworkFromUrl
-      // compares the URL against currentArtworkUrl — if it's the same
-      // (e.g. both songs using the fallback logo), it skips the download
-      // AND the notification rebuild entirely, leaving title/artist/artwork
-      // all stuck on the previous song. Passing undefined triggers the
-      // `?: postOrStartForegroundNotification()` branch in Kotlin, which
-      // always rebuilds the notification with the new metadata.
-      // When the async download completes, nowPlayingService re-emits
-      // with localArtUri set, triggering a second updateLockScreen with
-      // the correct file:// art.
-      const pickArt = (): string | undefined => data.localArtUri || undefined;
+      // When localArtUri isn't cached yet, use the fallback logo with a
+      // fragment cache-buster (#timestamp) so the native loadArtworkFromUrl
+      // always processes it as a "new" URL — it compares url != currentArtworkUrl,
+      // and without the fragment the same logo URL would be skipped entirely
+      // (no download, no notification rebuild, metadata stays stale).
+      // The fragment is ignored by file:// I/O but makes URL comparison unique.
+      const fallbackLogo = getLogoUri(siteConfig.radio.logoUrl);
+      const pickArt = (): string => data.localArtUri || `${fallbackLogo}#${Date.now()}`;
 
       switch (data.mode) {
         case 'music':
@@ -569,6 +561,7 @@ class RadioService {
           this.updateLockScreen({
             title: data.liveShowName || siteConfig.radio.name,
             artist: siteConfig.radio.name,
+            artworkUrl: `${fallbackLogo}#${Date.now()}`,
           });
           return;
         case 'podcast':
@@ -591,6 +584,7 @@ class RadioService {
       this.updateLockScreen({
         title: siteConfig.radio.name,
         artist: siteConfig.radio.tagline,
+        artworkUrl: `${fallbackLogo}#${Date.now()}`,
       });
     });
   }
