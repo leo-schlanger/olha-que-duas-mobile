@@ -7,8 +7,8 @@
 - **EAS Account**: schlanger
 
 ## Versoes Atuais
-- **versionCode**: 56 (Android)
-- **versionName**: 1.11.8
+- **versionCode**: 57 (Android)
+- **versionName**: 1.11.9
 - **Expo SDK**: 55.0.0
 - **React Native**: 0.83.4
 
