@@ -28,19 +28,19 @@ export const NowPlaying = memo(function NowPlaying({
   // Music — the most common state.
   if (nowPlaying.mode === 'music' && nowPlaying.song) {
     const musicArtUri = nowPlaying.localArtUri || nowPlaying.song.art;
-    // recyclingKey uses song identity so expo-image resets its native view
-    // only when the actual song changes (guaranteeing the update even after
-    // background → foreground). When only the URI changes for the SAME song
-    // (remote → cached file://), the key stays stable and expo-image does a
-    // smooth in-place swap instead of flashing blank.
-    const musicRecyclingKey = `${nowPlaying.song.title}\0${nowPlaying.song.artist}`;
+    // key forces React to unmount/remount the Image when the song changes.
+    // recyclingKey alone was not enough — expo-image's native view did not
+    // pick up the new source after background → foreground transitions.
+    // Using key based on song identity (not URI) avoids a double remount
+    // when localArtUri arrives for the same song (remote → file://).
+    const songKey = `${nowPlaying.song.title}\0${nowPlaying.song.artist}`;
     return (
       <View style={styles.container}>
         <View style={styles.albumArtContainer}>
           {nowPlaying.song.art ? (
             <Image
+              key={songKey}
               source={{ uri: musicArtUri }}
-              recyclingKey={musicRecyclingKey}
               style={styles.albumArt}
               contentFit="cover"
               cachePolicy="memory-disk"
@@ -90,8 +90,8 @@ export const NowPlaying = memo(function NowPlaying({
         <View style={styles.albumArtContainer}>
           {nowPlaying.podcastArt ? (
             <Image
+              key={nowPlaying.podcastName}
               source={{ uri: podcastArtUri }}
-              recyclingKey={nowPlaying.podcastName}
               style={styles.albumArt}
               contentFit="cover"
               cachePolicy="memory-disk"
@@ -121,8 +121,8 @@ export const NowPlaying = memo(function NowPlaying({
         <View style={styles.albumArtContainer}>
           {nowPlaying.announcementArt ? (
             <Image
+              key={nowPlaying.announcementName}
               source={{ uri: announcementArtUri }}
-              recyclingKey={nowPlaying.announcementName}
               style={styles.albumArt}
               contentFit="cover"
               cachePolicy="memory-disk"
