@@ -1,15 +1,17 @@
 /**
  * Daily schedule section - "A Tua Soundtrack do Dia"
- * Shows 4 time periods (Manhã, Tarde, Noite, Madrugada) in a 2x2 grid
- * Highlights the current period with accent styling
+ * Shows 4 time periods (Manhã, Tarde, Noite, Madrugada) with slots.
+ * Special program slots (with iconUrl from weekly schedule merge) get
+ * highlighted styling and a program logo.
  */
 
-import React, { memo, useMemo } from 'react';
+import React, { memo, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { Image } from 'expo-image';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useTranslation } from 'react-i18next';
 import { ThemeColors } from '../../context/ThemeContext';
-import { DailyPeriod } from '../../hooks/useDailySchedule';
+import { DailyPeriod, DailySlot } from '../../hooks/useDailySchedule';
 
 const PERIOD_ICONS: Record<string, keyof typeof MaterialCommunityIcons.glyphMap> = {
   manha: 'white-balance-sunny',
@@ -18,14 +20,91 @@ const PERIOD_ICONS: Record<string, keyof typeof MaterialCommunityIcons.glyphMap>
   madrugada: 'weather-night',
 };
 
-interface DailyScheduleSectionProps {
-  schedule: DailyPeriod[];
-  currentPeriod: string;
-  loading: boolean;
-  error?: string | null;
+const FALLBACK_PROGRAM_ICONS: Record<string, keyof typeof MaterialCommunityIcons.glyphMap> = {
+  'Nutrição': 'leaf',
+  'Motivar': 'lightbulb-on-outline',
+  'Prazer Feminino': 'heart-outline',
+  'Companheiros de Caminho': 'walk',
+  'Companheiros de Caminhada': 'walk',
+  'Dizem que...': 'chat-outline',
+  'Olha que Duas!': 'account-group',
+  'Céu de cada mês': 'star-outline',
+};
+
+function ProgramIcon({
+  name,
+  iconUrl,
+  size,
+  colors,
+}: {
+  name: string;
+  iconUrl: string;
+  size: number;
+  colors: ThemeColors;
+}) {
+  const [errored, setErrored] = useState(false);
+  const hasUrl = iconUrl && !iconUrl.includes('placehold.co');
+  const fallbackIcon = FALLBACK_PROGRAM_ICONS[name] || ('radio' as keyof typeof MaterialCommunityIcons.glyphMap);
+
+  if (!hasUrl || errored) {
+    return (
+      <View
+        style={{
+          width: size,
+          height: size,
+          borderRadius: 8,
+          backgroundColor: colors.secondary + '20',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <MaterialCommunityIcons
+          name={fallbackIcon}
+          size={size * 0.55}
+          color={colors.secondary}
+        />
+      </View>
+    );
+  }
+
+  return (
+    <Image
+      source={{ uri: iconUrl }}
+      style={{ width: size, height: size, borderRadius: 8 }}
+      contentFit="cover"
+      cachePolicy="memory-disk"
+      onError={() => setErrored(true)}
+    />
+  );
+}
+
+const SlotRow = memo(function SlotRow({
+  slot,
+  isCurrent,
+  colors,
+  isDark,
+}: {
+  slot: DailySlot;
+  isCurrent: boolean;
   colors: ThemeColors;
   isDark: boolean;
-}
+}) {
+  const isSpecial = !!slot.iconUrl;
+  const s = useMemo(() => createSlotStyles(colors, isDark, isCurrent, isSpecial), [colors, isDark, isCurrent, isSpecial]);
+
+  return (
+    <View style={s.container}>
+      <Text style={s.time}>{slot.time}</Text>
+      {isSpecial && (
+        <ProgramIcon name={slot.name} iconUrl={slot.iconUrl!} size={32} colors={colors} />
+      )}
+      <Text style={s.name} numberOfLines={1}>
+        {slot.name}
+      </Text>
+      {slot.duration ? <Text style={s.duration}>{slot.duration}</Text> : null}
+    </View>
+  );
+});
 
 const PeriodCard = memo(function PeriodCard({
   period,
@@ -76,19 +155,27 @@ const PeriodCard = memo(function PeriodCard({
 
       <View style={styles.slots}>
         {period.slots.map((slot) => (
-          <View key={slot.time} style={styles.slotRow}>
-            <Text style={[styles.slotTime, isCurrent && { color: colors.secondary + 'CC' }]}>
-              {slot.time}
-            </Text>
-            <Text style={styles.slotName} numberOfLines={1}>
-              {slot.name}
-            </Text>
-          </View>
+          <SlotRow
+            key={slot.time}
+            slot={slot}
+            isCurrent={isCurrent}
+            colors={colors}
+            isDark={isDark}
+          />
         ))}
       </View>
     </View>
   );
 });
+
+interface DailyScheduleSectionProps {
+  schedule: DailyPeriod[];
+  currentPeriod: string;
+  loading: boolean;
+  error?: string | null;
+  colors: ThemeColors;
+  isDark: boolean;
+}
 
 export const DailyScheduleSection = memo(function DailyScheduleSection({
   schedule,
@@ -112,7 +199,6 @@ export const DailyScheduleSection = memo(function DailyScheduleSection({
         <Text style={styles.badge}>24H</Text>
       </View>
 
-      {/* Error banner — shown when fetch failed but we still render the cached/fallback list */}
       {error && !loading && schedule.length > 0 ? (
         <View
           style={[
@@ -302,24 +388,64 @@ function createCardStyles(colors: ThemeColors, isDark: boolean, isCurrent: boole
       color: colors.textSecondary,
     },
     slots: {
-      gap: 4,
+      gap: 6,
     },
-    slotRow: {
+  });
+}
+
+function createSlotStyles(
+  colors: ThemeColors,
+  _isDark: boolean,
+  isCurrent: boolean,
+  isSpecial: boolean
+) {
+  return StyleSheet.create({
+    container: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 6,
+      gap: 8,
       width: '100%',
+      ...(isSpecial
+        ? {
+            backgroundColor: colors.secondary + '10',
+            borderWidth: 1,
+            borderColor: colors.secondary + '25',
+            borderRadius: 10,
+            paddingHorizontal: 10,
+            paddingVertical: 8,
+            marginHorizontal: -4,
+          }
+        : {}),
     },
-    slotTime: {
-      fontSize: 11,
+    time: {
+      fontSize: isSpecial ? 12 : 11,
       fontFamily: 'monospace',
-      color: colors.textSecondary,
-      width: 38,
+      color: isCurrent ? colors.secondary + 'CC' : colors.textSecondary,
+      width: isSpecial ? 46 : 38,
     },
-    slotName: {
-      fontSize: 12,
-      color: colors.text + 'CC',
+    name: {
       flex: 1,
+      fontSize: isSpecial ? 14 : 12,
+      fontWeight: isSpecial ? '700' : '400',
+      color: isSpecial ? colors.secondary : colors.text + 'CC',
+    },
+    duration: {
+      fontSize: 10,
+      fontFamily: 'monospace',
+      color: isCurrent
+        ? colors.secondary + '90'
+        : isSpecial
+          ? colors.secondary + '80'
+          : colors.textSecondary + '80',
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
+      backgroundColor: isCurrent
+        ? colors.secondary + '15'
+        : isSpecial
+          ? colors.secondary + '10'
+          : colors.muted + '30',
+      overflow: 'hidden',
     },
   });
 }

@@ -6,6 +6,8 @@ import { logger } from '../utils/logger';
 export interface DailySlot {
   time: string;
   name: string;
+  duration?: string;
+  iconUrl?: string;
 }
 
 export interface DailyPeriod {
@@ -17,7 +19,54 @@ export interface DailyPeriod {
 
 const PERIOD_ORDER = ['manha', 'tarde', 'noite', 'madrugada'];
 
-const fallbackSchedule: DailyPeriod[] = [
+/** Parse "07H - 12H" → { start: 420, end: 720 } (minutes from midnight). */
+export function parsePeriodRange(range: string): { start: number; end: number } | null {
+  const match = range.match(/^\s*(\d{1,2})\s*[Hh]\s*-\s*(\d{1,2})\s*[Hh]\s*$/);
+  if (!match) return null;
+  const start = parseInt(match[1], 10) * 60;
+  let end = parseInt(match[2], 10) * 60;
+  if (end === 0) end = 24 * 60;
+  return { start, end };
+}
+
+/** Parse "07h" → 420, "10h30" → 630 (minutes from midnight). */
+export function parseSlotTime(t: string): number {
+  const match = t.match(/^(\d{1,2})h(\d{2})?$/);
+  if (!match) return 0;
+  return parseInt(match[1]) * 60 + (match[2] ? parseInt(match[2]) : 0);
+}
+
+/** Format a duration in minutes as e.g. "2h", "1h30". */
+function formatDuration(minutes: number): string {
+  if (minutes <= 0) return '';
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m}min`;
+  return m > 0 ? `${h}h${String(m).padStart(2, '0')}` : `${h}h`;
+}
+
+/** Calculate duration for each slot based on the next slot or period end time. */
+export function addDurations(periods: DailyPeriod[]): DailyPeriod[] {
+  return periods.map((period) => {
+    const range = parsePeriodRange(period.range);
+    const rangeEnd = range ? range.end : 24 * 60;
+    const slots = period.slots.map((slot, i) => {
+      const start = parseSlotTime(slot.time);
+      let end: number;
+      if (i < period.slots.length - 1) {
+        end = parseSlotTime(period.slots[i + 1].time);
+      } else {
+        end = rangeEnd;
+      }
+      let diff = end - start;
+      if (diff <= 0) diff += 24 * 60;
+      return { ...slot, duration: formatDuration(diff) };
+    });
+    return { ...period, slots };
+  });
+}
+
+const fallbackSchedule: DailyPeriod[] = addDurations([
   {
     period: 'manha',
     label: 'Manhã',
@@ -45,6 +94,7 @@ const fallbackSchedule: DailyPeriod[] = [
     slots: [
       { time: '18h', name: 'Sunset Mix' },
       { time: '20h', name: 'Especial do Dia' },
+      { time: '21h', name: 'Canal Infantil' },
       { time: '22h', name: 'Night Flow' },
     ],
   },
@@ -57,7 +107,7 @@ const fallbackSchedule: DailyPeriod[] = [
       { time: '03h', name: 'Relax Mode' },
     ],
   },
-];
+]);
 
 export function getCurrentPeriod(): string {
   const hour = new Date().getHours();
@@ -92,7 +142,6 @@ export function useDailySchedule() {
           return;
         }
 
-        // Group by period
         const grouped = new Map<string, DailyPeriod>();
 
         for (const row of data) {
@@ -110,15 +159,13 @@ export function useDailySchedule() {
           });
         }
 
-        // Sort by predefined period order
         const sorted = PERIOD_ORDER.filter((p) => grouped.has(p)).map((p) => grouped.get(p)!);
 
-        setSchedule(sorted);
+        setSchedule(addDurations(sorted));
         setError(null);
       } catch (err) {
         logger.error('Error fetching daily schedule:', err);
         setError(err instanceof Error ? err.message : 'unknown');
-        // Keep fallback on error
       } finally {
         setLoading(false);
       }

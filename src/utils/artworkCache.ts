@@ -86,7 +86,15 @@ export async function getLocalArtwork(remoteUrl: string): Promise<string | null>
   const file = new File(dir, filename);
 
   if (file.exists) {
-    return file.uri;
+    // Guard against truncated/corrupted files from partial downloads.
+    // A zero-byte file would cause BitmapFactory.decodeStream to return
+    // null on the native side, leaving the lock screen with no artwork.
+    try {
+      if ((file.size ?? 0) > 0) return file.uri;
+      file.delete();
+    } catch {
+      // ignore — treat as cache miss
+    }
   }
 
   const inFlight = pendingDownloads.get(remoteUrl);
@@ -137,7 +145,7 @@ export function getCachedArtwork(remoteUrl: string): string | null {
   try {
     const filename = `${hashUrl(remoteUrl)}.${inferExtension(remoteUrl)}`;
     const file = new File(ensureDir(), filename);
-    return file.exists ? file.uri : null;
+    return file.exists && (file.size ?? 0) > 0 ? file.uri : null;
   } catch {
     return null;
   }

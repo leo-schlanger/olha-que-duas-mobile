@@ -5,7 +5,6 @@
 export { RadioControls } from './RadioControls';
 export { NowPlaying } from './NowPlaying';
 export { RadioVisualizer } from './RadioVisualizer';
-export { ScheduleSection } from './ScheduleSection';
 export { DailyScheduleSection } from './DailyScheduleSection';
 export { SocialLinks } from './SocialLinks';
 export { RadioInfoCards } from './RadioInfoCards';
