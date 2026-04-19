@@ -43,6 +43,12 @@ class RadioService {
   // reinicia o foreground service — crítico para que a foto/título
   // actualizem no notification em background.
   private lockScreenSessionActive: boolean = false;
+  // Timestamp da última transição para background. Usado para criar uma
+  // "grace window" durante a qual ignoramos detecção de pause externo —
+  // o player nativo pode reportar playing=false brevemente durante a
+  // transição do Activity lifecycle, e sem esta protecção o código
+  // interpreta como pause intencional e pára tudo.
+  private backgroundTransitionAt: number = 0;
 
   private clearReconnectTimeout() {
     if (this.reconnectTimeout) {
@@ -140,7 +146,14 @@ class RadioService {
       if (this.isIntentionallyStopped) return;
 
       // Detect external pause (e.g., from lock screen controls)
+      // Skip during background transition grace period (native player
+      // may briefly report playing=false during Activity lifecycle).
       if (wasPlaying && !playerPlaying && !playerBuffering) {
+        const inGracePeriod = Date.now() - this.backgroundTransitionAt < TIMING.RADIO_BG_GRACE_PERIOD;
+        if (inGracePeriod) {
+          logger.log('Polling: Ignoring transient pause during background transition');
+          return;
+        }
         logger.log('Polling: External pause detected');
         this.isIntentionallyStopped = true;
         this.isPlaying = false;
@@ -248,6 +261,10 @@ class RadioService {
     // stream. Keeping it alive guarantees stall detection, auto-reconnect,
     // and lock screen play/pause detection all work in background.
     if (nextAppState === 'background') {
+      // Mark the transition so external-pause detection is suppressed
+      // during the grace window (the native player may briefly report
+      // playing=false during the Activity lifecycle change).
+      this.backgroundTransitionAt = Date.now();
 
       // If stopOnClose is enabled, stop the radio when app goes to background
       // This must be fast and synchronous-like because the process may be killed
@@ -449,8 +466,15 @@ class RadioService {
     const newIsBuffering = status.isBuffering ?? status.buffering ?? false;
 
     // Detect external pause (e.g., from lock screen controls)
-    // If we were playing and now we're not (without error), it's an external pause
+    // If we were playing and now we're not (without error), it's an external pause.
+    // EXCEPT during the grace window after a background transition — the native
+    // player may briefly report playing=false while the Activity lifecycle settles.
     if (wasPlaying && !newIsPlaying && !newIsBuffering) {
+      const inGracePeriod = Date.now() - this.backgroundTransitionAt < TIMING.RADIO_BG_GRACE_PERIOD;
+      if (inGracePeriod) {
+        logger.log('Ignoring transient pause during background transition');
+        return;
+      }
       logger.log('External pause detected (lock screen or system)');
       this.isIntentionallyStopped = true;
       this.isPlaying = false;
@@ -491,22 +515,15 @@ class RadioService {
       // Verificar se ainda estamos tocando antes de atualizar lock screen
       if (!this.player || this.isIntentionallyStopped) return;
 
-      // Prefer the pre-downloaded file:// URI (instant native load <10ms).
-      // If not yet cached, fall back to the REMOTE song art URL so the
-      // native side downloads it (slower, but the image WILL change).
-      // We used to fall back to the logo URL, but because the native side
-      // caches by URL comparison (`if (url == currentArtworkUrl) skip`),
-      // the logo URL would get cached after the first call and ALL
-      // subsequent songs would show the logo forever (title updated but
-      // image never changed — exactly what the user reported).
+      // ONLY pass file:// URIs to the native side. Android's native
+      // URL.openConnection() fails silently in background — the title and
+      // artist update but the artwork stays stuck on the previous song.
+      // Using file:// URIs (from artworkCache) loads in <10ms from disk.
+      // When the artwork isn't cached yet, show the logo; the async
+      // download in nowPlayingService will re-emit with localArtUri set,
+      // triggering a second updateLockScreen with the correct file:// art.
       const fallbackLogo = getLogoUri(siteConfig.radio.logoUrl);
-
-      // Mirror the on-screen classification on the lock screen so the user
-      // sees "Programa ao vivo: X", "Podcast: Y", etc. instead of just the
-      // For each mode, pick the best artwork: file:// (instant) > remote
-      // song art (slow but changes) > logo (static fallback).
-      const pickArt = (remote: string | undefined): string =>
-        data.localArtUri || remote || fallbackLogo;
+      const pickArt = (): string => data.localArtUri || fallbackLogo;
 
       switch (data.mode) {
         case 'music':
@@ -514,7 +531,7 @@ class RadioService {
             this.updateLockScreen({
               title: data.song.title,
               artist: data.song.artist,
-              artworkUrl: pickArt(data.song.art),
+              artworkUrl: pickArt(),
             });
             return;
           }
@@ -530,14 +547,14 @@ class RadioService {
           this.updateLockScreen({
             title: data.podcastName,
             artist: siteConfig.radio.name,
-            artworkUrl: pickArt(data.podcastArt),
+            artworkUrl: pickArt(),
           });
           return;
         case 'announcement':
           this.updateLockScreen({
             title: data.announcementName,
             artist: siteConfig.radio.name,
-            artworkUrl: pickArt(data.announcementArt),
+            artworkUrl: pickArt(),
           });
           return;
       }

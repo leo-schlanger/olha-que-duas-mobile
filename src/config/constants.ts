@@ -21,6 +21,10 @@ export const TIMING = {
   // accionar reconnect automático. 12s dá margem em redes 3G/lentas mas
   // impede o utilizador de ficar preso num spinner para sempre.
   RADIO_STALL_TIMEOUT: 12000,
+  // Grace period após transição para background durante o qual a detecção
+  // de "pause externo" é suprimida. O player nativo pode reportar
+  // playing=false brevemente durante a transição do Activity lifecycle.
+  RADIO_BG_GRACE_PERIOD: 3000,
 
   // Now Playing
   // 3s gives a snappier "the song just changed" feel without thrashing the
