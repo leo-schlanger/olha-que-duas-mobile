@@ -4,27 +4,21 @@ const path = require('path');
 
 /**
  * Expo config plugin that fixes expo-audio's AudioControlsService so that
- * the lock-screen notification ALWAYS rebuilds when metadata changes —
- * even when the artwork URL is the "same".
+ * the lock-screen notification ALWAYS updates artwork + metadata.
  *
- * ROOT CAUSE: `updateMetadataInternal()` delegates the notification rebuild
- * to `loadArtworkFromUrl()`'s callback. But `loadArtworkFromUrl()` compares
- * URLs with `java.net.URL.equals()`, which IGNORES the fragment (#...).
- * When the JS side passes the same logo file with a different fragment
- * (cache-busting), the native side sees "same URL" and returns without
- * invoking the callback — so `postOrStartForegroundNotification()` never
- * runs, and the notification stays stuck on the old title/artist/artwork.
+ * ROOT CAUSE: `loadArtworkFromUrl()` compares URLs with
+ * `java.net.URL.equals()`, which IGNORES fragments (#...). When the JS
+ * side passes the same logo file with a different fragment (cache-busting),
+ * the native side sees "same URL", returns without loading the bitmap or
+ * invoking the callback → bitmap stays stale, notification not rebuilt.
  *
- * FIX 1: In `updateMetadataInternal`, ALWAYS call
- * `postOrStartForegroundNotification()` after updating `currentMetadata`,
- * regardless of whether `loadArtworkFromUrl` fires the callback. This
- * guarantees title/artist changes appear immediately. If the artwork IS
- * loading, a second rebuild follows when the download completes.
+ * FIX 1 (updateMetadataInternal): Unconditional notification rebuild after
+ * updating currentMetadata. Title/artist changes appear immediately.
  *
- * FIX 2: Add connection + read timeouts to `loadArtworkFromUrl`. The
- * original code uses `url.openConnection().getInputStream()` with NO
- * timeout — it can hang indefinitely in background or on bad networks.
- * We add 8-second timeouts matching the JS-side ARTWORK_DOWNLOAD_TIMEOUT.
+ * FIX 2 (loadArtworkFromUrl): Remove the `url != currentArtworkUrl` check
+ * entirely. Every call loads the artwork and invokes the callback. For
+ * file:// URIs (our primary path via artworkCache) this is a <1ms disk
+ * read — negligible overhead for correct behavior. Also adds 8s timeouts.
  */
 const withMetadataFix = (config) => {
   return withDangerousMod(config, [
@@ -53,7 +47,7 @@ const withMetadataFix = (config) => {
       let content = fs.readFileSync(serviceFile, 'utf8');
 
       // Guard: don't patch twice
-      if (content.includes('Always rebuild notification for metadata changes')) {
+      if (content.includes('Always reload artwork')) {
         console.log('withMetadataFix: already patched, skipping');
         return config;
       }
@@ -61,17 +55,6 @@ const withMetadataFix = (config) => {
       // ---------------------------------------------------------------
       // FIX 1: updateMetadataInternal — always rebuild notification
       // ---------------------------------------------------------------
-      // Original code:
-      //   currentMetadata?.artworkUrl?.let {
-      //     loadArtworkFromUrl(it) { bitmap ->
-      //       currentArtwork = bitmap
-      //       postOrStartForegroundNotification(startInForeground = false)
-      //     }
-      //   } ?: postOrStartForegroundNotification(startInForeground = false)
-      //
-      // We replace the `} ?: postOrStartForegroundNotification(...)` with
-      // `}` followed by an unconditional `postOrStartForegroundNotification`.
-
       const oldMetadataBlock =
         '    } ?: postOrStartForegroundNotification(startInForeground = false)\n  }\n\n  private fun clearSessionInternal()';
       const newMetadataBlock =
@@ -82,8 +65,9 @@ const withMetadataFix = (config) => {
         '  }\n\n  private fun clearSessionInternal()';
 
       if (!content.includes(oldMetadataBlock)) {
+        // May already be partially patched from a previous version
         console.warn(
-          'withMetadataFix: could not find updateMetadataInternal marker, skipping FIX 1'
+          'withMetadataFix: FIX 1 marker not found (may be already applied), skipping'
         );
       } else {
         content = content.replace(oldMetadataBlock, newMetadataBlock);
@@ -91,29 +75,50 @@ const withMetadataFix = (config) => {
       }
 
       // ---------------------------------------------------------------
-      // FIX 2: loadArtworkFromUrl — add connection timeout
+      // FIX 2: loadArtworkFromUrl — remove URL comparison, add timeout
       // ---------------------------------------------------------------
-      // Original:
-      //   val inputStream = url.openConnection().getInputStream()
-      //
-      // Replace with:
-      //   val connection = url.openConnection()
-      //   connection.connectTimeout = 8000
-      //   connection.readTimeout = 8000
-      //   val inputStream = connection.getInputStream()
+      // Replace the entire method body. We find it by signature and the
+      // next method (`hideNotification`) as boundary.
 
-      const oldConnection = 'val inputStream = url.openConnection().getInputStream()';
-      const newConnection =
-        'val connection = url.openConnection()\n' +
-        '          connection.connectTimeout = 8000\n' +
-        '          connection.readTimeout = 8000\n' +
-        '          val inputStream = connection.getInputStream()';
+      const methodSig = '  private fun loadArtworkFromUrl(url: URL, callback: (Bitmap?) -> Unit) {';
+      const nextMethodSig = '  private fun hideNotification()';
 
-      if (!content.includes(oldConnection)) {
-        console.warn('withMetadataFix: could not find openConnection marker, skipping FIX 2');
+      const methodStart = content.indexOf(methodSig);
+      const nextMethodStart = content.indexOf(nextMethodSig);
+
+      if (methodStart === -1 || nextMethodStart === -1) {
+        console.warn('withMetadataFix: could not find loadArtworkFromUrl boundaries, skipping FIX 2');
       } else {
-        content = content.replace(oldConnection, newConnection);
-        console.log('withMetadataFix: FIX 2 applied (artwork download timeout)');
+        const replacement =
+          '  // Always reload artwork — java.net.URL.equals() ignores fragments,\n' +
+          '  // causing stale bitmaps when the same logo file is passed with\n' +
+          '  // different #timestamp cache-busters. For file:// URIs (our primary\n' +
+          '  // path via artworkCache) this is a <1ms disk read per track change.\n' +
+          '  private fun loadArtworkFromUrl(url: URL, callback: (Bitmap?) -> Unit) {\n' +
+          '    currentArtworkUrl = url\n' +
+          '    artworkLoadJob?.cancel()\n' +
+          '\n' +
+          '    artworkLoadJob = scope.launch {\n' +
+          '      try {\n' +
+          '        val connection = url.openConnection()\n' +
+          '        connection.connectTimeout = 8000\n' +
+          '        connection.readTimeout = 8000\n' +
+          '        val inputStream = connection.getInputStream()\n' +
+          '        val bitmap = BitmapFactory.decodeStream(inputStream)\n' +
+          '\n' +
+          '        if (isActive) {\n' +
+          '          callback(bitmap)\n' +
+          '        }\n' +
+          '      } catch (e: Exception) {\n' +
+          '        if (isActive) {\n' +
+          '          callback(null)\n' +
+          '        }\n' +
+          '      }\n' +
+          '    }\n' +
+          '  }\n\n';
+
+        content = content.substring(0, methodStart) + replacement + content.substring(nextMethodStart);
+        console.log('withMetadataFix: FIX 2 applied (always load artwork + timeout)');
       }
 
       fs.writeFileSync(serviceFile, content, 'utf8');
