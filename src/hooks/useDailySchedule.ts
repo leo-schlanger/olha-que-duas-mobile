@@ -52,6 +52,8 @@ export function addDurations(periods: DailyPeriod[]): DailyPeriod[] {
     const range = parsePeriodRange(period.range);
     const rangeEnd = range ? range.end : 24 * 60;
     const slots = period.slots.map((slot, i) => {
+      // Skip all-day slots and slots that already have a duration (from end_time)
+      if (slot.isAllDay || slot.duration) return slot;
       const start = parseSlotTime(slot.time);
       let end: number;
       if (i < period.slots.length - 1) {
