@@ -97,14 +97,24 @@ const ScheduleItem = memo(function ScheduleItem({
           </Text>
         ) : null}
         <View style={styles.times}>
-          {item.times.map((time) => (
-            <View key={time} style={[styles.timeBadge, { borderColor: colors.muted }]}>
-              <MaterialCommunityIcons name="clock-outline" size={11} color={colors.textSecondary} />
-              <Text style={[styles.timeText, { color: colors.text }]}>
-                {time} <Text style={{ fontSize: 9, color: colors.textSecondary }}>{timezone}</Text>
+          {item.isAllDay ? (
+            <View style={[styles.timeBadge, { borderColor: '#a855f7', backgroundColor: '#a855f720' }]}>
+              <MaterialCommunityIcons name="white-balance-sunny" size={11} color="#a855f7" />
+              <Text style={[styles.timeText, { color: '#a855f7', fontWeight: '700' }]}>
+                Dia inteiro
               </Text>
             </View>
-          ))}
+          ) : (
+            item.times.map((time, idx) => (
+              <View key={time} style={[styles.timeBadge, { borderColor: colors.muted }]}>
+                <MaterialCommunityIcons name="clock-outline" size={11} color={colors.textSecondary} />
+                <Text style={[styles.timeText, { color: colors.text }]}>
+                  {time}{item.endTimes?.[idx] ? ` - ${item.endTimes[idx]}` : ''}{' '}
+                  <Text style={{ fontSize: 9, color: colors.textSecondary }}>{timezone}</Text>
+                </Text>
+              </View>
+            ))
+          )}
         </View>
       </View>
       <TouchableOpacity

@@ -90,18 +90,38 @@ const SlotRow = memo(function SlotRow({
   isDark: boolean;
 }) {
   const isSpecial = !!slot.iconUrl;
-  const s = useMemo(() => createSlotStyles(colors, isDark, isCurrent, isSpecial), [colors, isDark, isCurrent, isSpecial]);
+  const isAllDay = !!slot.isAllDay;
+  const s = useMemo(() => createSlotStyles(colors, isDark, isCurrent, isSpecial || isAllDay), [colors, isDark, isCurrent, isSpecial, isAllDay]);
 
   return (
     <View style={s.container}>
-      <Text style={s.time}>{slot.time}</Text>
+      {isAllDay ? (
+        <View style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 4,
+          paddingHorizontal: 6,
+          paddingVertical: 2,
+          borderRadius: 8,
+          backgroundColor: '#a855f720',
+          borderWidth: 1,
+          borderColor: '#a855f740',
+        }}>
+          <MaterialCommunityIcons name="white-balance-sunny" size={10} color="#a855f7" />
+          <Text style={{ fontSize: 9, fontWeight: '800', color: '#a855f7', letterSpacing: 0.5 }}>
+            Dia inteiro
+          </Text>
+        </View>
+      ) : (
+        <Text style={s.time}>{slot.time}</Text>
+      )}
       {isSpecial && (
         <ProgramIcon name={slot.name} iconUrl={slot.iconUrl!} size={32} colors={colors} />
       )}
-      <Text style={s.name} numberOfLines={isSpecial ? 2 : 1}>
+      <Text style={s.name} numberOfLines={isSpecial || isAllDay ? 2 : 1}>
         {slot.name}
       </Text>
-      {slot.duration ? <Text style={s.duration}>{slot.duration}</Text> : null}
+      {slot.duration && !isAllDay ? <Text style={s.duration}>{slot.duration}</Text> : null}
     </View>
   );
 });

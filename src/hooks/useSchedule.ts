@@ -16,6 +16,8 @@ interface ScheduleItemRaw {
   event_id: string;
   day_of_week: number;
   time: string;
+  end_time: string | null;
+  is_all_day: boolean;
   event: ScheduleEvent | ScheduleEvent[] | null;
 }
 
@@ -25,6 +27,8 @@ export interface GroupedSchedule {
   show: string;
   description: string | null;
   times: string[];
+  endTimes: (string | null)[];
+  isAllDay: boolean;
   iconUrl: string;
   icon: string; // Ionicons fallback
   isActive: boolean;
@@ -64,7 +68,7 @@ const FALLBACK_ICONS: Record<string, string> = {
  * Check if a program is currently live based on day and times
  * Uses Portugal timezone (Europe/Lisbon)
  */
-function checkIsLive(dayNumber: number, times: string[]): boolean {
+function checkIsLive(dayNumber: number, times: string[], endTimes?: (string | null)[], isAllDay?: boolean): boolean {
   const now = new Date();
 
   // Get current time in Portugal timezone
@@ -102,11 +106,23 @@ function checkIsLive(dayNumber: number, times: string[]): boolean {
 
   if (ptDay !== dayNumber) return false;
 
-  // Check if current time is within any show slot (assume 1 hour duration per slot)
-  for (const time of times) {
-    const [h, m] = time.split(':').map(Number);
+  // All-day events are always live on their day
+  if (isAllDay) return true;
+
+  // Check if current time is within any show slot
+  for (let i = 0; i < times.length; i++) {
+    const [h, m] = times[i].split(':').map(Number);
     const slotStart = h * 60 + m;
-    const slotEnd = slotStart + 60; // 1 hour window
+    // Use end_time if available, otherwise assume 1 hour
+    let slotEnd: number;
+    const endTime = endTimes?.[i];
+    if (endTime) {
+      const [eh, em] = endTime.split(':').map(Number);
+      slotEnd = eh * 60 + em;
+      if (slotEnd <= slotStart) slotEnd += 24 * 60;
+    } else {
+      slotEnd = slotStart + 60;
+    }
     if (ptTimeInMinutes >= slotStart && ptTimeInMinutes < slotEnd) {
       return true;
     }
@@ -157,6 +173,8 @@ function buildFallbackSchedule(currentDay: number): GroupedSchedule[] {
         show: item.show,
         description: item.description ?? null,
         times: item.times,
+        endTimes: item.times.map(() => null),
+        isAllDay: false,
         iconUrl: '',
         icon: item.icon,
         isActive: true,
@@ -201,6 +219,8 @@ export function useSchedule() {
             event_id,
             day_of_week,
             time,
+            end_time,
+            is_all_day,
             event:events!inner(id, name, description, icon_url, is_active)
           `
           )
@@ -221,31 +241,43 @@ export function useSchedule() {
             if (!event) continue;
 
             const key = `${item.day_of_week}-${event.name}`;
+            const isAllDay = item.is_all_day ?? false;
             const time = item.time.slice(0, 5); // HH:mm
+            const endTime = item.end_time ? item.end_time.slice(0, 5) : null;
 
             if (grouped.has(key)) {
-              grouped.get(key)!.times.push(time);
+              if (!isAllDay) {
+                grouped.get(key)!.times.push(time);
+                grouped.get(key)!.endTimes.push(endTime);
+              }
             } else {
-              const times = [time];
+              const times = isAllDay ? [] : [time];
+              const endTimes = isAllDay ? [] : [endTime];
               grouped.set(key, {
                 day: DAYS_MAP[item.day_of_week],
                 dayNumber: item.day_of_week,
                 show: event.name,
                 description: event.description,
                 times,
+                endTimes,
+                isAllDay,
                 iconUrl: event.icon_url,
                 icon: FALLBACK_ICONS[event.name] || 'radio-outline',
                 isActive: true,
                 isToday: item.day_of_week === currentDay,
-                isLive: checkIsLive(item.day_of_week, times),
+                isLive: checkIsLive(item.day_of_week, times, endTimes, isAllDay),
               });
             }
           }
 
           // Sort times within each show and update isLive after all times are grouped
           for (const schedule of grouped.values()) {
-            schedule.times.sort();
-            schedule.isLive = checkIsLive(schedule.dayNumber, schedule.times);
+            // Sort times and endTimes together
+            const paired = schedule.times.map((t, i) => ({ time: t, endTime: schedule.endTimes[i] }));
+            paired.sort((a, b) => a.time.localeCompare(b.time));
+            schedule.times = paired.map((p) => p.time);
+            schedule.endTimes = paired.map((p) => p.endTime);
+            schedule.isLive = checkIsLive(schedule.dayNumber, schedule.times, schedule.endTimes, schedule.isAllDay);
           }
 
           // Sort: today first, then by day number
@@ -296,9 +328,13 @@ export function useSchedule() {
       entry.shows.push(item);
     }
 
-    // Sort shows within each day by their first time
+    // Sort shows within each day: all-day first, then by first time
     for (const day of byDay.values()) {
-      day.shows.sort((a, b) => (a.times[0] ?? '').localeCompare(b.times[0] ?? ''));
+      day.shows.sort((a, b) => {
+        if (a.isAllDay && !b.isAllDay) return -1;
+        if (!a.isAllDay && b.isAllDay) return 1;
+        return (a.times[0] ?? '').localeCompare(b.times[0] ?? '');
+      });
     }
 
     // Order: today, then upcoming days, wrapping around the week
