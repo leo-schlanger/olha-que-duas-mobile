@@ -37,12 +37,6 @@ class RadioService {
   // Cache do último metadata enviado para o lock screen. Evita chamadas
   // redundantes ao caminho nativo.
   private lastLockScreenMetaKey: string = '';
-  // True depois do PRIMEIRO setActiveForLockScreen(true, meta) ter sido feito
-  // para o player corrente. Trocas de música subsequentes usam o caminho
-  // leve `updateLockScreenMetadata` que NÃO recria a MediaSession nem
-  // reinicia o foreground service — crítico para que a foto/título
-  // actualizem no notification em background.
-  private lockScreenSessionActive: boolean = false;
   // Timestamp da última transição para background. Usado para criar uma
   // "grace window" durante a qual ignoramos detecção de pause externo —
   // o player nativo pode reportar playing=false brevemente durante a
@@ -74,31 +68,25 @@ class RadioService {
   /**
    * Actualiza o lock screen apenas se o metadata mudou desde a última vez.
    *
-   * Usa DOIS caminhos do expo-audio:
-   *   1. `setActiveForLockScreen(true, meta)` — pesado: instala o player
-   *      como o "active for lock screen", recria a MediaSession e (re)inicia
-   *      o foreground service de mídia. Usado UMA VEZ por player.
-   *   2. `updateLockScreenMetadata(meta)` — leve: só substitui o metadata
-   *      e refresca a notificação (carrega a nova arte e re-posta). NÃO
-   *      recria a session nem mexe no foreground service. É o que
-   *      precisamos para mudar de música em background sem o Android
-   *      atrasar/perder a actualização.
+   * Usa SEMPRE `setActiveForLockScreen(true, meta)` que no lado nativo
+   * chama `setPlayerOptions()`. Quando o player já é o currentPlayer,
+   * este método faz update leve (sem recriar MediaSession) E chama
+   * `postOrStartForegroundNotification()` incondicionalmente — o que
+   * garante que título, artista E artwork actualizam sempre.
+   *
+   * O antigo caminho `updateLockScreenMetadata()` usava
+   * `updateMetadataInternal()` que delegava o rebuild da notificação ao
+   * callback de `loadArtworkFromUrl()`. Esse callback não disparava quando
+   * `java.net.URL.equals()` considerava as URLs iguais (ignora fragments),
+   * deixando a notificação congelada.
    */
   private updateLockScreen(meta: { title: string; artist: string; artworkUrl: string }) {
     if (!this.player || this.isIntentionallyStopped) return;
-    // Dedup key strips the fragment (#timestamp) from artworkUrl so that
-    // repeated calls for the same song with cache-busted logo URLs are
-    // properly deduplicated.
     const artKeyBase = meta.artworkUrl.split('#')[0];
     const key = `${meta.title}\x00${meta.artist}\x00${artKeyBase}`;
     if (key === this.lastLockScreenMetaKey) return;
     try {
-      if (!this.lockScreenSessionActive) {
-        this.player.setActiveForLockScreen(true, meta);
-        this.lockScreenSessionActive = true;
-      } else {
-        this.player.updateLockScreenMetadata(meta);
-      }
+      this.player.setActiveForLockScreen(true, meta);
       this.lastLockScreenMetaKey = key;
     } catch (error) {
       logger.error('Error updating lock screen:', error);
@@ -107,7 +95,6 @@ class RadioService {
 
   private resetLockScreenCache() {
     this.lastLockScreenMetaKey = '';
-    this.lockScreenSessionActive = false;
   }
 
   private stopStatusPolling() {
@@ -637,12 +624,6 @@ class RadioService {
     this.isPlaying = false;
     this.reconnectAttempts = 0;
     this.bufferingStartedAt = 0;
-    // NOTA: NÃO chamamos `resetLockScreenCache()` aqui — queremos manter a
-    // MediaSession viva durante o pause para que o utilizador possa retomar
-    // do lock screen e para o `play()` reaproveitar o player sem recriar
-    // toda a sessão de notificação. O reset acontece apenas em `stop()`/
-    // `cleanup()`/recreate do player.
-
     // Cancel pending lock screen timeout
     this.clearLockScreenTimeout();
 
