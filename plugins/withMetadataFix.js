@@ -95,6 +95,7 @@ const withMetadataFix = (config) => {
           '  // different #timestamp cache-busters. For file:// URIs (our primary\n' +
           '  // path via artworkCache) this is a <1ms disk read per track change.\n' +
           '  private fun loadArtworkFromUrl(url: URL, callback: (Bitmap?) -> Unit) {\n' +
+          '    android.util.Log.w("OQD_ARTWORK", "loadArtworkFromUrl called: ${url.toExternalForm()}")\n' +
           '    currentArtworkUrl = url\n' +
           '    artworkLoadJob?.cancel()\n' +
           '\n' +
@@ -105,11 +106,16 @@ const withMetadataFix = (config) => {
           '        connection.readTimeout = 8000\n' +
           '        val inputStream = connection.getInputStream()\n' +
           '        val bitmap = BitmapFactory.decodeStream(inputStream)\n' +
+          '        android.util.Log.w("OQD_ARTWORK", "bitmap decoded: ${bitmap != null}, size: ${bitmap?.width}x${bitmap?.height}")\n' +
           '\n' +
           '        if (isActive) {\n' +
+          '          android.util.Log.w("OQD_ARTWORK", "callback firing with bitmap=${bitmap != null}")\n' +
           '          callback(bitmap)\n' +
+          '        } else {\n' +
+          '          android.util.Log.w("OQD_ARTWORK", "coroutine not active, callback SKIPPED")\n' +
           '        }\n' +
           '      } catch (e: Exception) {\n' +
+          '        android.util.Log.e("OQD_ARTWORK", "loadArtworkFromUrl FAILED: ${e.message}", e)\n' +
           '        if (isActive) {\n' +
           '          callback(null)\n' +
           '        }\n' +
@@ -119,6 +125,40 @@ const withMetadataFix = (config) => {
 
         content = content.substring(0, methodStart) + replacement + content.substring(nextMethodStart);
         console.log('withMetadataFix: FIX 2 applied (always load artwork + timeout)');
+      }
+
+      // ---------------------------------------------------------------
+      // FIX 3: Add diagnostic logging to trace artwork flow
+      // ---------------------------------------------------------------
+
+      // Log in setPlayerOptions when metadata arrives
+      const setPlayerMetaMarker = 'fun setPlayerMetadata(player: AudioPlayer, metadata: Metadata?) {';
+      if (content.includes(setPlayerMetaMarker)) {
+        content = content.replace(
+          setPlayerMetaMarker,
+          setPlayerMetaMarker + '\n    android.util.Log.w("OQD_ARTWORK", "setPlayerMetadata called: title=${metadata?.title}, art=${metadata?.artworkUrl}")'
+        );
+        console.log('withMetadataFix: FIX 3a applied (setPlayerMetadata logging)');
+      }
+
+      // Log in setPlayerOptions
+      const setPlayerOptsMarker = 'fun setPlayerOptions(\n    player: AudioPlayer,\n    metadata: Metadata?,\n    options: AudioLockScreenOptions?\n  ) {';
+      if (content.includes(setPlayerOptsMarker)) {
+        content = content.replace(
+          setPlayerOptsMarker,
+          setPlayerOptsMarker + '\n    android.util.Log.w("OQD_ARTWORK", "setPlayerOptions called: samePlayer=${player == currentPlayer}, title=${metadata?.title}, art=${metadata?.artworkUrl}")'
+        );
+        console.log('withMetadataFix: FIX 3b applied (setPlayerOptions logging)');
+      }
+
+      // Log in buildNotification to see what bitmap is used
+      const buildNotifMarker = '.setLargeIcon(currentArtwork)';
+      if (content.includes(buildNotifMarker)) {
+        content = content.replace(
+          buildNotifMarker,
+          '.setLargeIcon(currentArtwork)\n    android.util.Log.w("OQD_ARTWORK", "buildNotification: title=${currentMetadata?.title}, hasArtwork=${currentArtwork != null}, artSize=${currentArtwork?.width}x${currentArtwork?.height}")'
+        );
+        console.log('withMetadataFix: FIX 3c applied (buildNotification logging)');
       }
 
       fs.writeFileSync(serviceFile, content, 'utf8');

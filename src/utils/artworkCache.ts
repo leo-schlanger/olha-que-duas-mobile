@@ -177,6 +177,66 @@ export function getLogoUri(remoteLogoUrl: string): string {
   return cachedLogoUri ?? remoteLogoUrl;
 }
 
+// --- Lock screen artwork with unique file paths ---
+// expo-audio ships a pre-compiled AAR where loadArtworkFromUrl compares
+// URLs with java.net.URL.equals() (ignores fragments). We CANNOT patch
+// the compiled code. Instead, we copy the artwork to a file with a unique
+// name each time, so the native side always sees a genuinely new URL.
+
+const LOCKSCREEN_DIR_NAME = 'olhaqueduas-lockscreen';
+let lockScreenDir: Directory | null = null;
+let lastLockScreenFile: File | null = null;
+
+function ensureLockScreenDir(): Directory {
+  if (lockScreenDir) return lockScreenDir;
+  const dir = new Directory(Paths.cache, LOCKSCREEN_DIR_NAME);
+  if (!dir.exists) {
+    dir.create({ idempotent: true, intermediates: true });
+  }
+  lockScreenDir = dir;
+  return dir;
+}
+
+/**
+ * Copies the given artwork file to a unique path for the lock screen.
+ * Each call produces a different file:// URI, forcing the native
+ * loadArtworkFromUrl to always download the bitmap (even though
+ * URL.equals() ignores fragments, it DOES compare file paths).
+ *
+ * Returns the unique file:// URI, or the original URI on failure.
+ */
+export function getLockScreenArtUri(sourceUri: string): string {
+  try {
+    const dir = ensureLockScreenDir();
+
+    // Delete previous lock screen file to avoid disk bloat
+    if (lastLockScreenFile) {
+      try {
+        if (lastLockScreenFile.exists) lastLockScreenFile.delete();
+      } catch {
+        // best effort
+      }
+    }
+
+    // Determine source file path from URI
+    const sourcePath = sourceUri.replace(/^file:\/\//, '');
+    const ext = sourcePath.split('.').pop() || 'jpg';
+    const destName = `art-${Date.now()}.${ext}`;
+    const destFile = new File(dir, destName);
+
+    // Copy source to unique destination
+    const srcFile = new File(sourcePath);
+    if (srcFile.exists && (srcFile.size ?? 0) > 0) {
+      srcFile.copy(destFile);
+      lastLockScreenFile = destFile;
+      return destFile.uri;
+    }
+  } catch {
+    // Fall through to return original URI
+  }
+  return sourceUri;
+}
+
 /**
  * Prunes the artwork cache to the most recent MAX_CACHE_FILES files,
  * deleting the oldest by modification time. Called periodically from

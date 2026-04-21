@@ -3,7 +3,7 @@ import { AppState, AppStateStatus } from 'react-native';
 import { siteConfig } from '../config/site';
 import { radioSettingsService, RadioSettings } from './radioSettingsService';
 import { nowPlayingService } from './nowPlayingService';
-import { getLogoUri } from '../utils/artworkCache';
+import { getLogoUri, getLockScreenArtUri } from '../utils/artworkCache';
 import { logger } from '../utils/logger';
 import { TIMING, LIMITS } from '../config/constants';
 
@@ -405,7 +405,7 @@ class RadioService {
         this.updateLockScreen({
           title: siteConfig.radio.name,
           artist: siteConfig.radio.tagline,
-          artworkUrl: getLogoUri(siteConfig.radio.logoUrl),
+          artworkUrl: getLockScreenArtUri(getLogoUri(siteConfig.radio.logoUrl)),
         });
       }, TIMING.RADIO_LOCK_SCREEN_DELAY);
 
@@ -523,15 +523,13 @@ class RadioService {
       // Verificar se ainda estamos tocando antes de atualizar lock screen
       if (!this.player || this.isIntentionallyStopped) return;
 
-      // Pass file:// URIs when available (loads in <10ms from disk).
-      // When localArtUri isn't cached yet, use the fallback logo with a
-      // fragment cache-buster (#timestamp) so the native loadArtworkFromUrl
-      // always processes it as a "new" URL — it compares url != currentArtworkUrl,
-      // and without the fragment the same logo URL would be skipped entirely
-      // (no download, no notification rebuild, metadata stays stale).
-      // The fragment is ignored by file:// I/O but makes URL comparison unique.
+      // Copy artwork to a unique file path for the lock screen. The
+      // native expo-audio AAR compares URLs with java.net.URL.equals()
+      // which ignores fragments — so #timestamp cache-busting DOES NOT
+      // work. By copying to a file with a unique name (art-{timestamp}.jpg),
+      // the native side sees a genuinely different URL every time.
       const fallbackLogo = getLogoUri(siteConfig.radio.logoUrl);
-      const pickArt = (): string => data.localArtUri || `${fallbackLogo}#${Date.now()}`;
+      const pickArt = (): string => getLockScreenArtUri(data.localArtUri || fallbackLogo);
 
       switch (data.mode) {
         case 'music':
@@ -548,7 +546,7 @@ class RadioService {
           this.updateLockScreen({
             title: data.liveShowName || siteConfig.radio.name,
             artist: siteConfig.radio.name,
-            artworkUrl: `${fallbackLogo}#${Date.now()}`,
+            artworkUrl: getLockScreenArtUri(fallbackLogo),
           });
           return;
         case 'podcast':
@@ -571,7 +569,7 @@ class RadioService {
       this.updateLockScreen({
         title: siteConfig.radio.name,
         artist: siteConfig.radio.tagline,
-        artworkUrl: `${fallbackLogo}#${Date.now()}`,
+        artworkUrl: getLockScreenArtUri(fallbackLogo),
       });
     });
   }
