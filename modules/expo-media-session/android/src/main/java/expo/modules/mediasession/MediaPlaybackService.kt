@@ -259,7 +259,7 @@ class MediaPlaybackService : Service() {
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
       )
       NotificationCompat.Action.Builder(
-        androidx.media.R.drawable.media_session_service_notification_ic_pause,
+        android.R.drawable.ic_media_pause,
         "Pause",
         pausePending
       ).build()
@@ -272,7 +272,7 @@ class MediaPlaybackService : Service() {
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
       )
       NotificationCompat.Action.Builder(
-        androidx.media.R.drawable.media_session_service_notification_ic_play,
+        android.R.drawable.ic_media_play,
         "Play",
         playPending
       ).build()
@@ -287,7 +287,7 @@ class MediaPlaybackService : Service() {
       PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
     val stopAction = NotificationCompat.Action.Builder(
-      androidx.media.R.drawable.media_session_service_notification_ic_cancel,
+      android.R.drawable.ic_menu_close_clear_cancel,
       "Stop",
       stopPending
     ).build()
