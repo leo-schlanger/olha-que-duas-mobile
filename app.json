@@ -2,7 +2,7 @@
   "expo": {
     "name": "Olha que Duas",
     "slug": "olha-que-duas",
-    "version": "1.13.4",
+    "version": "1.14.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -34,7 +34,7 @@
     },
     "android": {
       "package": "com.olhaqueduas.app",
-      "versionCode": 63,
+      "versionCode": 64,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#d6402e"
@@ -125,10 +125,7 @@
           "color": "#d6402e"
         }
       ],
-      "expo-asset",
-      "./plugins/withStopAudioOnTaskRemoved",
-      "./plugins/withWifiLock",
-      "./plugins/withMetadataFix"
+      "expo-asset"
     ],
     "extra": {
       "eas": {

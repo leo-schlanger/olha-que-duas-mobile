@@ -1,19 +1,26 @@
 import { setAudioModeAsync, AudioPlayer, createAudioPlayer } from 'expo-audio';
 import { AppState, AppStateStatus } from 'react-native';
+import { type EventSubscription } from 'expo-modules-core';
 import { siteConfig } from '../config/site';
 import { radioSettingsService, RadioSettings } from './radioSettingsService';
 import { nowPlayingService } from './nowPlayingService';
-import { getLogoUri, getLockScreenArtUri } from '../utils/artworkCache';
+import { getLogoUri } from '../utils/artworkCache';
+import * as ExpoMediaSession from '../../modules/expo-media-session/src';
 import { logger } from '../utils/logger';
 import { TIMING, LIMITS } from '../config/constants';
 
 /**
- * Radio streaming service using expo-audio (2026)
- * Supports background playback and lock screen controls
+ * Radio streaming service using expo-audio for playback and a custom
+ * ExpoMediaSession native module for the lock-screen / notification.
+ *
+ * expo-audio handles audio streaming only (no setActiveForLockScreen).
+ * ExpoMediaSession manages MediaSessionCompat + MediaStyle notification
+ * with artwork loaded directly as a Bitmap from local file:// URIs —
+ * bypassing the java.net.URL.equals() bug in expo-audio's native code.
  */
 class RadioService {
   private player: AudioPlayer | null = null;
-  private playerSubscription: { remove: () => void } | null = null;
+  private playerEventSubscription: { remove: () => void } | null = null;
   private isInitialized: boolean = false;
   private isPlaying: boolean = false;
   private volume: number = 1.0;
@@ -27,22 +34,19 @@ class RadioService {
   private isBuffering: boolean = false;
   private isPlayInProgress: boolean = false;
   private statusPollingInterval: ReturnType<typeof setInterval> | null = null;
-  private appStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null;
+  private appStateEventSubscription: ReturnType<typeof AppState.addEventListener> | null = null;
   private lastAppState: AppStateStatus = 'active';
-  private lockScreenTimeout: ReturnType<typeof setTimeout> | null = null;
-  // Timestamp em ms quando começou a estar em buffering. Usado para detectar
-  // streams "stalled" — quando o player fica preso a fazer buffer mas o áudio
-  // não avança. Reset a 0 quando volta a tocar normalmente.
   private bufferingStartedAt: number = 0;
-  // Cache do último metadata enviado para o lock screen. Evita chamadas
-  // redundantes ao caminho nativo.
-  private lastLockScreenMetaKey: string = '';
-  // Timestamp da última transição para background. Usado para criar uma
-  // "grace window" durante a qual ignoramos detecção de pause externo —
-  // o player nativo pode reportar playing=false brevemente durante a
-  // transição do Activity lifecycle, e sem esta protecção o código
-  // interpreta como pause intencional e pára tudo.
   private backgroundTransitionAt: number = 0;
+
+  // Track last metadata sent to the native module to skip redundant updates
+  private lastMediaMeta: string = '';
+
+  // EventSubscriptions for remote commands from the native MediaSession
+  private remotePlaySub: EventSubscription | null = null;
+  private remotePauseSub: EventSubscription | null = null;
+  private remoteStopSub: EventSubscription | null = null;
+  private mediaSessionActive: boolean = false;
 
   private clearReconnectTimeout() {
     if (this.reconnectTimeout) {
@@ -51,50 +55,31 @@ class RadioService {
     }
   }
 
-  private clearLockScreenTimeout() {
-    if (this.lockScreenTimeout) {
-      clearTimeout(this.lockScreenTimeout);
-      this.lockScreenTimeout = null;
-    }
-  }
-
   private removePlayerListener() {
-    if (this.playerSubscription) {
-      this.playerSubscription.remove();
-      this.playerSubscription = null;
+    if (this.playerEventSubscription) {
+      this.playerEventSubscription.remove();
+      this.playerEventSubscription = null;
     }
   }
 
   /**
-   * Actualiza o lock screen apenas se o metadata mudou desde a última vez.
-   *
-   * Usa SEMPRE `setActiveForLockScreen(true, meta)` que no lado nativo
-   * chama `setPlayerOptions()`. Quando o player já é o currentPlayer,
-   * este método faz update leve (sem recriar MediaSession) E chama
-   * `postOrStartForegroundNotification()` incondicionalmente — o que
-   * garante que título, artista E artwork actualizam sempre.
-   *
-   * O antigo caminho `updateLockScreenMetadata()` usava
-   * `updateMetadataInternal()` que delegava o rebuild da notificação ao
-   * callback de `loadArtworkFromUrl()`. Esse callback não disparava quando
-   * `java.net.URL.equals()` considerava as URLs iguais (ignora fragments),
-   * deixando a notificação congelada.
+   * Update the native media notification with new metadata.
+   * Artwork is always a local file:// URI (from artworkCache).
    */
-  private updateLockScreen(meta: { title: string; artist: string; artworkUrl: string }) {
-    if (!this.player || this.isIntentionallyStopped) return;
-    const artKeyBase = meta.artworkUrl.split('#')[0];
-    const key = `${meta.title}\x00${meta.artist}\x00${artKeyBase}`;
-    if (key === this.lastLockScreenMetaKey) return;
+  private updateMediaNotification(meta: { title: string; artist: string; artworkUri: string }) {
+    if (!this.mediaSessionActive || this.isIntentionallyStopped) return;
+    const key = `${meta.title}\x00${meta.artist}\x00${meta.artworkUri}`;
+    if (key === this.lastMediaMeta) return;
+    this.lastMediaMeta = key;
     try {
-      this.player.setActiveForLockScreen(true, meta);
-      this.lastLockScreenMetaKey = key;
+      ExpoMediaSession.updateMetadata(meta);
     } catch (error) {
-      logger.error('Error updating lock screen:', error);
+      logger.error('Error updating media notification:', error);
     }
   }
 
-  private resetLockScreenCache() {
-    this.lastLockScreenMetaKey = '';
+  private resetMediaMetaCache() {
+    this.lastMediaMeta = '';
   }
 
   private stopStatusPolling() {
@@ -120,29 +105,29 @@ class RadioService {
       const wasPlaying = this.isPlaying;
       const wasBuffering = this.isBuffering;
 
-      // Detect external resume (e.g., user pressed play on lock screen)
-      // Player is playing but we think it's intentionally stopped
+      // Detect external resume (e.g., user pressed play on notification)
       if (this.isIntentionallyStopped && playerPlaying) {
-        logger.log('Polling: External resume detected (lock screen play)');
+        logger.log('Polling: External resume detected');
         this.isIntentionallyStopped = false;
         this.isPlaying = true;
         this.isBuffering = playerBuffering;
         this.bufferingStartedAt = 0;
         this.subscribeToNowPlaying();
+        if (this.mediaSessionActive) {
+          ExpoMediaSession.updatePlaybackState(true);
+        }
         this.emitStatus(false);
         return;
       }
 
-      // Don't process further if intentionally stopped
       if (this.isIntentionallyStopped) return;
 
-      // Detect external pause (e.g., from lock screen controls).
-      // Suppress in background — reconcile on foreground return.
+      // Detect external pause — suppress in background (reconcile on foreground return)
       if (wasPlaying && !playerPlaying && !playerBuffering) {
         const appInBackground = AppState.currentState !== 'active';
-        const inGracePeriod = Date.now() - this.backgroundTransitionAt < TIMING.RADIO_BG_GRACE_PERIOD;
+        const inGracePeriod =
+          Date.now() - this.backgroundTransitionAt < TIMING.RADIO_BG_GRACE_PERIOD;
         if (appInBackground || inGracePeriod) {
-          logger.log('Polling: Ignoring pause (app not active or grace period)');
           return;
         }
         logger.log('Polling: External pause detected');
@@ -151,6 +136,9 @@ class RadioService {
         this.isBuffering = false;
         this.bufferingStartedAt = 0;
         this.unsubscribeFromNowPlaying();
+        if (this.mediaSessionActive) {
+          ExpoMediaSession.updatePlaybackState(false);
+        }
         this.emitStatus(false);
         return;
       }
@@ -158,9 +146,7 @@ class RadioService {
       this.isPlaying = playerPlaying;
       this.isBuffering = playerBuffering;
 
-      // Stall detection: se ficamos presos a fazer buffer durante demasiado
-      // tempo, o stream provavelmente caiu silenciosamente. Forçar reconnect
-      // em vez de deixar o utilizador a ver um spinner para sempre.
+      // Stall detection
       if (playerBuffering && !playerPlaying) {
         if (this.bufferingStartedAt === 0) {
           this.bufferingStartedAt = Date.now();
@@ -174,15 +160,11 @@ class RadioService {
           return;
         }
       } else if (playerPlaying) {
-        // Voltámos a tocar, limpar timer de stall
         this.bufferingStartedAt = 0;
       }
 
       const isLoading = !this.isPlaying && !this.isIntentionallyStopped;
-
       if (wasPlaying !== this.isPlaying || wasBuffering !== this.isBuffering) {
-        // logger.log removido — disparava a cada mudança de estado e era
-        // ruído que enchia o console em playback normal.
         this.emitStatus(isLoading);
       }
     } catch (error) {
@@ -191,59 +173,78 @@ class RadioService {
   }
 
   async initialize(preloadedSettings?: RadioSettings) {
-    if (this.isInitialized) {
-      return;
-    }
+    if (this.isInitialized) return;
 
     try {
-      // Use preloaded settings or load fresh
       this.settings = preloadedSettings ?? (await radioSettingsService.load());
       this.volume = this.settings.volume;
 
-      // Subscribe to settings changes
       this.settingsUnsubscribe = radioSettingsService.subscribe((newSettings) => {
         this.handleSettingsChange(newSettings);
       });
 
-      // Configure audio mode for background playback
       await setAudioModeAsync({
         playsInSilentMode: true,
         shouldPlayInBackground: this.settings.backgroundPlayback,
         interruptionMode: 'doNotMix',
       });
 
-      // Setup AppState listener for app lifecycle events
       this.setupAppStateListener();
+      this.setupRemoteCommandListeners();
 
       this.isInitialized = true;
-      logger.log('RadioService initialized with expo-audio');
+      logger.log('RadioService initialized');
 
-      // Auto-play if enabled
       if (this.settings.autoPlayOnStart) {
         setTimeout(() => this.play(), TIMING.RADIO_AUTOPLAY_DELAY);
       }
     } catch (error) {
       logger.error('Error initializing RadioService:', error);
-      // Leave isInitialized = false so init can be retried on next play()
     }
+  }
+
+  /**
+   * Subscribe to play/pause/stop commands from the native MediaSession.
+   * These fire when the user taps notification buttons, lock screen controls,
+   * or Bluetooth media keys.
+   */
+  private setupRemoteCommandListeners(): void {
+    this.remotePlaySub = ExpoMediaSession.addOnRemotePlayListener(() => {
+      logger.log('Remote command: play');
+      if (this.isIntentionallyStopped) {
+        this.play();
+      } else if (this.player && !this.player.playing) {
+        this.player.play();
+        this.isPlaying = true;
+        this.isIntentionallyStopped = false;
+        this.subscribeToNowPlaying();
+        this.emitStatus(false);
+      }
+    });
+
+    this.remotePauseSub = ExpoMediaSession.addOnRemotePauseListener(() => {
+      logger.log('Remote command: pause');
+      this.pause();
+    });
+
+    this.remoteStopSub = ExpoMediaSession.addOnRemoteStopListener(() => {
+      logger.log('Remote command: stop');
+      this.stop();
+    });
   }
 
   private setupAppStateListener(): void {
     this.lastAppState = AppState.currentState;
-    this.appStateSubscription = AppState.addEventListener('change', this.handleAppStateChange);
+    this.appStateEventSubscription = AppState.addEventListener('change', this.handleAppStateChange);
   }
 
   private handleAppStateChange = async (nextAppState: AppStateStatus): Promise<void> => {
     logger.log('AppState changed:', this.lastAppState, '->', nextAppState);
 
-    // App coming back to active from background/inactive
     if (this.lastAppState.match(/inactive|background/) && nextAppState === 'active') {
-      this.backgroundTransitionAt = 0; // clear grace period
+      this.backgroundTransitionAt = 0;
 
       if (this.player && !this.isIntentionallyStopped) {
-        // Reconcile state: check if player was paused externally while in
-        // background (we suppress external-pause detection in BG to avoid
-        // false positives from Activity lifecycle transients).
         const playerPlaying = this.player.playing ?? false;
         if (!playerPlaying) {
           logger.log('Player paused during background, marking as stopped');
@@ -251,39 +252,23 @@ class RadioService {
           this.isPlaying = false;
           this.isBuffering = false;
           this.unsubscribeFromNowPlaying();
+          if (this.mediaSessionActive) {
+            ExpoMediaSession.updatePlaybackState(false);
+          }
           this.emitStatus(false);
         }
       }
 
-      // Ensure polling is running at foreground cadence
       if (this.player && !this.statusPollingInterval) {
         this.startStatusPolling();
       }
     }
 
-    // App going to background — polling stays alive. The foreground media
-    // service keeps the JS context running and the overhead of a status
-    // poll (two native bridge reads) is negligible next to the audio
-    // stream. Keeping it alive guarantees stall detection, auto-reconnect,
-    // and lock screen play/pause detection all work in background.
     if (nextAppState === 'background') {
-      // Mark the transition so external-pause detection is suppressed
-      // during the grace window (the native player may briefly report
-      // playing=false during the Activity lifecycle change).
       this.backgroundTransitionAt = Date.now();
 
-      // If stopOnClose is enabled, stop the radio when app goes to background
-      // This must be fast and synchronous-like because the process may be killed
       if (this.settings?.stopOnClose && this.isPlaying) {
         logger.log('Stopping radio due to stopOnClose setting');
-        // Deactivate lock screen immediately before stop() in case process is killed
-        if (this.player) {
-          try {
-            this.player.setActiveForLockScreen(false);
-          } catch {
-            // Ignore - best effort
-          }
-        }
         await this.stop();
       }
     }
@@ -295,7 +280,6 @@ class RadioService {
     const oldSettings = this.settings;
     this.settings = newSettings;
 
-    // Update volume in real-time
     if (oldSettings?.volume !== newSettings.volume) {
       this.volume = newSettings.volume;
       if (this.player) {
@@ -303,7 +287,6 @@ class RadioService {
       }
     }
 
-    // Update background playback mode in real-time
     if (oldSettings?.backgroundPlayback !== newSettings.backgroundPlayback) {
       try {
         await setAudioModeAsync({
@@ -311,7 +294,6 @@ class RadioService {
           shouldPlayInBackground: newSettings.backgroundPlayback,
           interruptionMode: 'doNotMix',
         });
-        logger.log('Background playback updated:', newSettings.backgroundPlayback);
       } catch (error) {
         logger.error('Error updating audio mode:', error);
       }
@@ -335,7 +317,6 @@ class RadioService {
   }
 
   async play(): Promise<boolean> {
-    // Guard against concurrent play() calls
     if (this.isPlayInProgress) {
       logger.log('Play already in progress, ignoring');
       return false;
@@ -346,7 +327,6 @@ class RadioService {
       this.isIntentionallyStopped = false;
       this.bufferingStartedAt = 0;
       this.clearReconnectTimeout();
-      this.clearLockScreenTimeout();
       this.stopStatusPolling();
       this.emitStatus(true);
 
@@ -354,23 +334,23 @@ class RadioService {
         await this.initialize();
       }
 
-      // FAST PATH — reusar o player existente. Acontece quando o utilizador
-      // faz pause→play: a connection HTTP/ICY do stream pode ainda estar
-      // alive e o ExoPlayer/AVPlayer reanuncia em <100ms, em vez dos 1-3s
-      // do recreate completo (TCP handshake + prebuffer + decoder warmup).
+      // FAST PATH — reuse existing player
       if (this.player) {
         try {
           this.player.play();
           this.subscribeToNowPlaying();
           this.startStatusPolling();
           this.reconnectAttempts = 0;
+          // Activate media session if not already active
+          if (!this.mediaSessionActive) {
+            this.activateMediaSession();
+          } else {
+            ExpoMediaSession.updatePlaybackState(true);
+          }
           this.emitStatus(true);
           logger.log('Radio stream resumed (player reused)');
           return true;
         } catch (resumeError) {
-          // Se o player nativo morreu silenciosamente durante o pause
-          // (ex.: process killed and restored sem JS context), cai no slow
-          // path e recriamos o player do zero.
           logger.warn('Resume failed, falling back to recreate:', resumeError);
           this.removePlayerListener();
           try {
@@ -379,48 +359,31 @@ class RadioService {
             // ignore
           }
           this.player = null;
-          this.resetLockScreenCache();
+          this.resetMediaMetaCache();
         }
       }
 
-      // SLOW PATH — primeiro play, ou recreate após resume falhar.
+      // SLOW PATH — create new player
       logger.log('Creating audio player for:', siteConfig.radio.streamUrl);
 
       this.player = createAudioPlayer({ uri: siteConfig.radio.streamUrl });
       this.player.volume = this.volume;
 
-      // Subscribe to status updates
-      this.playerSubscription = this.player.addListener('playbackStatusUpdate', (status) => {
+      this.playerEventSubscription = this.player.addListener('playbackStatusUpdate', (status) => {
         this.handlePlaybackStatus(status);
       });
 
-      // Start playback first
       this.player.play();
 
-      // Enable lock screen controls after playback starts (avoid blocking).
-      // Use the pre-cached file:// logo URI — never the remote URL, which
-      // would block the native side on a slow openConnection() fetch.
-      this.lockScreenTimeout = setTimeout(() => {
-        this.lockScreenTimeout = null;
-        this.updateLockScreen({
-          title: siteConfig.radio.name,
-          artist: siteConfig.radio.tagline,
-          artworkUrl: getLockScreenArtUri(getLogoUri(siteConfig.radio.logoUrl)),
-        });
-      }, TIMING.RADIO_LOCK_SCREEN_DELAY);
+      // Activate our custom media notification (replaces setActiveForLockScreen)
+      this.activateMediaSession();
 
-      // Subscribe to now-playing updates for lock screen metadata
-      // Always unsubscribe first to prevent duplicate listeners on reconnect
       this.unsubscribeFromNowPlaying();
       this.subscribeToNowPlaying();
-
-      // Start polling as fallback for playbackStatusUpdate (which may not fire for live streams)
       this.startStatusPolling();
 
-      // Don't set isPlaying = true here - wait for playbackStatusUpdate callback
-      // or polling to confirm playback has actually started
       this.reconnectAttempts = 0;
-      this.emitStatus(true); // Keep showing loading until confirmed
+      this.emitStatus(true);
 
       logger.log('Radio stream starting...');
       return true;
@@ -438,6 +401,26 @@ class RadioService {
     }
   }
 
+  /**
+   * Start the native foreground service with initial metadata (radio name + logo).
+   * The service creates the MediaSession, acquires WiFi lock, and shows the
+   * notification. Subsequent metadata updates go via updateMediaNotification().
+   */
+  private activateMediaSession(): void {
+    const logoUri = getLogoUri(siteConfig.radio.logoUrl);
+    try {
+      ExpoMediaSession.activate({
+        title: siteConfig.radio.name,
+        artist: siteConfig.radio.tagline,
+        artworkUri: logoUri,
+      });
+      this.mediaSessionActive = true;
+      this.resetMediaMetaCache();
+    } catch (error) {
+      logger.error('Error activating media session:', error);
+    }
+  }
+
   private handlePlaybackStatus(status: {
     error?: string;
     isLoaded?: boolean;
@@ -446,10 +429,7 @@ class RadioService {
     playing?: boolean;
     buffering?: boolean;
   }) {
-    // Ignore status updates if intentionally stopped (prevents race conditions)
-    if (this.isIntentionallyStopped) {
-      return;
-    }
+    if (this.isIntentionallyStopped) return;
 
     if (status.error) {
       logger.error('Playback error:', status.error);
@@ -467,20 +447,14 @@ class RadioService {
     const wasPlaying = this.isPlaying;
     const wasBuffering = this.isBuffering;
 
-    // expo-audio reports playing status
     const newIsPlaying = status.isPlaying ?? status.playing ?? false;
     const newIsBuffering = status.isBuffering ?? status.buffering ?? false;
 
-    // Detect external pause (e.g., from lock screen controls).
-    // Suppress detection when the app is NOT in foreground — the native
-    // player may transiently report playing=false during the Activity
-    // lifecycle change. We reconcile the real state when the app returns
-    // to foreground (see handleAppStateChange).
+    // Detect external pause — suppress in background
     if (wasPlaying && !newIsPlaying && !newIsBuffering) {
       const appInBackground = AppState.currentState !== 'active';
       const inGracePeriod = Date.now() - this.backgroundTransitionAt < TIMING.RADIO_BG_GRACE_PERIOD;
       if (appInBackground || inGracePeriod) {
-        logger.log('Ignoring transient pause (app not active or grace period)');
         return;
       }
       logger.log('External pause detected (lock screen or system)');
@@ -489,6 +463,9 @@ class RadioService {
       this.isBuffering = false;
       this.bufferingStartedAt = 0;
       this.unsubscribeFromNowPlaying();
+      if (this.mediaSessionActive) {
+        ExpoMediaSession.updatePlaybackState(false);
+      }
       this.emitStatus(false);
       return;
     }
@@ -496,17 +473,12 @@ class RadioService {
     this.isPlaying = newIsPlaying;
     this.isBuffering = newIsBuffering;
     if (newIsPlaying) {
-      // Voltámos a tocar — limpa o timer de stall do polling
       this.bufferingStartedAt = 0;
     }
 
-    // Loading is finished when playback has started
-    // We consider it playing if isPlaying is true, regardless of buffering
     const isLoading = !this.isPlaying && !this.isIntentionallyStopped;
 
     if (wasPlaying !== this.isPlaying || wasBuffering !== this.isBuffering) {
-      // logger.log removido — disparava em todo o playbackStatusUpdate
-      // (até 2x/segundo a default 500ms) e enchia o console.
       this.emitStatus(isLoading);
     }
   }
@@ -516,60 +488,55 @@ class RadioService {
       this.nowPlayingUnsubscribe();
     }
 
-    // Start the now playing service polling
     nowPlayingService.start();
 
     this.nowPlayingUnsubscribe = nowPlayingService.subscribe((data) => {
-      // Verificar se ainda estamos tocando antes de atualizar lock screen
-      if (!this.player || this.isIntentionallyStopped) return;
+      if (!this.mediaSessionActive || this.isIntentionallyStopped) return;
 
-      // Copy artwork to a unique file path for the lock screen. The
-      // native expo-audio AAR compares URLs with java.net.URL.equals()
-      // which ignores fragments — so #timestamp cache-busting DOES NOT
-      // work. By copying to a file with a unique name (art-{timestamp}.jpg),
-      // the native side sees a genuinely different URL every time.
+      // Resolve artwork: prefer pre-downloaded local file, then cached,
+      // then fall back to the radio logo (always a local file).
       const fallbackLogo = getLogoUri(siteConfig.radio.logoUrl);
-      const pickArt = (): string => getLockScreenArtUri(data.localArtUri || fallbackLogo);
+      const artUri = data.localArtUri || fallbackLogo;
 
       switch (data.mode) {
         case 'music':
           if (data.song) {
-            this.updateLockScreen({
+            this.updateMediaNotification({
               title: data.song.title,
               artist: data.song.artist,
-              artworkUrl: pickArt(),
+              artworkUri: artUri,
             });
             return;
           }
           break;
         case 'liveShow':
-          this.updateLockScreen({
+          this.updateMediaNotification({
             title: data.liveShowName || siteConfig.radio.name,
             artist: siteConfig.radio.name,
-            artworkUrl: getLockScreenArtUri(fallbackLogo),
+            artworkUri: fallbackLogo,
           });
           return;
         case 'podcast':
-          this.updateLockScreen({
+          this.updateMediaNotification({
             title: data.podcastName,
             artist: siteConfig.radio.name,
-            artworkUrl: pickArt(),
+            artworkUri: artUri,
           });
           return;
         case 'announcement':
-          this.updateLockScreen({
+          this.updateMediaNotification({
             title: data.announcementName,
             artist: siteConfig.radio.name,
-            artworkUrl: pickArt(),
+            artworkUri: artUri,
           });
           return;
       }
 
-      // Idle (or music with missing song object) — fall back to radio identity.
-      this.updateLockScreen({
+      // Idle — fall back to radio identity
+      this.updateMediaNotification({
         title: siteConfig.radio.name,
         artist: siteConfig.radio.tagline,
-        artworkUrl: getLockScreenArtUri(fallbackLogo),
+        artworkUri: fallbackLogo,
       });
     });
   }
@@ -586,7 +553,6 @@ class RadioService {
     if (this.isIntentionallyStopped) return;
     if (this.reconnectAttempts >= LIMITS.MAX_RECONNECT_ATTEMPTS) {
       logger.log('Max reconnect attempts reached, giving up');
-      // Reset state so user can try again manually
       this.reconnectAttempts = 0;
       this.isPlaying = false;
       this.isBuffering = false;
@@ -594,6 +560,7 @@ class RadioService {
       this.isIntentionallyStopped = true;
       this.stopStatusPolling();
       this.unsubscribeFromNowPlaying();
+      this.deactivateMediaSession();
       this.emitStatus(false);
       return;
     }
@@ -617,15 +584,11 @@ class RadioService {
   }
 
   async pause(): Promise<void> {
-    // Set flag FIRST to prevent any polling/callbacks from restarting
     this.isIntentionallyStopped = true;
     this.isPlaying = false;
     this.reconnectAttempts = 0;
     this.bufferingStartedAt = 0;
-    // Cancel pending lock screen timeout
-    this.clearLockScreenTimeout();
 
-    // Pause player BEFORE stopping polling to ensure consistent state
     if (this.player) {
       try {
         this.player.pause();
@@ -634,34 +597,30 @@ class RadioService {
       }
     }
 
-    // Now safe to stop polling and cleanup
     this.clearReconnectTimeout();
     this.stopStatusPolling();
-
-    // Clean up now playing subscription to prevent memory leaks
     this.unsubscribeFromNowPlaying();
+
+    if (this.mediaSessionActive) {
+      ExpoMediaSession.updatePlaybackState(false);
+    }
 
     this.emitStatus();
   }
 
   async stop(): Promise<void> {
-    // Set flags FIRST to prevent any polling/callbacks from restarting
     this.isIntentionallyStopped = true;
     this.isPlaying = false;
     this.reconnectAttempts = 0;
     this.bufferingStartedAt = 0;
-    this.resetLockScreenCache();
+    this.resetMediaMetaCache();
 
-    // Cancel pending lock screen timeout
-    this.clearLockScreenTimeout();
-
-    // Release player immediately - no delays that could be interrupted by process kill
+    // Release player
     if (this.player) {
       try {
         this.player.pause();
-        this.player.setActiveForLockScreen(false);
       } catch (e) {
-        logger.error('Error deactivating lock screen:', e);
+        logger.error('Error pausing player:', e);
       }
       this.removePlayerListener();
       try {
@@ -672,12 +631,24 @@ class RadioService {
       this.player = null;
     }
 
-    // Now safe to cleanup
+    // Stop the native media service (notification + WiFi lock + MediaSession)
+    this.deactivateMediaSession();
+
     this.clearReconnectTimeout();
     this.stopStatusPolling();
     this.unsubscribeFromNowPlaying();
 
     this.emitStatus();
+  }
+
+  private deactivateMediaSession(): void {
+    if (!this.mediaSessionActive) return;
+    try {
+      ExpoMediaSession.deactivate();
+    } catch (error) {
+      logger.error('Error deactivating media session:', error);
+    }
+    this.mediaSessionActive = false;
   }
 
   async setVolume(value: number): Promise<void> {
@@ -729,31 +700,29 @@ class RadioService {
   }
 
   async cleanup() {
-    // Clear all timeouts first
-    this.clearLockScreenTimeout();
     this.clearReconnectTimeout();
     this.bufferingStartedAt = 0;
-    this.resetLockScreenCache();
+    this.resetMediaMetaCache();
 
-    if (this.appStateSubscription) {
-      this.appStateSubscription.remove();
-      this.appStateSubscription = null;
+    if (this.appStateEventSubscription) {
+      this.appStateEventSubscription.remove();
+      this.appStateEventSubscription = null;
     }
     if (this.settingsUnsubscribe) {
       this.settingsUnsubscribe();
       this.settingsUnsubscribe = null;
     }
+
+    // Remove remote command listeners
+    this.remotePlaySub?.remove();
+    this.remotePauseSub?.remove();
+    this.remoteStopSub?.remove();
+    this.remotePlaySub = null;
+    this.remotePauseSub = null;
+    this.remoteStopSub = null;
+
     this.stopStatusPolling();
     this.unsubscribeFromNowPlaying();
-
-    // Ensure lock screen is deactivated even if stop() partially failed before
-    if (this.player) {
-      try {
-        this.player.setActiveForLockScreen(false);
-      } catch {
-        // Ignore if already released
-      }
-    }
 
     await this.stop();
     this.isInitialized = false;

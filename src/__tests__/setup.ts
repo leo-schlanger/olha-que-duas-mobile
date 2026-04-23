@@ -39,6 +39,26 @@ jest.mock('expo-audio', () => ({
   })),
   setAudioModeAsync: jest.fn(),
   AudioPlayer: jest.fn(),
+  createAudioPlayer: jest.fn(() => ({
+    play: jest.fn(),
+    pause: jest.fn(),
+    release: jest.fn(),
+    playing: false,
+    isBuffering: false,
+    volume: 1,
+    addListener: jest.fn(() => ({ remove: jest.fn() })),
+  })),
+}));
+
+// Mock ExpoMediaSession native module
+jest.mock('../../modules/expo-media-session/src', () => ({
+  activate: jest.fn(),
+  updateMetadata: jest.fn(),
+  updatePlaybackState: jest.fn(),
+  deactivate: jest.fn(),
+  addOnRemotePlayListener: jest.fn(() => ({ remove: jest.fn() })),
+  addOnRemotePauseListener: jest.fn(() => ({ remove: jest.fn() })),
+  addOnRemoteStopListener: jest.fn(() => ({ remove: jest.fn() })),
 }));
 
 // Mock expo-location

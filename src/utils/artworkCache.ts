@@ -1,19 +1,9 @@
 /**
  * Artwork pre-download cache.
  *
- * The lock-screen / media-notification on Android (expo-audio's
- * AudioControlsService) downloads artwork via `URL.openConnection()` from
- * whatever URL we pass to `setActiveForLockScreen()` /
- * `updateLockScreenMetadata()`. That fetch happens on every metadata
- * change AND has no cache — same URL → fetched again. In background, on
- * cellular, or with battery saver, that fetch can take 200ms-2s or fail
- * silently leaving the user looking at the previous song's cover.
- *
- * This module pre-downloads the artwork to a stable local file the moment
- * the now-playing service learns about it (via SSE). When we then call
- * `updateLockScreenMetadata({ artworkUrl: localUri })`, the native side
- * loads from disk in <10ms — no network round-trip, works in background
- * regardless of throttling.
+ * Pre-downloads album artwork to local storage so that consumers always have
+ * a file:// URI ready. The ExpoMediaSession native module loads the bitmap
+ * directly from this local file — no network round-trip, works in background.
  *
  * Cache lives in `Paths.cache/olhaqueduas-covers`. Filenames are an FNV-1a
  * hash of the remote URL so the same artwork is reused across replays of
@@ -58,21 +48,18 @@ function ensureDir(): Directory {
 }
 
 function inferExtension(url: string): string {
-  // Strip query string before checking extension — AzuraCast sometimes
-  // appends `?timestamp` which would break a naive endsWith match.
   const path = url.split('?')[0].toLowerCase();
   if (path.endsWith('.png')) return 'png';
   if (path.endsWith('.webp')) return 'webp';
   if (path.endsWith('.gif')) return 'gif';
   if (path.endsWith('.jpeg') || path.endsWith('.jpg')) return 'jpg';
-  return 'jpg'; // sensible default for album art
+  return 'jpg';
 }
 
 /**
  * Returns a `file://` URI for the artwork at `remoteUrl`, downloading it
  * first if not yet cached. Returns `null` only if the URL is invalid or
- * the download fails — callers should fall back to the remote URL in that
- * case so the lock screen still shows *something*.
+ * the download fails — callers should fall back to the logo URI in that case.
  *
  * Concurrent calls for the same URL are coalesced into a single download.
  */
@@ -86,14 +73,11 @@ export async function getLocalArtwork(remoteUrl: string): Promise<string | null>
   const file = new File(dir, filename);
 
   if (file.exists) {
-    // Guard against truncated/corrupted files from partial downloads.
-    // A zero-byte file would cause BitmapFactory.decodeStream to return
-    // null on the native side, leaving the lock screen with no artwork.
     try {
       if ((file.size ?? 0) > 0) return file.uri;
       file.delete();
     } catch {
-      // ignore — treat as cache miss
+      // treat as cache miss
     }
   }
 
@@ -103,7 +87,10 @@ export async function getLocalArtwork(remoteUrl: string): Promise<string | null>
   const promise: Promise<string | null> = (async () => {
     try {
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('artwork download timeout')), TIMING.ARTWORK_DOWNLOAD_TIMEOUT);
+        setTimeout(
+          () => reject(new Error('artwork download timeout')),
+          TIMING.ARTWORK_DOWNLOAD_TIMEOUT
+        );
       });
       const downloaded = await Promise.race([
         File.downloadFileAsync(remoteUrl, file),
@@ -111,12 +98,10 @@ export async function getLocalArtwork(remoteUrl: string): Promise<string | null>
       ]);
       downloadCount++;
       if (downloadCount % PRUNE_EVERY_N_DOWNLOADS === 0) {
-        // Don't await — pruning is a background maintenance task.
         pruneCache().catch((err) => logger.warn('artworkCache: prune failed', err));
       }
       return downloaded.uri;
     } catch (err) {
-      // Clean up partial download to avoid corrupted cache entries
       try {
         if (file.exists) file.delete();
       } catch {
@@ -135,8 +120,6 @@ export async function getLocalArtwork(remoteUrl: string): Promise<string | null>
 
 /**
  * Synchronous lookup: returns the cached file URI if present, else null.
- * Used when we want to update the lock screen *immediately* with whatever
- * we have cached and not block on a download.
  */
 export function getCachedArtwork(remoteUrl: string): string | null {
   if (!remoteUrl || (!remoteUrl.startsWith('http://') && !remoteUrl.startsWith('https://'))) {
@@ -151,16 +134,11 @@ export function getCachedArtwork(remoteUrl: string): string | null {
   }
 }
 
-// Cached logo URI — populated by `prefetchLogo()` at app boot. Used as the
-// lock-screen artwork fallback so we NEVER pass a remote URL to expo-audio
-// (which would make the native side block on `URL.openConnection()` with no
-// timeout — confirmed source of multi-second delays in background).
+// Cached logo URI — populated by `prefetchLogo()` at app boot.
 let cachedLogoUri: string | null = null;
 
 /**
  * Pre-downloads the radio logo to local storage. Call once at app boot.
- * The result is exposed via `getLogoUri()` so consumers can synchronously
- * fall back to a file:// URI for the logo instead of using the remote URL.
  */
 export async function prefetchLogo(remoteLogoUrl: string): Promise<void> {
   const local = await getLocalArtwork(remoteLogoUrl);
@@ -177,70 +155,8 @@ export function getLogoUri(remoteLogoUrl: string): string {
   return cachedLogoUri ?? remoteLogoUrl;
 }
 
-// --- Lock screen artwork with unique file paths ---
-// expo-audio ships a pre-compiled AAR where loadArtworkFromUrl compares
-// URLs with java.net.URL.equals() (ignores fragments). We CANNOT patch
-// the compiled code. Instead, we copy the artwork to a file with a unique
-// name each time, so the native side always sees a genuinely new URL.
-
-const LOCKSCREEN_DIR_NAME = 'olhaqueduas-lockscreen';
-let lockScreenDir: Directory | null = null;
-let lastLockScreenFile: File | null = null;
-
-function ensureLockScreenDir(): Directory {
-  if (lockScreenDir) return lockScreenDir;
-  const dir = new Directory(Paths.cache, LOCKSCREEN_DIR_NAME);
-  if (!dir.exists) {
-    dir.create({ idempotent: true, intermediates: true });
-  }
-  lockScreenDir = dir;
-  return dir;
-}
-
 /**
- * Copies the given artwork file to a unique path for the lock screen.
- * Each call produces a different file:// URI, forcing the native
- * loadArtworkFromUrl to always download the bitmap (even though
- * URL.equals() ignores fragments, it DOES compare file paths).
- *
- * Returns the unique file:// URI, or the original URI on failure.
- */
-export function getLockScreenArtUri(sourceUri: string): string {
-  try {
-    const dir = ensureLockScreenDir();
-
-    // Delete previous lock screen file to avoid disk bloat
-    if (lastLockScreenFile) {
-      try {
-        if (lastLockScreenFile.exists) lastLockScreenFile.delete();
-      } catch {
-        // best effort
-      }
-    }
-
-    // Determine source file path from URI
-    const sourcePath = sourceUri.replace(/^file:\/\//, '');
-    const ext = sourcePath.split('.').pop() || 'jpg';
-    const destName = `art-${Date.now()}.${ext}`;
-    const destFile = new File(dir, destName);
-
-    // Copy source to unique destination
-    const srcFile = new File(sourcePath);
-    if (srcFile.exists && (srcFile.size ?? 0) > 0) {
-      srcFile.copy(destFile);
-      lastLockScreenFile = destFile;
-      return destFile.uri;
-    }
-  } catch {
-    // Fall through to return original URI
-  }
-  return sourceUri;
-}
-
-/**
- * Prunes the artwork cache to the most recent MAX_CACHE_FILES files,
- * deleting the oldest by modification time. Called periodically from
- * `getLocalArtwork()` so we don't grow unbounded.
+ * Prunes the artwork cache to the most recent MAX_CACHE_FILES files.
  */
 async function pruneCache(): Promise<void> {
   const dir = ensureDir();
@@ -250,13 +166,12 @@ async function pruneCache(): Promise<void> {
   const files = entries.filter((e): e is File => e instanceof File);
   if (files.length <= MAX_CACHE_FILES) return;
 
-  // Sort oldest-first by modificationTime; mtime is in seconds since epoch.
   const withMtime = files.map((file) => {
     let mtime = 0;
     try {
       mtime = file.info().modificationTime ?? 0;
     } catch {
-      // ignore — treat as oldest so it's eligible for deletion
+      // treat as oldest
     }
     return { file, mtime };
   });
@@ -267,7 +182,7 @@ async function pruneCache(): Promise<void> {
     try {
       file.delete();
     } catch {
-      // ignore — best effort
+      // best effort
     }
   }
 }

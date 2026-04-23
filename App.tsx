@@ -32,7 +32,6 @@ import { radioSettingsService } from "./src/services/radioSettingsService";
 import { notificationService } from "./src/services/notificationService";
 import { prefetchLogo } from "./src/utils/artworkCache";
 import { siteConfig } from "./src/config/site";
-import { preload as preloadAudio } from "expo-audio";
 
 // Lazy load native-only services
 let adService: any = null;
@@ -91,22 +90,11 @@ function AppContent() {
         await radioService.initialize(settings);
         logger.log("Radio service initialized");
 
-        // Pre-cache the radio logo to a local file so the lock screen
-        // never has to fetch a remote URL — even the fallback artwork is
-        // a file:// URI loaded in <10ms by the native side. Fire and
-        // forget; if it fails, lock screen falls back to the remote URL
-        // (slow but functional).
+        // Pre-cache the radio logo to a local file so the media
+        // notification always has a file:// URI for artwork. Fire and
+        // forget; if it fails, the notification shows without artwork.
         prefetchLogo(siteConfig.radio.logoUrl).catch((err) =>
           logger.warn("Logo prefetch failed:", err)
-        );
-
-        // Warm-up the stream connection at native level. expo-audio@55's
-        // preload establishes TCP/TLS and starts filling the ExoPlayer
-        // buffer in background — so when the user taps play, the
-        // connection is already open and some data is buffered, reducing
-        // tap-to-audio latency from ~3s to near-instant.
-        preloadAudio({ uri: siteConfig.radio.streamUrl }).catch((err) =>
-          logger.warn("Stream preload failed:", err)
         );
 
         // Initialize notification service
