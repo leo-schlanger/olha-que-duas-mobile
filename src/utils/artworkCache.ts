@@ -1,14 +1,13 @@
 /**
  * Artwork pre-download cache.
  *
- * Pre-downloads album artwork to local storage so that consumers always have
- * a file:// URI ready. The ExpoMediaSession native module loads the bitmap
- * directly from this local file — no network round-trip, works in background.
+ * Pre-downloads album artwork to local storage so the lock-screen notification
+ * always gets a file:// URI (loaded in <10ms by the native side).
  *
- * Cache lives in `Paths.cache/olhaqueduas-covers`. Filenames are an FNV-1a
- * hash of the remote URL so the same artwork is reused across replays of
- * the same song. The cache is pruned to the most recent N files to bound
- * disk usage.
+ * Two directories:
+ * - `olhaqueduas-covers/` — stable cache keyed by FNV-1a hash of remote URL
+ * - `olhaqueduas-lockscreen/` — rotating pool of unique-name copies for the
+ *   lock screen, bypassing expo-audio's java.net.URL.equals() bug
  */
 
 import { Directory, File, Paths } from 'expo-file-system';
@@ -59,7 +58,7 @@ function inferExtension(url: string): string {
 /**
  * Returns a `file://` URI for the artwork at `remoteUrl`, downloading it
  * first if not yet cached. Returns `null` only if the URL is invalid or
- * the download fails — callers should fall back to the logo URI in that case.
+ * the download fails.
  *
  * Concurrent calls for the same URL are coalesced into a single download.
  */
@@ -153,6 +152,78 @@ export async function prefetchLogo(remoteLogoUrl: string): Promise<void> {
  */
 export function getLogoUri(remoteLogoUrl: string): string {
   return cachedLogoUri ?? remoteLogoUrl;
+}
+
+// --- Lock screen artwork with unique file paths (FILE POOL) ---
+//
+// expo-audio ships a pre-compiled AAR where loadArtworkFromUrl compares
+// URLs with java.net.URL.equals() (ignores fragments). We CANNOT patch
+// the compiled code. Instead, we copy the artwork to a file with a unique
+// name each time, so the native side always sees a genuinely new URL.
+//
+// FILE POOL FIX: We keep the last POOL_SIZE files instead of deleting
+// the previous one immediately. This prevents the race condition where
+// the native thread (low priority in background) is still reading the
+// file when the next update deletes it.
+
+const LOCKSCREEN_DIR_NAME = 'olhaqueduas-lockscreen';
+const LOCK_POOL_SIZE = 3;
+let lockScreenDir: Directory | null = null;
+let lockScreenPool: File[] = [];
+
+function ensureLockScreenDir(): Directory {
+  if (lockScreenDir) return lockScreenDir;
+  const dir = new Directory(Paths.cache, LOCKSCREEN_DIR_NAME);
+  if (!dir.exists) {
+    dir.create({ idempotent: true, intermediates: true });
+  }
+  lockScreenDir = dir;
+  return dir;
+}
+
+/**
+ * Copies the given artwork file to a unique path for the lock screen.
+ * Each call produces a different file:// URI, forcing the native
+ * loadArtworkFromUrl to always download the bitmap (URL.equals()
+ * compares file paths and they're always different).
+ *
+ * Maintains a pool of LOCK_POOL_SIZE files — older files are only deleted
+ * when the pool is full, giving the native thread time to finish reading
+ * the previous file even in background (where it runs at low priority).
+ */
+export function getLockScreenArtUri(sourceUri: string): string {
+  try {
+    const dir = ensureLockScreenDir();
+
+    // Prune oldest files when pool is full
+    while (lockScreenPool.length >= LOCK_POOL_SIZE) {
+      const oldest = lockScreenPool.shift();
+      if (oldest) {
+        try {
+          if (oldest.exists) oldest.delete();
+        } catch {
+          // best effort
+        }
+      }
+    }
+
+    // Determine source file path from URI
+    const sourcePath = sourceUri.replace(/^file:\/\//, '');
+    const ext = sourcePath.split('.').pop() || 'jpg';
+    const destName = `art-${Date.now()}.${ext}`;
+    const destFile = new File(dir, destName);
+
+    // Copy source to unique destination
+    const srcFile = new File(sourcePath);
+    if (srcFile.exists && (srcFile.size ?? 0) > 0) {
+      srcFile.copy(destFile);
+      lockScreenPool.push(destFile);
+      return destFile.uri;
+    }
+  } catch {
+    // Fall through to return original URI
+  }
+  return sourceUri;
 }
 
 /**
