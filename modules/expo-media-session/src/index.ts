@@ -66,3 +66,13 @@ export function addOnRemotePauseListener(callback: () => void): EventSubscriptio
 export function addOnRemoteStopListener(callback: () => void): EventSubscription {
   return emitter.addListener('onRemoteStop', callback);
 }
+
+/**
+ * Override the artwork on expo-audio's media notification.
+ * Finds the notification on channel "expo_audio_channel", loads the bitmap
+ * from the given file:// URI, and re-posts with the new large icon.
+ * Runs with a 200ms delay to ensure expo-audio's rebuild has completed.
+ */
+export function overrideNotificationArtwork(artworkUri: string): void {
+  ExpoMediaSessionModule.overrideNotificationArtwork(artworkUri);
+}

@@ -64,18 +64,28 @@ class RadioService {
   }
 
   /**
-   * Update the lock screen notification via expo-audio's setActiveForLockScreen.
-   * Artwork is always a unique file:// path produced by getLockScreenArtUri()
-   * (file pool of 3 — prevents race condition with native thread in background).
+   * Update the lock screen notification. Two-phase approach:
+   * 1. expo-audio's setActiveForLockScreen updates title/artist/controls
+   * 2. Our native module overrides the artwork bitmap directly on the
+   *    notification (bypasses expo-audio's broken loadArtworkFromUrl)
    */
   private updateLockScreen(meta: { title: string; artist: string; artworkUrl: string }) {
     if (!this.player || this.isIntentionallyStopped) return;
-    const artKeyBase = meta.artworkUrl.split('#')[0];
-    const key = `${meta.title}\x00${meta.artist}\x00${artKeyBase}`;
+    const key = `${meta.title}\x00${meta.artist}\x00${meta.artworkUrl}`;
     if (key === this.lastLockScreenMetaKey) return;
     try {
+      // Phase 1: expo-audio updates title/artist and rebuilds notification
       this.player.setActiveForLockScreen(true, meta);
       this.lastLockScreenMetaKey = key;
+
+      // Phase 2: override the artwork bitmap directly on the notification.
+      // expo-audio's loadArtworkFromUrl has a URL.equals() bug that prevents
+      // bitmap reload for file:// URIs. Our module loads the bitmap via
+      // BitmapFactory.decodeFile and re-posts the notification with 200ms delay
+      // (after expo-audio's synchronous rebuild has completed).
+      if (meta.artworkUrl.startsWith('file://')) {
+        ExpoMediaSession.overrideNotificationArtwork(meta.artworkUrl);
+      }
     } catch (error) {
       logger.error('Error updating lock screen:', error);
     }

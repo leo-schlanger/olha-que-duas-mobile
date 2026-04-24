@@ -56,6 +56,7 @@ jest.mock('../../modules/expo-media-session/src', () => ({
   updateMetadata: jest.fn(),
   updatePlaybackState: jest.fn(),
   deactivate: jest.fn(),
+  overrideNotificationArtwork: jest.fn(),
   addOnRemotePlayListener: jest.fn(() => ({ remove: jest.fn() })),
   addOnRemotePauseListener: jest.fn(() => ({ remove: jest.fn() })),
   addOnRemoteStopListener: jest.fn(() => ({ remove: jest.fn() })),
