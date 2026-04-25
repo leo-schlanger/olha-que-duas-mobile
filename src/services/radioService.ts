@@ -3,7 +3,7 @@ import { AppState, AppStateStatus } from 'react-native';
 import { siteConfig } from '../config/site';
 import { radioSettingsService, RadioSettings } from './radioSettingsService';
 import { nowPlayingService } from './nowPlayingService';
-import { getLogoUri, getLockScreenArtUri } from '../utils/artworkCache';
+import { getLogoUri } from '../utils/artworkCache';
 import * as ExpoMediaSession from '../../modules/expo-media-session/src';
 import { logger } from '../utils/logger';
 import { TIMING, LIMITS } from '../config/constants';
@@ -11,12 +11,17 @@ import { TIMING, LIMITS } from '../config/constants';
 /**
  * Radio streaming service — hybrid approach:
  * - expo-audio: audio playback + foreground service + notification (via setActiveForLockScreen)
- * - ExpoMediaSession module: WiFi lock only (keeps WiFi alive with screen off)
+ * - ExpoMediaSession module: WiFi lock + artwork override on notification
  *
- * Artwork for the lock screen uses getLockScreenArtUri() which copies artwork
- * to unique file paths (file pool of 3), bypassing expo-audio's URL.equals() bug
- * and eliminating the race condition where the native thread reads a file that
- * was already deleted.
+ * Artwork strategy (race-free):
+ *   expo-audio always receives the static radio logo URL for artwork. It
+ *   caches the logo bitmap via URL.equals() and never starts an async
+ *   download after the first load — eliminating the race condition where
+ *   expo-audio's async artwork load overwrites our override.
+ *
+ *   Track artwork is managed exclusively by ExpoMediaSessionModule, which
+ *   loads the bitmap from a pre-cached file:// URI and re-posts the
+ *   notification with the correct large icon.
  */
 class RadioService {
   private player: AudioPlayer | null = null;
@@ -38,9 +43,17 @@ class RadioService {
   private lastAppState: AppStateStatus = 'active';
   private lockScreenTimeout: ReturnType<typeof setTimeout> | null = null;
   private bufferingStartedAt: number = 0;
-  private lastLockScreenMetaKey: string = '';
   private backgroundTransitionAt: number = 0;
   private wifiLockActive: boolean = false;
+
+  // Dedup keys — metadata and artwork tracked independently.
+  // This prevents unnecessary notification rebuilds when only artwork
+  // changes, and unnecessary artwork overrides when only metadata changes.
+  private lastMetaKey: string = '';
+  private lastArtworkUri: string = '';
+
+  // Cached logo URI — resolved once, reused for all setActiveForLockScreen calls.
+  private logoUri: string = '';
 
   private clearReconnectTimeout() {
     if (this.reconnectTimeout) {
@@ -64,35 +77,51 @@ class RadioService {
   }
 
   /**
-   * Update the lock screen notification. Two-phase approach:
-   * 1. expo-audio's setActiveForLockScreen updates title/artist/controls
-   * 2. Our native module overrides the artwork bitmap directly on the
-   *    notification (bypasses expo-audio's broken loadArtworkFromUrl)
+   * Update the lock screen notification metadata (title + artist).
+   *
+   * Always passes the static radio logo URL to expo-audio. Because the
+   * URL never changes, expo-audio's URL.equals() cache means it never
+   * starts an async artwork download — the notification rebuilds
+   * synchronously with the cached logo bitmap.
    */
-  private updateLockScreen(meta: { title: string; artist: string; artworkUrl: string }) {
+  private updateLockScreenMeta(title: string, artist: string) {
     if (!this.player || this.isIntentionallyStopped) return;
-    const key = `${meta.title}\x00${meta.artist}\x00${meta.artworkUrl}`;
-    if (key === this.lastLockScreenMetaKey) return;
+    const key = `${title}\x00${artist}`;
+    if (key === this.lastMetaKey) return;
     try {
-      // Phase 1: expo-audio updates title/artist and rebuilds notification
-      this.player.setActiveForLockScreen(true, meta);
-      this.lastLockScreenMetaKey = key;
-
-      // Phase 2: override the artwork bitmap directly on the notification.
-      // expo-audio's loadArtworkFromUrl has a URL.equals() bug that prevents
-      // bitmap reload for file:// URIs. Our module loads the bitmap via
-      // BitmapFactory.decodeFile and re-posts the notification with 200ms delay
-      // (after expo-audio's synchronous rebuild has completed).
-      if (meta.artworkUrl.startsWith('file://')) {
-        ExpoMediaSession.overrideNotificationArtwork(meta.artworkUrl);
-      }
+      this.player.setActiveForLockScreen(true, {
+        title,
+        artist,
+        artworkUrl: this.logoUri,
+      });
+      this.lastMetaKey = key;
     } catch (error) {
-      logger.error('Error updating lock screen:', error);
+      logger.error('Error updating lock screen metadata:', error);
+    }
+  }
+
+  /**
+   * Update the lock screen notification artwork via our native module.
+   *
+   * This is independent of setActiveForLockScreen — the native module
+   * finds the notification by channel ID and replaces the large icon
+   * bitmap directly. No race with expo-audio's artwork loading because
+   * expo-audio only loads the static logo (cached, no async operation).
+   */
+  private updateLockScreenArtwork(artworkUri: string) {
+    if (!this.player || this.isIntentionallyStopped) return;
+    if (!artworkUri || artworkUri === this.lastArtworkUri) return;
+    try {
+      ExpoMediaSession.overrideNotificationArtwork(artworkUri);
+      this.lastArtworkUri = artworkUri;
+    } catch (error) {
+      logger.error('Error updating lock screen artwork:', error);
     }
   }
 
   private resetLockScreenCache() {
-    this.lastLockScreenMetaKey = '';
+    this.lastMetaKey = '';
+    this.lastArtworkUri = '';
   }
 
   private stopStatusPolling() {
@@ -339,6 +368,11 @@ class RadioService {
         await this.initialize();
       }
 
+      // Resolve the logo URI once (cached from prefetchLogo at app boot)
+      if (!this.logoUri) {
+        this.logoUri = getLogoUri(siteConfig.radio.logoUrl);
+      }
+
       // FAST PATH — reuse existing player
       if (this.player) {
         try {
@@ -375,14 +409,10 @@ class RadioService {
       this.player.play();
 
       // Enable lock screen controls after playback starts.
-      // Use the pre-cached file:// logo URI.
+      // Pass the static logo — expo-audio caches it, no async download.
       this.lockScreenTimeout = setTimeout(() => {
         this.lockScreenTimeout = null;
-        this.updateLockScreen({
-          title: siteConfig.radio.name,
-          artist: siteConfig.radio.tagline,
-          artworkUrl: getLockScreenArtUri(getLogoUri(siteConfig.radio.logoUrl)),
-        });
+        this.updateLockScreenMeta(siteConfig.radio.name, siteConfig.radio.tagline);
       }, TIMING.RADIO_LOCK_SCREEN_DELAY);
 
       // Acquire WiFi lock to prevent stream dropout with screen off
@@ -443,8 +473,7 @@ class RadioService {
     // Detect external pause — suppress in background
     if (wasPlaying && !newIsPlaying && !newIsBuffering) {
       const appInBackground = AppState.currentState !== 'active';
-      const inGracePeriod =
-        Date.now() - this.backgroundTransitionAt < TIMING.RADIO_BG_GRACE_PERIOD;
+      const inGracePeriod = Date.now() - this.backgroundTransitionAt < TIMING.RADIO_BG_GRACE_PERIOD;
       if (appInBackground || inGracePeriod) {
         return;
       }
@@ -480,49 +509,50 @@ class RadioService {
     this.nowPlayingUnsubscribe = nowPlayingService.subscribe((data) => {
       if (!this.player || this.isIntentionallyStopped) return;
 
-      const fallbackLogo = getLogoUri(siteConfig.radio.logoUrl);
-      const pickArt = (): string => getLockScreenArtUri(data.localArtUri || fallbackLogo);
-
+      // Extract metadata (title + artist) from the now-playing data
+      let title: string;
+      let artist: string;
       switch (data.mode) {
         case 'music':
           if (data.song) {
-            this.updateLockScreen({
-              title: data.song.title,
-              artist: data.song.artist,
-              artworkUrl: pickArt(),
-            });
-            return;
+            title = data.song.title;
+            artist = data.song.artist;
+          } else {
+            title = siteConfig.radio.name;
+            artist = siteConfig.radio.tagline;
           }
           break;
         case 'liveShow':
-          this.updateLockScreen({
-            title: data.liveShowName || siteConfig.radio.name,
-            artist: siteConfig.radio.name,
-            artworkUrl: getLockScreenArtUri(fallbackLogo),
-          });
-          return;
+          title = data.liveShowName || siteConfig.radio.name;
+          artist = siteConfig.radio.name;
+          break;
         case 'podcast':
-          this.updateLockScreen({
-            title: data.podcastName,
-            artist: siteConfig.radio.name,
-            artworkUrl: pickArt(),
-          });
-          return;
+          title = data.podcastName;
+          artist = siteConfig.radio.name;
+          break;
         case 'announcement':
-          this.updateLockScreen({
-            title: data.announcementName,
-            artist: siteConfig.radio.name,
-            artworkUrl: pickArt(),
-          });
-          return;
+          title = data.announcementName;
+          artist = siteConfig.radio.name;
+          break;
+        default:
+          title = siteConfig.radio.name;
+          artist = siteConfig.radio.tagline;
+          break;
       }
 
-      // Idle — fall back to radio identity
-      this.updateLockScreen({
-        title: siteConfig.radio.name,
-        artist: siteConfig.radio.tagline,
-        artworkUrl: getLockScreenArtUri(fallbackLogo),
-      });
+      // Update metadata on notification (title + artist + static logo).
+      // expo-audio caches the logo URL via URL.equals() — no async download,
+      // no race condition. The notification rebuilds synchronously.
+      this.updateLockScreenMeta(title, artist);
+
+      // Update artwork independently via our native module.
+      // localArtUri is a file:// path from the covers cache.
+      // When null (cache miss, download in progress), we keep the previous
+      // artwork or the logo. When the download completes, nowPlayingService
+      // re-emits with localArtUri set and we override then.
+      if (data.localArtUri) {
+        this.updateLockScreenArtwork(data.localArtUri);
+      }
     });
   }
 

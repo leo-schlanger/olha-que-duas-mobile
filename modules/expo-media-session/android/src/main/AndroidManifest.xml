@@ -2,11 +2,4 @@
 
   <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
 
-  <application>
-    <service
-      android:name="expo.modules.mediasession.MediaPlaybackService"
-      android:foregroundServiceType="mediaPlayback"
-      android:exported="false" />
-  </application>
-
 </manifest>

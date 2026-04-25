@@ -4,10 +4,14 @@
  * Pre-downloads album artwork to local storage so the lock-screen notification
  * always gets a file:// URI (loaded in <10ms by the native side).
  *
- * Two directories:
- * - `olhaqueduas-covers/` — stable cache keyed by FNV-1a hash of remote URL
- * - `olhaqueduas-lockscreen/` — rotating pool of unique-name copies for the
- *   lock screen, bypassing expo-audio's java.net.URL.equals() bug
+ * Directory: `olhaqueduas-covers/` — stable cache keyed by FNV-1a hash of
+ * remote URL. Up to MAX_CACHE_FILES entries before oldest are pruned.
+ *
+ * The lock screen artwork is managed by ExpoMediaSessionModule which reads
+ * bitmaps directly from these cached files. No file pool or unique paths
+ * are needed — expo-audio always receives the static radio logo URL (which
+ * it caches via URL.equals()), and our native module overrides the artwork
+ * bitmap independently.
  */
 
 import { Directory, File, Paths } from 'expo-file-system';
@@ -152,78 +156,6 @@ export async function prefetchLogo(remoteLogoUrl: string): Promise<void> {
  */
 export function getLogoUri(remoteLogoUrl: string): string {
   return cachedLogoUri ?? remoteLogoUrl;
-}
-
-// --- Lock screen artwork with unique file paths (FILE POOL) ---
-//
-// expo-audio ships a pre-compiled AAR where loadArtworkFromUrl compares
-// URLs with java.net.URL.equals() (ignores fragments). We CANNOT patch
-// the compiled code. Instead, we copy the artwork to a file with a unique
-// name each time, so the native side always sees a genuinely new URL.
-//
-// FILE POOL FIX: We keep the last POOL_SIZE files instead of deleting
-// the previous one immediately. This prevents the race condition where
-// the native thread (low priority in background) is still reading the
-// file when the next update deletes it.
-
-const LOCKSCREEN_DIR_NAME = 'olhaqueduas-lockscreen';
-const LOCK_POOL_SIZE = 3;
-let lockScreenDir: Directory | null = null;
-let lockScreenPool: File[] = [];
-
-function ensureLockScreenDir(): Directory {
-  if (lockScreenDir) return lockScreenDir;
-  const dir = new Directory(Paths.cache, LOCKSCREEN_DIR_NAME);
-  if (!dir.exists) {
-    dir.create({ idempotent: true, intermediates: true });
-  }
-  lockScreenDir = dir;
-  return dir;
-}
-
-/**
- * Copies the given artwork file to a unique path for the lock screen.
- * Each call produces a different file:// URI, forcing the native
- * loadArtworkFromUrl to always download the bitmap (URL.equals()
- * compares file paths and they're always different).
- *
- * Maintains a pool of LOCK_POOL_SIZE files — older files are only deleted
- * when the pool is full, giving the native thread time to finish reading
- * the previous file even in background (where it runs at low priority).
- */
-export function getLockScreenArtUri(sourceUri: string): string {
-  try {
-    const dir = ensureLockScreenDir();
-
-    // Prune oldest files when pool is full
-    while (lockScreenPool.length >= LOCK_POOL_SIZE) {
-      const oldest = lockScreenPool.shift();
-      if (oldest) {
-        try {
-          if (oldest.exists) oldest.delete();
-        } catch {
-          // best effort
-        }
-      }
-    }
-
-    // Determine source file path from URI
-    const sourcePath = sourceUri.replace(/^file:\/\//, '');
-    const ext = sourcePath.split('.').pop() || 'jpg';
-    const destName = `art-${Date.now()}.${ext}`;
-    const destFile = new File(dir, destName);
-
-    // Copy source to unique destination
-    const srcFile = new File(sourcePath);
-    if (srcFile.exists && (srcFile.size ?? 0) > 0) {
-      srcFile.copy(destFile);
-      lockScreenPool.push(destFile);
-      return destFile.uri;
-    }
-  } catch {
-    // Fall through to return original URI
-  }
-  return sourceUri;
 }
 
 /**
