@@ -9,19 +9,14 @@ import { logger } from '../utils/logger';
 import { TIMING, LIMITS } from '../config/constants';
 
 /**
- * Radio streaming service — hybrid approach:
- * - expo-audio: audio playback + foreground service + notification (via setActiveForLockScreen)
- * - ExpoMediaSession module: WiFi lock + artwork override on notification
+ * Radio streaming service — clean separation:
+ * - expo-audio: audio streaming only (ExoPlayer)
+ * - ExpoMediaSession module: foreground service, MediaSession, notification,
+ *   WiFi lock, lock screen controls, media button handling
  *
- * Artwork strategy (race-free):
- *   expo-audio always receives the static radio logo URL for artwork. It
- *   caches the logo bitmap via URL.equals() and never starts an async
- *   download after the first load — eliminating the race condition where
- *   expo-audio's async artwork load overwrites our override.
- *
- *   Track artwork is managed exclusively by ExpoMediaSessionModule, which
- *   loads the bitmap from a pre-cached file:// URI and re-posts the
- *   notification with the correct large icon.
+ * expo-audio's setActiveForLockScreen is NEVER called. Our native
+ * MediaService owns the entire notification and MediaSession, eliminating
+ * all artwork race conditions from the previous architecture.
  */
 class RadioService {
   private player: AudioPlayer | null = null;
@@ -41,31 +36,24 @@ class RadioService {
   private statusPollingInterval: ReturnType<typeof setInterval> | null = null;
   private appStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null;
   private lastAppState: AppStateStatus = 'active';
-  private lockScreenTimeout: ReturnType<typeof setTimeout> | null = null;
   private bufferingStartedAt: number = 0;
   private backgroundTransitionAt: number = 0;
-  private wifiLockActive: boolean = false;
 
-  // Dedup keys — metadata and artwork tracked independently.
-  // This prevents unnecessary notification rebuilds when only artwork
-  // changes, and unnecessary artwork overrides when only metadata changes.
-  private lastMetaKey: string = '';
-  private lastArtworkUri: string = '';
+  // MediaSession state — tracks whether our native service is running.
+  private mediaSessionActive: boolean = false;
+  private lastNotificationKey: string = '';
+  private lastNotifiedPlaying: boolean | null = null;
+  private remotePlaySub: { remove: () => void } | null = null;
+  private remotePauseSub: { remove: () => void } | null = null;
+  private remoteStopSub: { remove: () => void } | null = null;
 
-  // Cached logo URI — resolved once, reused for all setActiveForLockScreen calls.
+  // Cached logo URI — resolved once, used as artwork fallback.
   private logoUri: string = '';
 
   private clearReconnectTimeout() {
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
-    }
-  }
-
-  private clearLockScreenTimeout() {
-    if (this.lockScreenTimeout) {
-      clearTimeout(this.lockScreenTimeout);
-      this.lockScreenTimeout = null;
     }
   }
 
@@ -77,51 +65,56 @@ class RadioService {
   }
 
   /**
-   * Update the lock screen notification metadata (title + artist).
-   *
-   * Always passes the static radio logo URL to expo-audio. Because the
-   * URL never changes, expo-audio's URL.equals() cache means it never
-   * starts an async artwork download — the notification rebuilds
-   * synchronously with the cached logo bitmap.
+   * Update the notification metadata (title, artist, artwork) via our
+   * native MediaService. Deduplicates calls to avoid unnecessary native
+   * bridge traffic.
    */
-  private updateLockScreenMeta(title: string, artist: string) {
-    if (!this.player || this.isIntentionallyStopped) return;
-    const key = `${title}\x00${artist}`;
-    if (key === this.lastMetaKey) return;
+  private updateNotification(title: string, artist: string, artworkUri: string) {
+    if (!this.mediaSessionActive) return;
+    const key = `${title}\x00${artist}\x00${artworkUri}`;
+    if (key === this.lastNotificationKey) return;
     try {
-      this.player.setActiveForLockScreen(true, {
-        title,
-        artist,
-        artworkUrl: this.logoUri,
-      });
-      this.lastMetaKey = key;
+      ExpoMediaSession.updateMetadata({ title, artist, artworkUri });
+      this.lastNotificationKey = key;
     } catch (error) {
-      logger.error('Error updating lock screen metadata:', error);
+      logger.error('Error updating notification:', error);
     }
   }
 
-  /**
-   * Update the lock screen notification artwork via our native module.
-   *
-   * This is independent of setActiveForLockScreen — the native module
-   * finds the notification by channel ID and replaces the large icon
-   * bitmap directly. No race with expo-audio's artwork loading because
-   * expo-audio only loads the static logo (cached, no async operation).
-   */
-  private updateLockScreenArtwork(artworkUri: string) {
-    if (!this.player || this.isIntentionallyStopped) return;
-    if (!artworkUri || artworkUri === this.lastArtworkUri) return;
-    try {
-      ExpoMediaSession.overrideNotificationArtwork(artworkUri);
-      this.lastArtworkUri = artworkUri;
-    } catch (error) {
-      logger.error('Error updating lock screen artwork:', error);
-    }
+  private resetNotificationCache() {
+    this.lastNotificationKey = '';
+    this.lastNotifiedPlaying = null;
   }
 
-  private resetLockScreenCache() {
-    this.lastMetaKey = '';
-    this.lastArtworkUri = '';
+  /** Set up listeners for lock screen / notification / headset transport controls. */
+  private setupRemoteListeners() {
+    this.remotePlaySub = ExpoMediaSession.addRemotePlayListener(() => {
+      logger.log('Remote play event received');
+      if (this.isIntentionallyStopped) {
+        this.play();
+      }
+    });
+
+    this.remotePauseSub = ExpoMediaSession.addRemotePauseListener(() => {
+      logger.log('Remote pause event received');
+      if (!this.isIntentionallyStopped) {
+        this.pause();
+      }
+    });
+
+    this.remoteStopSub = ExpoMediaSession.addRemoteStopListener(() => {
+      logger.log('Remote stop event received');
+      this.stop();
+    });
+  }
+
+  private cleanupRemoteListeners() {
+    this.remotePlaySub?.remove();
+    this.remotePlaySub = null;
+    this.remotePauseSub?.remove();
+    this.remotePauseSub = null;
+    this.remoteStopSub?.remove();
+    this.remoteStopSub = null;
   }
 
   private stopStatusPolling() {
@@ -226,6 +219,7 @@ class RadioService {
       });
 
       this.setupAppStateListener();
+      this.setupRemoteListeners();
       this.isInitialized = true;
       logger.log('RadioService initialized');
 
@@ -270,13 +264,6 @@ class RadioService {
 
       if (this.settings?.stopOnClose && this.isPlaying) {
         logger.log('Stopping radio due to stopOnClose setting');
-        if (this.player) {
-          try {
-            this.player.setActiveForLockScreen(false);
-          } catch {
-            // best effort
-          }
-        }
         await this.stop();
       }
     }
@@ -313,6 +300,12 @@ class RadioService {
   }
 
   private emitStatus(isLoading: boolean = false) {
+    // Sync notification playback state with actual player state.
+    if (this.mediaSessionActive && this.isPlaying !== this.lastNotifiedPlaying) {
+      ExpoMediaSession.updatePlaybackState(this.isPlaying);
+      this.lastNotifiedPlaying = this.isPlaying;
+    }
+
     if (this.onStatusChange) {
       this.onStatusChange({
         isPlaying: this.isPlaying,
@@ -321,31 +314,6 @@ class RadioService {
         isReconnecting: this.reconnectAttempts > 0,
         reconnectAttempt: this.reconnectAttempts,
       });
-    }
-  }
-
-  /** Acquire WiFi lock via our native module (prevents WiFi off with screen off) */
-  private acquireWifiLock(): void {
-    if (this.wifiLockActive) return;
-    try {
-      ExpoMediaSession.activate({
-        title: siteConfig.radio.name,
-        artist: siteConfig.radio.tagline,
-        artworkUri: '',
-      });
-      this.wifiLockActive = true;
-    } catch (error) {
-      logger.warn('WiFi lock acquire failed:', error);
-    }
-  }
-
-  private releaseWifiLock(): void {
-    if (!this.wifiLockActive) return;
-    try {
-      ExpoMediaSession.deactivate();
-      this.wifiLockActive = false;
-    } catch (error) {
-      logger.warn('WiFi lock release failed:', error);
     }
   }
 
@@ -360,7 +328,6 @@ class RadioService {
       this.isIntentionallyStopped = false;
       this.bufferingStartedAt = 0;
       this.clearReconnectTimeout();
-      this.clearLockScreenTimeout();
       this.stopStatusPolling();
       this.emitStatus(true);
 
@@ -377,6 +344,11 @@ class RadioService {
       if (this.player) {
         try {
           this.player.play();
+          // Service is already running (paused state) — update to playing.
+          if (this.mediaSessionActive) {
+            ExpoMediaSession.updatePlaybackState(true);
+            this.lastNotifiedPlaying = true;
+          }
           this.subscribeToNowPlaying();
           this.startStatusPolling();
           this.reconnectAttempts = 0;
@@ -392,7 +364,7 @@ class RadioService {
             // ignore
           }
           this.player = null;
-          this.resetLockScreenCache();
+          this.resetNotificationCache();
         }
       }
 
@@ -406,17 +378,16 @@ class RadioService {
         this.handlePlaybackStatus(status);
       });
 
+      // Start our foreground service FIRST — this keeps the process alive
+      // in background and shows the initial notification with radio name.
+      ExpoMediaSession.activate({
+        title: siteConfig.radio.name,
+        artist: siteConfig.radio.tagline,
+        artworkUri: this.logoUri,
+      });
+      this.mediaSessionActive = true;
+
       this.player.play();
-
-      // Enable lock screen controls after playback starts.
-      // Pass the static logo — expo-audio caches it, no async download.
-      this.lockScreenTimeout = setTimeout(() => {
-        this.lockScreenTimeout = null;
-        this.updateLockScreenMeta(siteConfig.radio.name, siteConfig.radio.tagline);
-      }, TIMING.RADIO_LOCK_SCREEN_DELAY);
-
-      // Acquire WiFi lock to prevent stream dropout with screen off
-      this.acquireWifiLock();
 
       this.unsubscribeFromNowPlaying();
       this.subscribeToNowPlaying();
@@ -509,7 +480,6 @@ class RadioService {
     this.nowPlayingUnsubscribe = nowPlayingService.subscribe((data) => {
       if (!this.player || this.isIntentionallyStopped) return;
 
-      // Extract metadata (title + artist) from the now-playing data
       let title: string;
       let artist: string;
       switch (data.mode) {
@@ -540,19 +510,12 @@ class RadioService {
           break;
       }
 
-      // Update metadata on notification (title + artist + static logo).
-      // expo-audio caches the logo URL via URL.equals() — no async download,
-      // no race condition. The notification rebuilds synchronously.
-      this.updateLockScreenMeta(title, artist);
-
-      // Update artwork independently via our native module.
-      // localArtUri is a file:// path from the covers cache.
-      // When null (cache miss, download in progress), we keep the previous
-      // artwork or the logo. When the download completes, nowPlayingService
-      // re-emits with localArtUri set and we override then.
-      if (data.localArtUri) {
-        this.updateLockScreenArtwork(data.localArtUri);
-      }
+      // Single call updates title, artist, and artwork on the notification.
+      // localArtUri is a file:// path from the covers cache. When null
+      // (download in progress), fall back to the radio logo. When the
+      // download completes, nowPlayingService re-emits with localArtUri set.
+      const artworkUri = data.localArtUri || this.logoUri;
+      this.updateNotification(title, artist, artworkUri);
     });
   }
 
@@ -602,7 +565,6 @@ class RadioService {
     this.isPlaying = false;
     this.reconnectAttempts = 0;
     this.bufferingStartedAt = 0;
-    this.clearLockScreenTimeout();
 
     if (this.player) {
       try {
@@ -610,6 +572,12 @@ class RadioService {
       } catch (e) {
         logger.error('Error pausing player:', e);
       }
+    }
+
+    // Update notification to paused state (keep notification visible).
+    if (this.mediaSessionActive) {
+      ExpoMediaSession.updatePlaybackState(false);
+      this.lastNotifiedPlaying = false;
     }
 
     this.clearReconnectTimeout();
@@ -623,15 +591,13 @@ class RadioService {
     this.isPlaying = false;
     this.reconnectAttempts = 0;
     this.bufferingStartedAt = 0;
-    this.resetLockScreenCache();
-    this.clearLockScreenTimeout();
+    this.resetNotificationCache();
 
     if (this.player) {
       try {
         this.player.pause();
-        this.player.setActiveForLockScreen(false);
       } catch (e) {
-        logger.error('Error deactivating lock screen:', e);
+        logger.error('Error pausing player:', e);
       }
       this.removePlayerListener();
       try {
@@ -642,7 +608,16 @@ class RadioService {
       this.player = null;
     }
 
-    this.releaseWifiLock();
+    // Stop the foreground service — removes notification, releases WiFi lock.
+    if (this.mediaSessionActive) {
+      try {
+        ExpoMediaSession.deactivate();
+      } catch (e) {
+        logger.error('Error deactivating media session:', e);
+      }
+      this.mediaSessionActive = false;
+    }
+
     this.clearReconnectTimeout();
     this.stopStatusPolling();
     this.unsubscribeFromNowPlaying();
@@ -698,10 +673,9 @@ class RadioService {
   }
 
   async cleanup() {
-    this.clearLockScreenTimeout();
     this.clearReconnectTimeout();
     this.bufferingStartedAt = 0;
-    this.resetLockScreenCache();
+    this.resetNotificationCache();
 
     if (this.appStateSubscription) {
       this.appStateSubscription.remove();
@@ -713,14 +687,7 @@ class RadioService {
     }
     this.stopStatusPolling();
     this.unsubscribeFromNowPlaying();
-
-    if (this.player) {
-      try {
-        this.player.setActiveForLockScreen(false);
-      } catch {
-        // ignore
-      }
-    }
+    this.cleanupRemoteListeners();
 
     await this.stop();
     this.isInitialized = false;

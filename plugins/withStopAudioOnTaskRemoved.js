@@ -4,13 +4,11 @@ const { withAndroidManifest } = require('expo/config-plugins');
  * Expo config plugin that adds android:stopWithTask="true" to the
  * expo-audio AudioControlsService in AndroidManifest.xml.
  *
- * This ensures that when the user swipes the app away from the recent apps
- * menu, Android automatically stops the foreground media service — preventing
- * the radio notification and audio from lingering after the app is closed.
- *
- * The service is originally declared in expo-audio's library manifest, so we
- * add a matching entry in the app manifest with tools:node="merge" to overlay
- * the stopWithTask attribute during manifest merging.
+ * This is a safety net — our primary media service (expo-media-session's
+ * MediaService) declares stopWithTask in its own manifest. This plugin
+ * ensures that if expo-audio's AudioControlsService is ever started
+ * (e.g., by a stray setActiveForLockScreen call), it also stops when
+ * the user swipes the app away.
  */
 const withStopAudioOnTaskRemoved = (config) => {
   return withAndroidManifest(config, (config) => {

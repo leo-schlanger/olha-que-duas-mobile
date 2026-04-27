@@ -14,7 +14,6 @@ export const TIMING = {
   // cobre os casos urgentes).
   RADIO_STATUS_POLL_INTERVAL: 5000,
   RADIO_AUTOPLAY_DELAY: 500,
-  RADIO_LOCK_SCREEN_DELAY: 200,
   RADIO_MAX_RECONNECT_DELAY: 30000,
   RADIO_RECONNECT_BASE_DELAY: 1000,
   // Tempo máximo em buffering antes de considerar o stream "stalled" e

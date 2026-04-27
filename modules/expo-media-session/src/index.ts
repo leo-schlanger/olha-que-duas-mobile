@@ -1,35 +1,56 @@
+import type { EventSubscription } from 'expo-modules-core';
 import ExpoMediaSessionModule from './ExpoMediaSessionModule';
 
 export interface MediaMetadata {
   title: string;
   artist: string;
-  /** Must be a file:// URI pointing to a local image */
+  /** file:// URI pointing to a local image, or '' for no artwork */
   artworkUri: string;
 }
 
 /**
- * Acquire WiFi lock to prevent Android from killing WiFi with screen off.
- * Must be called when radio playback starts.
+ * Start the foreground media service with initial metadata.
+ * Creates the notification, MediaSession, and WiFi lock.
+ * If the service is already running, updates metadata and re-foregrounds.
  */
 export function activate(meta: MediaMetadata): void {
   ExpoMediaSessionModule.activate(meta.title, meta.artist, meta.artworkUri);
 }
 
 /**
- * Release WiFi lock and cancel any pending artwork overrides.
+ * Update notification metadata (title, artist, artwork).
+ * No-op if the service isn't running yet.
+ */
+export function updateMetadata(meta: MediaMetadata): void {
+  ExpoMediaSessionModule.updateMetadata(meta.title, meta.artist, meta.artworkUri);
+}
+
+/**
+ * Update the playback state on the notification and lock screen.
+ */
+export function updatePlaybackState(isPlaying: boolean): void {
+  ExpoMediaSessionModule.updatePlaybackState(isPlaying);
+}
+
+/**
+ * Stop the foreground service and remove the notification.
+ * Releases WiFi lock and MediaSession.
  */
 export function deactivate(): void {
   ExpoMediaSessionModule.deactivate();
 }
 
-/**
- * Override the artwork on expo-audio's media notification.
- *
- * Finds the notification on channel "expo_audio_channel", loads the bitmap
- * from the given file:// URI, and re-posts with the new large icon.
- * Uses an immediate attempt + 6 retries at increasing delays (up to 5s)
- * on a dedicated background thread for reliability in background.
- */
-export function overrideNotificationArtwork(artworkUri: string): void {
-  ExpoMediaSessionModule.overrideNotificationArtwork(artworkUri);
+/** User pressed Play on notification / lock screen / headset button. */
+export function addRemotePlayListener(listener: () => void): EventSubscription {
+  return ExpoMediaSessionModule.addListener('onRemotePlay', listener);
+}
+
+/** User pressed Pause on notification / lock screen / headset button. */
+export function addRemotePauseListener(listener: () => void): EventSubscription {
+  return ExpoMediaSessionModule.addListener('onRemotePause', listener);
+}
+
+/** User pressed Stop on notification, or swiped notification away. */
+export function addRemoteStopListener(listener: () => void): EventSubscription {
+  return ExpoMediaSessionModule.addListener('onRemoteStop', listener);
 }

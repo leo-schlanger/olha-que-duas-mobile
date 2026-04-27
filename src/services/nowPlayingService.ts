@@ -37,7 +37,7 @@ export interface NowPlayingData {
   /**
    * `file://` URI of the pre-downloaded artwork, when available. Set
    * shortly after `emit` once the artworkCache finishes the download.
-   * Consumers (radioService → updateLockScreenMetadata) should prefer
+   * Consumers (radioService → ExpoMediaSession.updateMetadata) should prefer
    * this over the remote URL because the native side loads file:// in
    * <10ms vs hundreds of ms for a remote fetch.
    */
