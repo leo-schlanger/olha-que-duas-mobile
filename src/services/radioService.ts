@@ -386,6 +386,9 @@ class RadioService {
         artworkUri: this.logoUri,
       });
       this.mediaSessionActive = true;
+      // Force fresh metadata/playback state updates — the native service just
+      // started, so cached dedup keys from a previous session must not block.
+      this.resetNotificationCache();
 
       this.player.play();
 

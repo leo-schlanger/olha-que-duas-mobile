@@ -20,6 +20,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.IBinder
+import java.net.URL
 
 /**
  * Foreground service that owns the entire media session and notification.
@@ -51,6 +52,11 @@ class MediaService : Service() {
 
     /** Callback into ExpoMediaSessionModule to emit JS events. */
     var transportCallback: ((String) -> Unit)? = null
+
+    /** One-shot callback fired after ACTION_ACTIVATE completes. Used by the
+     *  module to flush pending updateMetadata/updatePlaybackState calls that
+     *  arrived before the service was ready. */
+    var onReadyCallback: (() -> Unit)? = null
   }
 
   private var mediaSession: MediaSession? = null
@@ -100,6 +106,10 @@ class MediaService : Service() {
             }
           }
         }
+
+        // Flush any pending updates that the module queued before we were ready.
+        onReadyCallback?.invoke()
+        onReadyCallback = null
       }
 
       ACTION_PLAY -> transportCallback?.invoke("onRemotePlay")
@@ -319,8 +329,21 @@ class MediaService : Service() {
   // =========================================================================
 
   private fun loadBitmap(artworkUri: String): Bitmap? {
-    val path = artworkUri.removePrefix("file://")
-    val rawBitmap = BitmapFactory.decodeFile(path) ?: return null
+    val rawBitmap = if (artworkUri.startsWith("http://") || artworkUri.startsWith("https://")) {
+      // Remote URL — download on this background thread.
+      try {
+        val connection = URL(artworkUri).openConnection()
+        connection.connectTimeout = 8000
+        connection.readTimeout = 8000
+        BitmapFactory.decodeStream(connection.getInputStream())
+      } catch (_: Exception) {
+        null
+      }
+    } else {
+      // Local file:// URI or plain path.
+      val path = artworkUri.removePrefix("file://")
+      BitmapFactory.decodeFile(path)
+    } ?: return null
 
     val scaled = if (rawBitmap.width > 512 || rawBitmap.height > 512) {
       val scale = 512.0f / maxOf(rawBitmap.width, rawBitmap.height)
