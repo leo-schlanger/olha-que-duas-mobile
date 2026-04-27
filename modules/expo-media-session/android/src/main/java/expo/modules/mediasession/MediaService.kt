@@ -20,20 +20,17 @@ import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.IBinder
+import android.os.Looper
+import java.net.HttpURLConnection
 import java.net.URL
 
 /**
  * Foreground service that owns the entire media session and notification.
  *
- * Replaces the previous architecture where expo-audio managed the notification
- * and our module patched its artwork. Now we have full, race-free control over:
- *   - MediaSession (lock screen controls, media buttons, Bluetooth)
- *   - Notification (artwork, title, artist, transport actions)
- *   - WiFi lock (prevents WiFi off with screen off during streaming)
- *
- * expo-audio is still used for audio streaming (ExoPlayer), but it no longer
- * manages any notification or MediaSession — setActiveForLockScreen is never
- * called.
+ * Threading model:
+ *   - MediaSession and Notification updates run on the MAIN thread
+ *   - Bitmap decoding runs on a dedicated HandlerThread ("media-artwork")
+ *   - After decoding, updates are posted back to the main thread
  */
 class MediaService : Service() {
 
@@ -53,14 +50,13 @@ class MediaService : Service() {
     /** Callback into ExpoMediaSessionModule to emit JS events. */
     var transportCallback: ((String) -> Unit)? = null
 
-    /** One-shot callback fired after ACTION_ACTIVATE completes. Used by the
-     *  module to flush pending updateMetadata/updatePlaybackState calls that
-     *  arrived before the service was ready. */
+    /** One-shot callback fired after ACTION_ACTIVATE completes. */
     var onReadyCallback: (() -> Unit)? = null
   }
 
   private var mediaSession: MediaSession? = null
   private var wifiLock: WifiManager.WifiLock? = null
+  private val mainHandler = Handler(Looper.getMainLooper())
 
   private var currentTitle = ""
   private var currentArtist = ""
@@ -83,9 +79,15 @@ class MediaService : Service() {
   }
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-    when (intent?.action) {
+    // Guard: null intent (re-delivery after crash or system restart).
+    // Must call goForeground() to satisfy the 5-second foreground requirement.
+    if (intent?.action == null) {
+      goForeground()
+      return START_NOT_STICKY
+    }
+
+    when (intent.action) {
       ACTION_ACTIVATE -> {
-        // Initial start or re-activate: apply metadata from intent, go foreground.
         currentTitle = intent.getStringExtra("title") ?: currentTitle
         currentArtist = intent.getStringExtra("artist") ?: currentArtist
         val artworkUri = intent.getStringExtra("artworkUri") ?: ""
@@ -93,23 +95,26 @@ class MediaService : Service() {
         updateSessionMetadata()
         goForeground()
 
-        // Load artwork on background thread, update notification when ready.
+        // Load artwork on background thread, post results to main thread.
         if (artworkUri.isNotEmpty() && artworkUri != cachedArtworkUri) {
           val uriCopy = artworkUri
           artworkHandler.post {
             val bitmap = loadBitmap(uriCopy)
-            if (bitmap != null) {
-              currentBitmap = bitmap
-              cachedArtworkUri = uriCopy
-              updateSessionMetadata()
-              postNotification()
+            mainHandler.post {
+              if (bitmap != null) {
+                currentBitmap = bitmap
+                cachedArtworkUri = uriCopy
+                updateSessionMetadata()
+                postNotification()
+              }
+              // Flush pending after artwork is resolved (or failed).
+              flushReady()
             }
           }
+        } else {
+          // No artwork to load — flush pending immediately.
+          flushReady()
         }
-
-        // Flush any pending updates that the module queued before we were ready.
-        onReadyCallback?.invoke()
-        onReadyCallback = null
       }
 
       ACTION_PLAY -> transportCallback?.invoke("onRemotePlay")
@@ -117,6 +122,11 @@ class MediaService : Service() {
       ACTION_STOP -> transportCallback?.invoke("onRemoteStop")
     }
     return START_NOT_STICKY
+  }
+
+  private fun flushReady() {
+    onReadyCallback?.invoke()
+    onReadyCallback = null
   }
 
   override fun onDestroy() {
@@ -128,21 +138,20 @@ class MediaService : Service() {
     artworkHandler.removeCallbacksAndMessages(null)
     artworkThread.quitSafely()
     cachedArtworkUri = ""
-    // Don't recycle bitmap — Android may still reference it in the
+    // Don't recycle currentBitmap — Android may still reference it in the
     // notification system. Let GC collect it.
     currentBitmap = null
     super.onDestroy()
   }
 
   override fun onTaskRemoved(rootIntent: Intent?) {
-    // App swiped from recents — stop everything.
     transportCallback?.invoke("onRemoteStop")
     stopSelf()
     super.onTaskRemoved(rootIntent)
   }
 
   // =========================================================================
-  // Public API — called from ExpoMediaSessionModule
+  // Public API — called from ExpoMediaSessionModule (main thread)
   // =========================================================================
 
   fun updateMetadata(title: String, artist: String, artworkUri: String?) {
@@ -151,14 +160,21 @@ class MediaService : Service() {
 
     if (!artworkUri.isNullOrEmpty() && artworkUri != cachedArtworkUri) {
       val uriCopy = artworkUri
+      // Update title/artist immediately (no artwork yet).
+      updateSessionMetadata()
+      postNotification()
+
+      // Load artwork on background thread, post result to main thread.
       artworkHandler.post {
         val bitmap = loadBitmap(uriCopy)
-        if (bitmap != null) {
-          currentBitmap = bitmap
-          cachedArtworkUri = uriCopy
+        mainHandler.post {
+          if (bitmap != null) {
+            currentBitmap = bitmap
+            cachedArtworkUri = uriCopy
+            updateSessionMetadata()
+            postNotification()
+          }
         }
-        updateSessionMetadata()
-        postNotification()
       }
     } else {
       updateSessionMetadata()
@@ -211,7 +227,7 @@ class MediaService : Service() {
         override fun onPause() { transportCallback?.invoke("onRemotePause") }
         override fun onStop() { transportCallback?.invoke("onRemoteStop") }
       })
-      isActive = true
+      // isActive set after transportCallback is wired in onStartCommand.
     }
     // Set initial paused state with available actions.
     updatePlaybackState(false)
@@ -222,6 +238,9 @@ class MediaService : Service() {
   // =========================================================================
 
   private fun goForeground() {
+    // Activate session now — transportCallback is wired by this point.
+    mediaSession?.isActive = true
+
     val notification = buildNotification()
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
       startForeground(
@@ -238,14 +257,13 @@ class MediaService : Service() {
       val nm = getSystemService(NotificationManager::class.java)
       nm.notify(NOTIFICATION_ID, buildNotification())
     } catch (_: Exception) {
-      // Best effort — POST_NOTIFICATIONS may not be granted on Android 13+.
+      // Best effort
     }
   }
 
   private fun buildNotification(): Notification {
     val sessionToken = mediaSession?.sessionToken
 
-    // Tap notification → open app
     val contentIntent = packageManager.getLaunchIntentForPackage(packageName)?.let {
       PendingIntent.getActivity(
         this, 0, it,
@@ -253,7 +271,6 @@ class MediaService : Service() {
       )
     }
 
-    // Swipe notification away (only when paused, since ongoing=true blocks swipe)
     val deleteIntent = actionPendingIntent(ACTION_STOP, 2)
 
     val builder = Notification.Builder(this, CHANNEL_ID)
@@ -314,10 +331,6 @@ class MediaService : Service() {
     )
   }
 
-  /**
-   * Try to use the notification icon generated by expo-notifications
-   * (monochrome, correct for notification bar). Fall back to app icon.
-   */
   private fun getSmallIconRes(): Int {
     val notifIcon = resources.getIdentifier("notification_icon", "drawable", packageName)
     if (notifIcon != 0) return notifIcon
@@ -326,58 +339,78 @@ class MediaService : Service() {
 
   // =========================================================================
   // Bitmap loading — scale to 512x512, ensure opaque
+  // Runs on artworkHandler thread. Intermediate bitmaps are recycled;
+  // only the final bitmap is kept alive for the notification.
   // =========================================================================
 
   private fun loadBitmap(artworkUri: String): Bitmap? {
-    val rawBitmap = if (artworkUri.startsWith("http://") || artworkUri.startsWith("https://")) {
-      // Remote URL — download on this background thread.
-      try {
-        val connection = URL(artworkUri).openConnection()
-        connection.connectTimeout = 8000
-        connection.readTimeout = 8000
-        BitmapFactory.decodeStream(connection.getInputStream())
-      } catch (_: Exception) {
-        null
+    var current: Bitmap? = null
+    try {
+      current = if (artworkUri.startsWith("http://") || artworkUri.startsWith("https://")) {
+        downloadBitmap(artworkUri)
+      } else {
+        val path = artworkUri.removePrefix("file://")
+        BitmapFactory.decodeFile(path)
+      } ?: return null
+
+      // Scale down to max 512x512.
+      if (current.width > 512 || current.height > 512) {
+        val scale = 512.0f / maxOf(current.width, current.height)
+        val scaled = Bitmap.createScaledBitmap(
+          current,
+          (current.width * scale).toInt(),
+          (current.height * scale).toInt(),
+          true
+        )
+        if (scaled !== current) {
+          current.recycle()
+          current = scaled
+        }
       }
-    } else {
-      // Local file:// URI or plain path.
-      val path = artworkUri.removePrefix("file://")
-      BitmapFactory.decodeFile(path)
-    } ?: return null
 
-    val scaled = if (rawBitmap.width > 512 || rawBitmap.height > 512) {
-      val scale = 512.0f / maxOf(rawBitmap.width, rawBitmap.height)
-      val result = Bitmap.createScaledBitmap(
-        rawBitmap,
-        (rawBitmap.width * scale).toInt(),
-        (rawBitmap.height * scale).toInt(),
-        true
-      )
-      if (result !== rawBitmap) rawBitmap.recycle()
-      result
-    } else {
-      rawBitmap
+      // Ensure opaque background (Android 13 transparency overlap fix).
+      if (current.hasAlpha()) {
+        val opaque = Bitmap.createBitmap(current.width, current.height, Bitmap.Config.ARGB_8888)
+        Canvas(opaque).apply {
+          drawColor(Color.BLACK)
+          drawBitmap(current, 0f, 0f, null)
+        }
+        current.recycle()
+        current = opaque
+      }
+
+      return current
+    } catch (_: Exception) {
+      // If anything fails mid-chain, don't leak the intermediate bitmap.
+      // But only recycle if it hasn't already been recycled.
+      current?.let { if (!it.isRecycled) it.recycle() }
+      return null
     }
-
-    return ensureOpaque(scaled)
   }
 
-  /**
-   * Draw onto a solid black background if the bitmap has alpha.
-   * Prevents Android 13 notification artwork transparency overlap
-   * (Google Issue Tracker #243778594).
-   */
-  private fun ensureOpaque(source: Bitmap): Bitmap {
-    if (!source.hasAlpha()) return source
-    val opaque = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(opaque)
-    canvas.drawColor(Color.BLACK)
-    canvas.drawBitmap(source, 0f, 0f, null)
-    return opaque
+  private fun downloadBitmap(url: String): Bitmap? {
+    var conn: HttpURLConnection? = null
+    try {
+      conn = URL(url).openConnection() as HttpURLConnection
+      conn.connectTimeout = 8000
+      conn.readTimeout = 8000
+
+      // Reject unreasonably large files (> 5 MB).
+      val contentLength = conn.contentLength
+      if (contentLength > 5 * 1024 * 1024) return null
+
+      return conn.inputStream.use { stream ->
+        BitmapFactory.decodeStream(stream)
+      }
+    } catch (_: Exception) {
+      return null
+    } finally {
+      conn?.disconnect()
+    }
   }
 
   // =========================================================================
-  // MediaSession metadata
+  // MediaSession metadata (must run on main thread)
   // =========================================================================
 
   private fun updateSessionMetadata() {
@@ -395,7 +428,7 @@ class MediaService : Service() {
   }
 
   // =========================================================================
-  // WiFi lock — prevents Android from disabling WiFi with screen off
+  // WiFi lock
   // =========================================================================
 
   @Suppress("DEPRECATION")
@@ -410,9 +443,7 @@ class MediaService : Service() {
         setReferenceCounted(false)
         acquire()
       }
-    } catch (_: Exception) {
-      // Best effort — some devices may restrict WifiLock.
-    }
+    } catch (_: Exception) {}
   }
 
   private fun releaseWifiLock() {

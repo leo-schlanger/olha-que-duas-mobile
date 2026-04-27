@@ -8,26 +8,14 @@ import expo.modules.kotlin.modules.ModuleDefinition
 /**
  * Expo Module that bridges JS ↔ [MediaService].
  *
- * API:
- *   activate(title, artist, artworkUri) — start foreground service + notification
- *   updateMetadata(title, artist, artworkUri) — update notification content
- *   updatePlaybackState(isPlaying) — update play/pause state on notification
- *   deactivate() — stop service, remove notification
- *
- * Events emitted to JS:
- *   onRemotePlay  — user pressed Play on notification / lock screen / headset
- *   onRemotePause — user pressed Pause
- *   onRemoteStop  — user pressed Stop or swiped notification
- *
  * Pending queue:
  *   Because startForegroundService is async, calls to updateMetadata /
  *   updatePlaybackState may arrive before the service is ready. These are
  *   queued and flushed via MediaService.onReadyCallback when the service
- *   finishes ACTION_ACTIVATE.
+ *   finishes ACTION_ACTIVATE (after artwork loads or fails).
  */
 class ExpoMediaSessionModule : Module() {
 
-  // Pending updates queued while the service is starting.
   private var pendingMeta: Triple<String, String, String>? = null
   private var pendingPlaying: Boolean? = null
 
@@ -36,21 +24,22 @@ class ExpoMediaSessionModule : Module() {
 
     Events("onRemotePlay", "onRemotePause", "onRemoteStop")
 
-    /**
-     * Start the foreground media service with initial metadata.
-     * If the service is already running, updates metadata and re-foregrounds.
-     */
     Function("activate") { title: String, artist: String, artworkUri: String ->
       val ctx = appContext.reactContext ?: return@Function
 
-      // Wire up transport callbacks → JS events.
+      // Clear stale callbacks from any previous activation.
+      MediaService.onReadyCallback = null
+
       MediaService.transportCallback = { event ->
-        sendEvent(event)
+        try {
+          sendEvent(event)
+        } catch (_: Exception) {
+          // Module context may be destroyed (e.g., app being killed).
+        }
       }
 
-      // Set up a one-shot callback that fires after the service processes
-      // ACTION_ACTIVATE, flushing any pending updates that arrived in the
-      // gap between startForegroundService and the service being ready.
+      // One-shot callback: flushed by the service after ACTION_ACTIVATE
+      // completes and artwork is resolved (or fails to load).
       MediaService.onReadyCallback = {
         pendingMeta?.let { (t, a, u) ->
           MediaService.instance?.updateMetadata(t, a, u)
@@ -72,10 +61,6 @@ class ExpoMediaSessionModule : Module() {
       ContextCompat.startForegroundService(ctx, intent)
     }
 
-    /**
-     * Update notification metadata (title, artist, artwork).
-     * Queues the update if the service isn't ready yet.
-     */
     Function("updateMetadata") { title: String, artist: String, artworkUri: String ->
       val service = MediaService.instance
       if (service != null) {
@@ -85,10 +70,6 @@ class ExpoMediaSessionModule : Module() {
       }
     }
 
-    /**
-     * Update the playback state shown on the notification and lock screen.
-     * Queues the update if the service isn't ready yet.
-     */
     Function("updatePlaybackState") { isPlaying: Boolean ->
       val service = MediaService.instance
       if (service != null) {
@@ -98,9 +79,6 @@ class ExpoMediaSessionModule : Module() {
       }
     }
 
-    /**
-     * Stop the foreground service and remove the notification.
-     */
     Function("deactivate") {
       pendingMeta = null
       pendingPlaying = null
