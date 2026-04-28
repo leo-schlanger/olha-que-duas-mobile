@@ -98,10 +98,12 @@ class ExpoMediaSessionModule : Module() {
       pendingMeta = null
       pendingPlaying = null
       MediaService.onReadyCallback = null
+      // DO NOT call stopSelf() here — OnDestroy fires when the Activity is
+      // destroyed (e.g., Android reclaiming memory while app is backgrounded).
+      // The MediaService foreground service must survive Activity destruction
+      // to keep background playback alive. It is only stopped explicitly via
+      // deactivate() or when the user swipes the app from recents (onTaskRemoved).
       MediaService.transportCallback = null
-      // Stop the service to prevent an orphaned foreground service
-      // running without any JS module to receive its events.
-      MediaService.instance?.stopSelf()
     }
   }
 }

@@ -343,6 +343,7 @@ class RadioService {
     try {
       this.isIntentionallyStopped = false;
       this.bufferingStartedAt = 0;
+      this.lastPlayingAt = Date.now();
       this.clearReconnectTimeout();
       this.stopStatusPolling();
       this.emitStatus(true);
