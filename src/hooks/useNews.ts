@@ -135,25 +135,38 @@ export function useNewsDetail(slug: string) {
   const [post, setPost] = useState<BlogPost | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
+    mountedRef.current = true;
+
     const load = async () => {
       try {
         setIsLoading(true);
         setError(null);
         const result = await fetchNewsById(slug);
-        setPost(result);
+        if (mountedRef.current) {
+          setPost(result);
+        }
       } catch (err) {
-        setError(mapNewsErrorToKey(err, 'news.detailError'));
-        logger.error('Error loading news detail:', err);
+        if (mountedRef.current) {
+          setError(mapNewsErrorToKey(err, 'news.detailError'));
+          logger.error('Error loading news detail:', err);
+        }
       } finally {
-        setIsLoading(false);
+        if (mountedRef.current) {
+          setIsLoading(false);
+        }
       }
     };
 
     if (slug) {
       load();
     }
+
+    return () => {
+      mountedRef.current = false;
+    };
   }, [slug]);
 
   return { post, isLoading, error };

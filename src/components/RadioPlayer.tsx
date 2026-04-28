@@ -38,16 +38,6 @@ import { AboutBottomSheet } from './AboutBottomSheet';
 
 const KEEP_AWAKE_TAG = 'olhaqueduas-radio';
 
-const DAY_NAMES: Record<number, string> = {
-  0: 'Domingo',
-  1: 'Segunda',
-  2: 'Terça',
-  3: 'Quarta',
-  4: 'Quinta',
-  5: 'Sexta',
-  6: 'Sábado',
-};
-
 /**
  * Merge today's special programs (from weekly schedule) into the daily
  * periods. Special programs get an `iconUrl` to render their logo; routine
@@ -64,10 +54,19 @@ function formatMinsToSlotTime(totalMins: number): string {
 
 function mergeTodayPrograms(
   periods: DailyPeriod[],
-  scheduleByDay: { dayName: string; shows: { show: string; times: string[]; endTimes?: (string | null)[]; isAllDay?: boolean; iconUrl: string }[] }[]
+  scheduleByDay: {
+    dayName: string;
+    isToday?: boolean;
+    shows: {
+      show: string;
+      times: string[];
+      endTimes?: (string | null)[];
+      isAllDay?: boolean;
+      iconUrl: string;
+    }[];
+  }[]
 ): DailyPeriod[] {
-  const todayName = DAY_NAMES[new Date().getDay()];
-  const todayDay = scheduleByDay.find((d) => d.dayName === todayName);
+  const todayDay = scheduleByDay.find((d) => d.isToday);
   if (!todayDay || todayDay.shows.length === 0) return periods;
 
   // Keep original periods for gap-filling
@@ -123,10 +122,13 @@ function mergeTodayPrograms(
         if (diff <= 0) diff += 24 * 60;
         const dh = Math.floor(diff / 60);
         const dm = diff % 60;
-        duration = dh === 0 ? `${dm}min` : dm > 0 ? `${dh}h${String(dm).padStart(2, '0')}` : `${dh}h`;
+        duration =
+          dh === 0 ? `${dm}min` : dm > 0 ? `${dh}h${String(dm).padStart(2, '0')}` : `${dh}h`;
       }
 
-      const existingIdx = target.slots.findIndex((s) => !s.isAllDay && parseSlotTime(s.time) === mins);
+      const existingIdx = target.slots.findIndex(
+        (s) => !s.isAllDay && parseSlotTime(s.time) === mins
+      );
       const specialSlot: DailySlot = {
         time: formatted,
         name: prog.show,
@@ -163,7 +165,9 @@ function mergeTodayPrograms(
 
     if (endMins >= range.end || endMins < range.start) continue;
 
-    const alreadyExists = target.slots.some((s) => !s.isAllDay && parseSlotTime(s.time) === endMins);
+    const alreadyExists = target.slots.some(
+      (s) => !s.isAllDay && parseSlotTime(s.time) === endMins
+    );
     if (alreadyExists) continue;
 
     const nextSlot = target.slots.find((s) => !s.isAllDay && parseSlotTime(s.time) > endMins);

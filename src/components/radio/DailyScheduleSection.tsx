@@ -21,8 +21,8 @@ const PERIOD_ICONS: Record<string, keyof typeof MaterialCommunityIcons.glyphMap>
 };
 
 const FALLBACK_PROGRAM_ICONS: Record<string, keyof typeof MaterialCommunityIcons.glyphMap> = {
-  'Nutrição': 'leaf',
-  'Motivar': 'lightbulb-on-outline',
+  Nutrição: 'leaf',
+  Motivar: 'lightbulb-on-outline',
   'Prazer Feminino': 'heart-outline',
   'Companheiros de Caminho': 'walk',
   'Companheiros de Caminhada': 'walk',
@@ -44,7 +44,8 @@ function ProgramIcon({
 }) {
   const [errored, setErrored] = useState(false);
   const hasUrl = iconUrl && !iconUrl.includes('placehold.co');
-  const fallbackIcon = FALLBACK_PROGRAM_ICONS[name] || ('radio' as keyof typeof MaterialCommunityIcons.glyphMap);
+  const fallbackIcon =
+    FALLBACK_PROGRAM_ICONS[name] || ('radio' as keyof typeof MaterialCommunityIcons.glyphMap);
 
   if (!hasUrl || errored) {
     return (
@@ -58,11 +59,7 @@ function ProgramIcon({
           justifyContent: 'center',
         }}
       >
-        <MaterialCommunityIcons
-          name={fallbackIcon}
-          size={size * 0.55}
-          color={colors.secondary}
-        />
+        <MaterialCommunityIcons name={fallbackIcon} size={size * 0.55} color={colors.secondary} />
       </View>
     );
   }
@@ -89,27 +86,35 @@ const SlotRow = memo(function SlotRow({
   colors: ThemeColors;
   isDark: boolean;
 }) {
+  const { t } = useTranslation();
   const isSpecial = !!slot.iconUrl;
   const isAllDay = !!slot.isAllDay;
-  const s = useMemo(() => createSlotStyles(colors, isDark, isCurrent, isSpecial || isAllDay), [colors, isDark, isCurrent, isSpecial, isAllDay]);
+  const s = useMemo(
+    () => createSlotStyles(colors, isDark, isCurrent, isSpecial || isAllDay),
+    [colors, isDark, isCurrent, isSpecial, isAllDay]
+  );
 
   return (
     <View style={s.container}>
       {isAllDay ? (
-        <View style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 4,
-          paddingHorizontal: 6,
-          paddingVertical: 2,
-          borderRadius: 8,
-          backgroundColor: '#a855f720',
-          borderWidth: 1,
-          borderColor: '#a855f740',
-        }}>
-          <MaterialCommunityIcons name="white-balance-sunny" size={10} color="#a855f7" />
-          <Text style={{ fontSize: 9, fontWeight: '800', color: '#a855f7', letterSpacing: 0.5 }}>
-            Dia inteiro
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 4,
+            paddingHorizontal: 6,
+            paddingVertical: 2,
+            borderRadius: 8,
+            backgroundColor: colors.accent + '20',
+            borderWidth: 1,
+            borderColor: colors.accent + '40',
+          }}
+        >
+          <MaterialCommunityIcons name="white-balance-sunny" size={10} color={colors.accent} />
+          <Text
+            style={{ fontSize: 9, fontWeight: '800', color: colors.accent, letterSpacing: 0.5 }}
+          >
+            {t('radio.schedule.allDay')}
           </Text>
         </View>
       ) : (

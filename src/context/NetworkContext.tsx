@@ -56,21 +56,30 @@ export function NetworkProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     checkNetwork();
 
-    // Re-check when app comes to foreground
+    let interval: ReturnType<typeof setInterval> | null = setInterval(checkNetwork, 10000);
+
     const handleAppState = (nextState: AppStateStatus) => {
       if (nextState === 'active') {
         checkNetwork();
+        if (!interval) {
+          interval = setInterval(checkNetwork, 10000);
+        }
+      } else {
+        // Pause polling when app goes to background to save battery
+        if (interval) {
+          clearInterval(interval);
+          interval = null;
+        }
       }
     };
 
     const subscription = AppState.addEventListener('change', handleAppState);
 
-    // Poll every 10 seconds (consistent interval to avoid battery drain)
-    const interval = setInterval(checkNetwork, 10000);
-
     return () => {
       subscription.remove();
-      clearInterval(interval);
+      if (interval) {
+        clearInterval(interval);
+      }
     };
   }, [checkNetwork]);
 

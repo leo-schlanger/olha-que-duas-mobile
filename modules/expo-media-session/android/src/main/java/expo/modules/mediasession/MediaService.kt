@@ -48,9 +48,11 @@ class MediaService : Service() {
       private set
 
     /** Callback into ExpoMediaSessionModule to emit JS events. */
+    @Volatile
     var transportCallback: ((String) -> Unit)? = null
 
     /** One-shot callback fired after ACTION_ACTIVATE completes. */
+    @Volatile
     var onReadyCallback: (() -> Unit)? = null
   }
 
@@ -63,6 +65,10 @@ class MediaService : Service() {
   private var currentBitmap: Bitmap? = null
   private var cachedArtworkUri = ""
   private var isPlaying = false
+
+  // Monotonic counter — each artwork request gets a unique ID so stale
+  // results from a previous download are discarded.
+  private var artworkRequestId = 0L
 
   // Background thread for bitmap decoding — keeps main thread free.
   private val artworkThread = HandlerThread("media-artwork").apply { start() }
@@ -98,10 +104,12 @@ class MediaService : Service() {
         // Load artwork on background thread, post results to main thread.
         if (artworkUri.isNotEmpty() && artworkUri != cachedArtworkUri) {
           val uriCopy = artworkUri
+          val requestId = ++artworkRequestId
           artworkHandler.post {
             val bitmap = loadBitmap(uriCopy)
             mainHandler.post {
-              if (bitmap != null) {
+              // Only apply if this is still the latest request (prevents stale overwrites).
+              if (requestId == artworkRequestId && bitmap != null) {
                 currentBitmap = bitmap
                 cachedArtworkUri = uriCopy
                 updateSessionMetadata()
@@ -111,6 +119,8 @@ class MediaService : Service() {
               flushReady()
             }
           }
+          // Safety: if artwork download hangs, flush pending after 10s anyway.
+          mainHandler.postDelayed({ flushReady() }, 10_000)
         } else {
           // No artwork to load — flush pending immediately.
           flushReady()
@@ -160,6 +170,7 @@ class MediaService : Service() {
 
     if (!artworkUri.isNullOrEmpty() && artworkUri != cachedArtworkUri) {
       val uriCopy = artworkUri
+      val requestId = ++artworkRequestId
       // Update title/artist immediately (no artwork yet).
       updateSessionMetadata()
       postNotification()
@@ -168,7 +179,8 @@ class MediaService : Service() {
       artworkHandler.post {
         val bitmap = loadBitmap(uriCopy)
         mainHandler.post {
-          if (bitmap != null) {
+          // Only apply if this is still the latest request.
+          if (requestId == artworkRequestId && bitmap != null) {
             currentBitmap = bitmap
             cachedArtworkUri = uriCopy
             updateSessionMetadata()

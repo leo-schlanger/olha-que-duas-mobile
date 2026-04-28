@@ -37,7 +37,8 @@ class RadioService {
   private appStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null;
   private lastAppState: AppStateStatus = 'active';
   private bufferingStartedAt: number = 0;
-  private backgroundTransitionAt: number = 0;
+  private backgroundTransitionAt: number | null = null;
+  private autoplayTimeout: ReturnType<typeof setTimeout> | null = null;
 
   // MediaSession state — tracks whether our native service is running.
   private mediaSessionActive: boolean = false;
@@ -158,6 +159,7 @@ class RadioService {
       if (wasPlaying && !playerPlaying && !playerBuffering) {
         const appInBackground = AppState.currentState !== 'active';
         const inGracePeriod =
+          this.backgroundTransitionAt != null &&
           Date.now() - this.backgroundTransitionAt < TIMING.RADIO_BG_GRACE_PERIOD;
         if (appInBackground || inGracePeriod) {
           return;
@@ -224,7 +226,10 @@ class RadioService {
       logger.log('RadioService initialized');
 
       if (this.settings.autoPlayOnStart) {
-        setTimeout(() => this.play(), TIMING.RADIO_AUTOPLAY_DELAY);
+        this.autoplayTimeout = setTimeout(() => {
+          this.autoplayTimeout = null;
+          this.play();
+        }, TIMING.RADIO_AUTOPLAY_DELAY);
       }
     } catch (error) {
       logger.error('Error initializing RadioService:', error);
@@ -240,7 +245,7 @@ class RadioService {
     logger.log('AppState changed:', this.lastAppState, '->', nextAppState);
 
     if (this.lastAppState.match(/inactive|background/) && nextAppState === 'active') {
-      this.backgroundTransitionAt = 0;
+      this.backgroundTransitionAt = null;
 
       if (this.player && !this.isIntentionallyStopped) {
         const playerPlaying = this.player.playing ?? false;
@@ -447,7 +452,9 @@ class RadioService {
     // Detect external pause — suppress in background
     if (wasPlaying && !newIsPlaying && !newIsBuffering) {
       const appInBackground = AppState.currentState !== 'active';
-      const inGracePeriod = Date.now() - this.backgroundTransitionAt < TIMING.RADIO_BG_GRACE_PERIOD;
+      const inGracePeriod =
+        this.backgroundTransitionAt != null &&
+        Date.now() - this.backgroundTransitionAt < TIMING.RADIO_BG_GRACE_PERIOD;
       if (appInBackground || inGracePeriod) {
         return;
       }
@@ -478,7 +485,11 @@ class RadioService {
       this.nowPlayingUnsubscribe();
     }
 
-    nowPlayingService.start();
+    try {
+      nowPlayingService.start();
+    } catch (error) {
+      logger.error('Failed to start nowPlayingService:', error);
+    }
 
     this.nowPlayingUnsubscribe = nowPlayingService.subscribe((data) => {
       if (!this.player || this.isIntentionallyStopped) return;
@@ -532,6 +543,8 @@ class RadioService {
 
   private reconnect() {
     if (this.isIntentionallyStopped) return;
+    // Prevent piling up multiple reconnect timeouts from concurrent stall detections.
+    if (this.reconnectTimeout) return;
     if (this.reconnectAttempts >= LIMITS.MAX_RECONNECT_ATTEMPTS) {
       logger.log('Max reconnect attempts reached, giving up');
       this.reconnectAttempts = 0;
@@ -547,10 +560,12 @@ class RadioService {
 
     this.clearReconnectTimeout();
 
-    const delay = Math.min(
+    // Exponential backoff with jitter to avoid thundering herd on server recovery.
+    const baseDelay = Math.min(
       TIMING.RADIO_RECONNECT_BASE_DELAY * Math.pow(2, this.reconnectAttempts),
       TIMING.RADIO_MAX_RECONNECT_DELAY
     );
+    const delay = Math.round(baseDelay * (0.8 + Math.random() * 0.4));
     this.reconnectAttempts++;
 
     logger.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
@@ -636,7 +651,11 @@ class RadioService {
     }
 
     if (this.player) {
-      this.player.volume = this.volume;
+      try {
+        this.player.volume = this.volume;
+      } catch (error) {
+        logger.error('Error setting volume:', error);
+      }
     }
 
     this.emitStatus();
@@ -676,6 +695,10 @@ class RadioService {
   }
 
   async cleanup() {
+    if (this.autoplayTimeout) {
+      clearTimeout(this.autoplayTimeout);
+      this.autoplayTimeout = null;
+    }
     this.clearReconnectTimeout();
     this.bufferingStartedAt = 0;
     this.resetNotificationCache();

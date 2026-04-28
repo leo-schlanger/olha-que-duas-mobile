@@ -39,9 +39,7 @@ export const RadioControls = memo(function RadioControls({
           onPress={onToggleKeepAwake}
           activeOpacity={0.7}
           accessibilityLabel={
-            keepAwake
-              ? t('radio.controls.keepAwakeOn')
-              : t('radio.controls.keepAwakeOff')
+            keepAwake ? t('radio.controls.keepAwakeOn') : t('radio.controls.keepAwakeOff')
           }
           accessibilityRole="switch"
           accessibilityState={{ checked: keepAwake }}

@@ -143,9 +143,9 @@ describe('newsApi', () => {
       expect(result).toEqual(mockData.data);
     });
 
-    it('should return null on error', async () => {
+    it('should return null when post not found (PGRST116)', async () => {
       const mockSingle = jest.fn(() =>
-        Promise.resolve({ data: null, error: new Error('Not found') })
+        Promise.resolve({ data: null, error: { code: 'PGRST116', message: 'Not found' } })
       );
       const mockEq = jest.fn(() => ({ single: mockSingle }));
       const mockSelect = jest.fn(() => ({ eq: mockEq }));
@@ -154,6 +154,17 @@ describe('newsApi', () => {
       const result = await fetchNewsById('non-existent');
 
       expect(result).toBeNull();
+    });
+
+    it('should throw on server/network errors', async () => {
+      const mockSingle = jest.fn(() =>
+        Promise.resolve({ data: null, error: new Error('Server error') })
+      );
+      const mockEq = jest.fn(() => ({ single: mockSingle }));
+      const mockSelect = jest.fn(() => ({ eq: mockEq }));
+      (supabase.from as jest.Mock).mockReturnValue({ select: mockSelect });
+
+      await expect(fetchNewsById('some-slug')).rejects.toThrow('Server error');
     });
   });
 });

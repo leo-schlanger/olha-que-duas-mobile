@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../services/supabase';
 import { siteConfig } from '../config/site';
 import { logger } from '../utils/logger';
@@ -113,7 +113,16 @@ const fallbackSchedule: DailyPeriod[] = addDurations([
 ]);
 
 export function getCurrentPeriod(): string {
-  const hour = new Date().getHours();
+  // Use Portugal timezone to match the schedule data (checkIsLive uses Europe/Lisbon too).
+  const ptHourStr =
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Europe/Lisbon',
+      hour: '2-digit',
+      hour12: false,
+    })
+      .formatToParts(new Date())
+      .find((p) => p.type === 'hour')?.value ?? '0';
+  const hour = parseInt(ptHourStr, 10);
   if (hour >= 7 && hour < 12) return 'manha';
   if (hour >= 12 && hour < 18) return 'tarde';
   if (hour >= 18) return 'noite';
@@ -124,11 +133,14 @@ export function useDailySchedule() {
   const [schedule, setSchedule] = useState<DailyPeriod[]>(fallbackSchedule);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
+    mountedRef.current = true;
+
     async function fetchDailySchedule() {
       if (!siteConfig.supabase.url || !siteConfig.supabase.anonKey) {
-        setLoading(false);
+        if (mountedRef.current) setLoading(false);
         return;
       }
 
@@ -140,6 +152,7 @@ export function useDailySchedule() {
           .order('sort_order', { ascending: true });
 
         if (fetchError) throw fetchError;
+        if (!mountedRef.current) return;
         if (!data || data.length === 0) {
           setLoading(false);
           return;
@@ -167,14 +180,21 @@ export function useDailySchedule() {
         setSchedule(addDurations(sorted));
         setError(null);
       } catch (err) {
+        if (!mountedRef.current) return;
         logger.error('Error fetching daily schedule:', err);
         setError(err instanceof Error ? err.message : 'unknown');
       } finally {
-        setLoading(false);
+        if (mountedRef.current) {
+          setLoading(false);
+        }
       }
     }
 
     fetchDailySchedule();
+
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   return { schedule, loading, error };

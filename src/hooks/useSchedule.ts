@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { AppState } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../services/supabase';
 import { siteConfig } from '../config/site';
 import { logger } from '../utils/logger';
@@ -43,15 +44,8 @@ export interface DaySchedule {
   shows: GroupedSchedule[];
 }
 
-const DAYS_MAP: Record<number, string> = {
-  0: 'Domingo',
-  1: 'Segunda',
-  2: 'Terça',
-  3: 'Quarta',
-  4: 'Quinta',
-  5: 'Sexta',
-  6: 'Sábado',
-};
+// Portuguese day names for fallback config lookup only (config uses PT names)
+const PT_DAYS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
 // Fallback icons (Ionicons) por nome de programa
 const FALLBACK_ICONS: Record<string, string> = {
@@ -68,7 +62,12 @@ const FALLBACK_ICONS: Record<string, string> = {
  * Check if a program is currently live based on day and times
  * Uses Portugal timezone (Europe/Lisbon)
  */
-function checkIsLive(dayNumber: number, times: string[], endTimes?: (string | null)[], isAllDay?: boolean): boolean {
+function checkIsLive(
+  dayNumber: number,
+  times: string[],
+  endTimes?: (string | null)[],
+  isAllDay?: boolean
+): boolean {
   const now = new Date();
 
   // Get current time in Portugal timezone
@@ -154,21 +153,16 @@ function getCurrentPtDayNumber(): number {
 }
 
 // Fallback schedule from config (only active items)
-function buildFallbackSchedule(currentDay: number): GroupedSchedule[] {
+function buildFallbackSchedule(
+  currentDay: number,
+  daysMap: Record<number, string>
+): GroupedSchedule[] {
   return siteConfig.radio.schedule
     .filter((item) => item.isActive !== false)
     .map((item) => {
-      const dayNumber = [
-        'Domingo',
-        'Segunda',
-        'Terça',
-        'Quarta',
-        'Quinta',
-        'Sexta',
-        'Sábado',
-      ].indexOf(item.day);
+      const dayNumber = PT_DAYS.indexOf(item.day);
       return {
-        day: item.day,
+        day: daysMap[dayNumber] ?? item.day,
         dayNumber,
         show: item.show,
         description: item.description ?? null,
@@ -185,11 +179,28 @@ function buildFallbackSchedule(currentDay: number): GroupedSchedule[] {
 }
 
 export function useSchedule() {
+  const { t } = useTranslation();
   const [rawSchedule, setRawSchedule] = useState<GroupedSchedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [currentDay, setCurrentDay] = useState(() => getCurrentPtDayNumber());
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  // Translated day names — reactive to language changes
+  const daysMap = useMemo<Record<number, string>>(() => {
+    const map: Record<number, string> = {};
+    for (let i = 0; i <= 6; i++) {
+      map[i] = t(`radio.schedule.days.${i}`);
+    }
+    return map;
+  }, [t]);
 
   // Update currentDay when app returns to foreground (handles midnight crossover)
   useEffect(() => {
@@ -205,7 +216,7 @@ export function useSchedule() {
     async function fetchSchedule() {
       // Check if Supabase is configured
       if (!siteConfig.supabase.url || !siteConfig.supabase.anonKey) {
-        setRawSchedule(buildFallbackSchedule(currentDay));
+        setRawSchedule(buildFallbackSchedule(currentDay, daysMap));
         setLoading(false);
         return;
       }
@@ -230,6 +241,7 @@ export function useSchedule() {
           .order('time', { ascending: true });
 
         if (fetchError) throw fetchError;
+        if (!mountedRef.current) return;
 
         if (data && data.length > 0) {
           // Group by day and event
@@ -254,7 +266,7 @@ export function useSchedule() {
               const times = isAllDay ? [] : [time];
               const endTimes = isAllDay ? [] : [endTime];
               grouped.set(key, {
-                day: DAYS_MAP[item.day_of_week],
+                day: daysMap[item.day_of_week],
                 dayNumber: item.day_of_week,
                 show: event.name,
                 description: event.description,
@@ -273,11 +285,19 @@ export function useSchedule() {
           // Sort times within each show and update isLive after all times are grouped
           for (const schedule of grouped.values()) {
             // Sort times and endTimes together
-            const paired = schedule.times.map((t, i) => ({ time: t, endTime: schedule.endTimes[i] }));
+            const paired = schedule.times.map((t, i) => ({
+              time: t,
+              endTime: schedule.endTimes[i],
+            }));
             paired.sort((a, b) => a.time.localeCompare(b.time));
             schedule.times = paired.map((p) => p.time);
             schedule.endTimes = paired.map((p) => p.endTime);
-            schedule.isLive = checkIsLive(schedule.dayNumber, schedule.times, schedule.endTimes, schedule.isAllDay);
+            schedule.isLive = checkIsLive(
+              schedule.dayNumber,
+              schedule.times,
+              schedule.endTimes,
+              schedule.isAllDay
+            );
           }
 
           // Sort: today first, then by day number
@@ -291,20 +311,23 @@ export function useSchedule() {
 
           setRawSchedule(sortedSchedule);
         } else {
-          setRawSchedule(buildFallbackSchedule(currentDay));
+          setRawSchedule(buildFallbackSchedule(currentDay, daysMap));
         }
       } catch (err) {
+        if (!mountedRef.current) return;
         logger.error('Error fetching schedule:', err);
         setError(err instanceof Error ? err.message : 'Error fetching schedule');
         // Keep fallback schedule on error
-        setRawSchedule(buildFallbackSchedule(currentDay));
+        setRawSchedule(buildFallbackSchedule(currentDay, daysMap));
       } finally {
-        setLoading(false);
+        if (mountedRef.current) {
+          setLoading(false);
+        }
       }
     }
 
     fetchSchedule();
-  }, [currentDay]);
+  }, [currentDay, daysMap]);
 
   // Only return active programs
   const schedule = useMemo(() => rawSchedule.filter((item) => item.isActive), [rawSchedule]);
@@ -319,7 +342,7 @@ export function useSchedule() {
       if (!entry) {
         entry = {
           dayNumber: item.dayNumber,
-          dayName: DAYS_MAP[item.dayNumber] ?? item.day,
+          dayName: daysMap[item.dayNumber] ?? item.day,
           isToday: item.dayNumber === currentDay,
           shows: [],
         };
@@ -343,7 +366,7 @@ export function useSchedule() {
       const distB = (b.dayNumber - currentDay + 7) % 7;
       return distA - distB;
     });
-  }, [schedule, currentDay]);
+  }, [schedule, currentDay, daysMap]);
 
   return { schedule, scheduleByDay, loading, error };
 }

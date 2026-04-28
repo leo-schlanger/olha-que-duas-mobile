@@ -31,6 +31,7 @@ export const lightColors = {
   beigeDark: '#6e5a4a',
   white: '#FFFFFF',
   black: '#000000',
+  accent: '#a855f7',
   muted: '#cdb98e',
   border: '#cdb98e',
   notification: '#d6402e',
@@ -60,6 +61,7 @@ export const darkColors = {
   beigeDark: '#f5f0eb',
   white: '#FFFFFF',
   black: '#0c0a09', // Preto suave para uso em badges
+  accent: '#c084fc', // Roxo mais claro para contraste no dark mode
   muted: '#44403c', // Mais claro para melhor visibilidade de bordas
   border: '#44403c',
   notification: '#ef6b5a',

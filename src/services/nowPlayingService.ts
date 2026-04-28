@@ -244,6 +244,9 @@ class NowPlayingService {
 
   // Smart re-emit + hold-on-gap state
   private lastPayload: AzuraNowPlayingPayload | null = null;
+  // Timestamp of the latest processed now_playing entry — used to reject
+  // out-of-order responses (e.g., slow poll arriving after a faster SSE frame).
+  private lastProcessedPlayedAt: number = 0;
   private lastAudibleEndAt: number | null = null;
   private smartReemitTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -319,6 +322,7 @@ class NowPlayingService {
     }
     this.sseReconnectDelay = SSE_RECONNECT_BASE_DELAY;
     this.lastPayload = null;
+    this.lastProcessedPlayedAt = 0;
     this.lastAudibleEndAt = null;
     this.currentData = IDLE_DATA;
   }
@@ -544,6 +548,17 @@ class NowPlayingService {
   // ---------- Payload processing ----------
 
   private processPayload(data: AzuraNowPlayingPayload) {
+    // Reject out-of-order payloads: if this payload's now_playing started
+    // BEFORE the one we already processed, it's stale (e.g., slow poll arriving
+    // after a faster SSE frame). Live shows bypass this check.
+    const playedAt = data.now_playing?.played_at ?? 0;
+    if (!data.live?.is_live && playedAt > 0 && playedAt < this.lastProcessedPlayedAt) {
+      return;
+    }
+    if (playedAt > 0) {
+      this.lastProcessedPlayedAt = playedAt;
+    }
+
     this.lastPayload = data;
 
     // 1. Live show takes absolute priority — a streamer is on the mic and
@@ -713,7 +728,7 @@ class NowPlayingService {
     } else if (data.mode === 'announcement') {
       logger.log('NowPlaying [announcement]:', data.announcementName);
     }
-    this.listeners.forEach((l) => l(data));
+    [...this.listeners].forEach((l) => l(data));
 
     // 2) Asynchronously pre-download the artwork to a local file. When it
     //    finishes, re-emit (only) if THIS song is still the current one,
@@ -739,7 +754,7 @@ class NowPlayingService {
 
           const updated: NowPlayingData = { ...stillCurrent, localArtUri: localUri };
           this.currentData = updated;
-          this.listeners.forEach((l) => l(updated));
+          [...this.listeners].forEach((l) => l(updated));
         })
         .catch(() => {
           // Best effort. Lock screen will use the remote URL as fallback.

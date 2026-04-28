@@ -91,7 +91,8 @@
         "6": "SAT"
       },
       "showCount_one": "{{count}} show",
-      "showCount_other": "{{count}} shows"
+      "showCount_other": "{{count}} shows",
+      "allDay": "All day"
     },
     "info": {
       "highQuality": "High Quality",

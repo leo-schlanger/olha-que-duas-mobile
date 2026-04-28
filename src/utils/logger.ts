@@ -3,18 +3,14 @@
  * Prevents console output in production builds
  */
 
-type LogLevel = 'log' | 'warn' | 'error';
-
-function createLogger(level: LogLevel) {
-  return (...args: unknown[]) => {
-    if (__DEV__) {
-      console[level](...args);
-    }
-  };
-}
-
 export const logger = {
-  log: createLogger('log'),
-  warn: createLogger('warn'),
-  error: createLogger('error'),
+  log: (...args: unknown[]) => {
+    if (__DEV__) console.log(...args); // eslint-disable-line no-console
+  },
+  warn: (...args: unknown[]) => {
+    if (__DEV__) console.warn(...args);
+  },
+  error: (...args: unknown[]) => {
+    if (__DEV__) console.error(...args);
+  },
 };

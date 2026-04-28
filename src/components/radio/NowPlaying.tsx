@@ -26,6 +26,12 @@ export const NowPlaying = memo(function NowPlaying({
   const styles = useMemo(() => createNowPlayingStyles(colors), [colors]);
   const imageRef = useRef<Image>(null);
 
+  // Reset image error state when track changes.
+  const artIdentity = nowPlaying.song?.art || nowPlaying.podcastArt || nowPlaying.announcementArt;
+  useEffect(() => {
+    setImageFailed(false);
+  }, [artIdentity]);
+
   // Counter that increments each time the app returns to foreground.
   // Including it in the Image `key` guarantees that React unmounts/remounts
   // the Image component AFTER the Activity has resumed — so Glide's
@@ -33,6 +39,9 @@ export const NowPlaying = memo(function NowPlaying({
   // queueing it (which is what happens when the key changes while the
   // Activity is still paused in the background).
   const [fgCount, setFgCount] = useState(0);
+  // Tracks image load failure so we can show a fallback icon instead of a
+  // blank space when artwork returns 404 or is corrupted.
+  const [imageFailed, setImageFailed] = useState(false);
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
@@ -58,7 +67,7 @@ export const NowPlaying = memo(function NowPlaying({
     return (
       <View style={styles.container}>
         <View style={styles.albumArtContainer}>
-          {nowPlaying.song.art ? (
+          {nowPlaying.song.art && !imageFailed ? (
             <Image
               ref={imageRef}
               key={imageKey}
@@ -68,6 +77,7 @@ export const NowPlaying = memo(function NowPlaying({
               cachePolicy="memory-disk"
               transition={ART_TRANSITION_MS}
               priority="high"
+              onError={() => setImageFailed(true)}
             />
           ) : (
             <View style={[styles.albumArt, styles.albumArtFallback]}>
@@ -111,7 +121,7 @@ export const NowPlaying = memo(function NowPlaying({
     return (
       <View style={styles.container}>
         <View style={styles.albumArtContainer}>
-          {nowPlaying.podcastArt ? (
+          {nowPlaying.podcastArt && !imageFailed ? (
             <Image
               ref={imageRef}
               key={imageKey}
@@ -121,6 +131,7 @@ export const NowPlaying = memo(function NowPlaying({
               cachePolicy="memory-disk"
               transition={ART_TRANSITION_MS}
               priority="high"
+              onError={() => setImageFailed(true)}
             />
           ) : (
             <View style={[styles.albumArt, styles.albumArtFallback]}>
@@ -144,7 +155,7 @@ export const NowPlaying = memo(function NowPlaying({
     return (
       <View style={styles.container}>
         <View style={styles.albumArtContainer}>
-          {nowPlaying.announcementArt ? (
+          {nowPlaying.announcementArt && !imageFailed ? (
             <Image
               ref={imageRef}
               key={imageKey}
@@ -154,6 +165,7 @@ export const NowPlaying = memo(function NowPlaying({
               cachePolicy="memory-disk"
               transition={ART_TRANSITION_MS}
               priority="high"
+              onError={() => setImageFailed(true)}
             />
           ) : (
             <View style={[styles.albumArt, styles.albumArtFallback]}>

@@ -87,6 +87,8 @@ export async function getLocalArtwork(remoteUrl: string): Promise<string | null>
   const inFlight = pendingDownloads.get(remoteUrl);
   if (inFlight) return inFlight;
 
+  // Store promise in the map BEFORE the first await so concurrent callers
+  // for the same URL coalesce correctly (no duplicate downloads).
   const promise: Promise<string | null> = (async () => {
     try {
       const timeoutPromise = new Promise<never>((_, reject) => {

@@ -98,18 +98,28 @@ const ScheduleItem = memo(function ScheduleItem({
         ) : null}
         <View style={styles.times}>
           {item.isAllDay ? (
-            <View style={[styles.timeBadge, { borderColor: '#a855f7', backgroundColor: '#a855f720' }]}>
-              <MaterialCommunityIcons name="white-balance-sunny" size={11} color="#a855f7" />
-              <Text style={[styles.timeText, { color: '#a855f7', fontWeight: '700' }]}>
-                Dia inteiro
+            <View
+              style={[
+                styles.timeBadge,
+                { borderColor: colors.accent, backgroundColor: colors.accent + '20' },
+              ]}
+            >
+              <MaterialCommunityIcons name="white-balance-sunny" size={11} color={colors.accent} />
+              <Text style={[styles.timeText, { color: colors.accent, fontWeight: '700' }]}>
+                {t('radio.schedule.allDay')}
               </Text>
             </View>
           ) : (
             item.times.map((time, idx) => (
               <View key={time} style={[styles.timeBadge, { borderColor: colors.muted }]}>
-                <MaterialCommunityIcons name="clock-outline" size={11} color={colors.textSecondary} />
+                <MaterialCommunityIcons
+                  name="clock-outline"
+                  size={11}
+                  color={colors.textSecondary}
+                />
                 <Text style={[styles.timeText, { color: colors.text }]}>
-                  {time}{item.endTimes?.[idx] ? ` - ${item.endTimes[idx]}` : ''}{' '}
+                  {time}
+                  {item.endTimes?.[idx] ? ` - ${item.endTimes[idx]}` : ''}{' '}
                   <Text style={{ fontSize: 9, color: colors.textSecondary }}>{timezone}</Text>
                 </Text>
               </View>

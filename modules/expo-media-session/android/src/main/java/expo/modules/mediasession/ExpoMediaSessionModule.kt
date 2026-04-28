@@ -1,6 +1,7 @@
 package expo.modules.mediasession
 
 import android.content.Intent
+import android.util.Log
 import androidx.core.content.ContextCompat
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
@@ -33,8 +34,8 @@ class ExpoMediaSessionModule : Module() {
       MediaService.transportCallback = { event ->
         try {
           sendEvent(event)
-        } catch (_: Exception) {
-          // Module context may be destroyed (e.g., app being killed).
+        } catch (e: Exception) {
+          Log.w("ExpoMediaSession", "Failed to send event '$event': ${e.message}")
         }
       }
 
@@ -98,6 +99,9 @@ class ExpoMediaSessionModule : Module() {
       pendingPlaying = null
       MediaService.onReadyCallback = null
       MediaService.transportCallback = null
+      // Stop the service to prevent an orphaned foreground service
+      // running without any JS module to receive its events.
+      MediaService.instance?.stopSelf()
     }
   }
 }

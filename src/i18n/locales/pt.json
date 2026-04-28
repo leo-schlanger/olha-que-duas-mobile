@@ -91,7 +91,8 @@
         "6": "SÁB"
       },
       "showCount_one": "{{count}} programa",
-      "showCount_other": "{{count}} programas"
+      "showCount_other": "{{count}} programas",
+      "allDay": "Dia inteiro"
     },
     "info": {
       "highQuality": "Alta Qualidade",
