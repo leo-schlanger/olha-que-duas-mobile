@@ -63,7 +63,7 @@ export const NowPlaying = memo(function NowPlaying({
     // ensures the Image is remounted when returning from background (where
     // Glide was paused), while song identity handles normal foreground
     // transitions without unnecessary remounts.
-    const imageKey = `m\0${nowPlaying.song.title}\0${nowPlaying.song.artist}\0${fgCount}`;
+    const imageKey = `m\0${musicArtUri}\0${fgCount}`;
     return (
       <View style={styles.container}>
         <View style={styles.albumArtContainer}>
@@ -117,7 +117,7 @@ export const NowPlaying = memo(function NowPlaying({
   // Podcast — long-form non-music content with its own artwork.
   if (nowPlaying.mode === 'podcast') {
     const podcastArtUri = nowPlaying.localArtUri || nowPlaying.podcastArt;
-    const imageKey = `p\0${nowPlaying.podcastName}\0${fgCount}`;
+    const imageKey = `p\0${podcastArtUri}\0${fgCount}`;
     return (
       <View style={styles.container}>
         <View style={styles.albumArtContainer}>
@@ -151,7 +151,7 @@ export const NowPlaying = memo(function NowPlaying({
   // artwork itself is the message.
   if (nowPlaying.mode === 'announcement') {
     const announcementArtUri = nowPlaying.localArtUri || nowPlaying.announcementArt;
-    const imageKey = `a\0${nowPlaying.announcementName}\0${fgCount}`;
+    const imageKey = `a\0${announcementArtUri}\0${fgCount}`;
     return (
       <View style={styles.container}>
         <View style={styles.albumArtContainer}>

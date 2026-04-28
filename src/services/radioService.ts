@@ -38,6 +38,9 @@ class RadioService {
   private lastAppState: AppStateStatus = 'active';
   private bufferingStartedAt: number = 0;
   private backgroundTransitionAt: number | null = null;
+  // Timestamp of last confirmed playing state — used to debounce external
+  // pause detection (ignore brief hiccups shorter than 500ms).
+  private lastPlayingAt: number = 0;
   private autoplayTimeout: ReturnType<typeof setTimeout> | null = null;
 
   // MediaSession state — tracks whether our native service is running.
@@ -48,8 +51,12 @@ class RadioService {
   private remotePauseSub: { remove: () => void } | null = null;
   private remoteStopSub: { remove: () => void } | null = null;
 
-  // Cached logo URI — resolved once, used as artwork fallback.
-  private logoUri: string = '';
+  // Logo URI getter — always returns the best available URI (file:// after
+  // prefetch, remote URL before). NOT cached as a field because prefetchLogo
+  // is fire-and-forget and may complete after the first play().
+  private get logoUri(): string {
+    return getLogoUri(siteConfig.radio.logoUrl);
+  }
 
   private clearReconnectTimeout() {
     if (this.reconnectTimeout) {
@@ -155,13 +162,14 @@ class RadioService {
 
       if (this.isIntentionallyStopped) return;
 
-      // Detect external pause — suppress in background
+      // Detect external pause — suppress in background and debounce brief hiccups.
       if (wasPlaying && !playerPlaying && !playerBuffering) {
         const appInBackground = AppState.currentState !== 'active';
         const inGracePeriod =
           this.backgroundTransitionAt != null &&
           Date.now() - this.backgroundTransitionAt < TIMING.RADIO_BG_GRACE_PERIOD;
-        if (appInBackground || inGracePeriod) {
+        const tooSoon = Date.now() - this.lastPlayingAt < 500;
+        if (appInBackground || inGracePeriod || tooSoon) {
           return;
         }
         logger.log('Polling: External pause detected');
@@ -177,7 +185,10 @@ class RadioService {
       this.isPlaying = playerPlaying;
       this.isBuffering = playerBuffering;
 
-      // Stall detection
+      // Stall detection + track lastPlayingAt for debounce
+      if (playerPlaying) {
+        this.lastPlayingAt = Date.now();
+      }
       if (playerBuffering && !playerPlaying) {
         if (this.bufferingStartedAt === 0) {
           this.bufferingStartedAt = Date.now();
@@ -340,11 +351,6 @@ class RadioService {
         await this.initialize();
       }
 
-      // Resolve the logo URI once (cached from prefetchLogo at app boot)
-      if (!this.logoUri) {
-        this.logoUri = getLogoUri(siteConfig.radio.logoUrl);
-      }
-
       // FAST PATH — reuse existing player
       if (this.player) {
         try {
@@ -449,13 +455,15 @@ class RadioService {
     const newIsPlaying = status.isPlaying ?? status.playing ?? false;
     const newIsBuffering = status.isBuffering ?? status.buffering ?? false;
 
-    // Detect external pause — suppress in background
+    // Detect external pause — suppress in background and debounce brief hiccups.
     if (wasPlaying && !newIsPlaying && !newIsBuffering) {
       const appInBackground = AppState.currentState !== 'active';
       const inGracePeriod =
         this.backgroundTransitionAt != null &&
         Date.now() - this.backgroundTransitionAt < TIMING.RADIO_BG_GRACE_PERIOD;
-      if (appInBackground || inGracePeriod) {
+      // Debounce: ignore if we were playing less than 500ms ago (transient hiccup).
+      const tooSoon = Date.now() - this.lastPlayingAt < 500;
+      if (appInBackground || inGracePeriod || tooSoon) {
         return;
       }
       logger.log('External pause detected (lock screen or system)');
@@ -472,6 +480,7 @@ class RadioService {
     this.isBuffering = newIsBuffering;
     if (newIsPlaying) {
       this.bufferingStartedAt = 0;
+      this.lastPlayingAt = Date.now();
     }
 
     const isLoading = !this.isPlaying && !this.isIntentionallyStopped;

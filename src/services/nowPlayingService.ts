@@ -551,9 +551,14 @@ class NowPlayingService {
     // Reject out-of-order payloads: if this payload's now_playing started
     // BEFORE the one we already processed, it's stale (e.g., slow poll arriving
     // after a faster SSE frame). Live shows bypass this check.
+    // Safety: reset the counter if no payload was processed for 30s+ (handles
+    // server clock adjustments or restarts where played_at may decrease).
     const playedAt = data.now_playing?.played_at ?? 0;
-    if (!data.live?.is_live && playedAt > 0 && playedAt < this.lastProcessedPlayedAt) {
-      return;
+    if (!data.live?.is_live && playedAt > 0 && this.lastProcessedPlayedAt > 0) {
+      const staleSince = Date.now() / 1000 - this.lastProcessedPlayedAt;
+      if (playedAt < this.lastProcessedPlayedAt && staleSince < 30) {
+        return;
+      }
     }
     if (playedAt > 0) {
       this.lastProcessedPlayedAt = playedAt;

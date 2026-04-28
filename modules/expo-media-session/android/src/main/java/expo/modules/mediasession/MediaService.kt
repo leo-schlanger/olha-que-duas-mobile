@@ -70,6 +70,10 @@ class MediaService : Service() {
   // results from a previous download are discarded.
   private var artworkRequestId = 0L
 
+  // Safety Runnable: flushes the pending queue if artwork download hangs.
+  // Kept as a named reference so it can be cancelled when artwork arrives early.
+  private val flushReadyTimeout = Runnable { flushReady() }
+
   // Background thread for bitmap decoding — keeps main thread free.
   private val artworkThread = HandlerThread("media-artwork").apply { start() }
   private val artworkHandler = Handler(artworkThread.looper)
@@ -120,7 +124,7 @@ class MediaService : Service() {
             }
           }
           // Safety: if artwork download hangs, flush pending after 10s anyway.
-          mainHandler.postDelayed({ flushReady() }, 10_000)
+          mainHandler.postDelayed(flushReadyTimeout, 10_000)
         } else {
           // No artwork to load — flush pending immediately.
           flushReady()
@@ -135,6 +139,8 @@ class MediaService : Service() {
   }
 
   private fun flushReady() {
+    // Cancel the safety timeout if artwork arrived before it fired.
+    mainHandler.removeCallbacks(flushReadyTimeout)
     onReadyCallback?.invoke()
     onReadyCallback = null
   }
