@@ -80,6 +80,14 @@ class ExpoMediaSessionModule : Module() {
       }
     }
 
+    Function("startMetadataPolling") { pollingUrl: String ->
+      MediaService.instance?.startMetadataPolling(pollingUrl)
+    }
+
+    Function("stopMetadataPolling") {
+      MediaService.instance?.stopMetadataPolling()
+    }
+
     Function("deactivate") {
       pendingMeta = null
       pendingPlaying = null
@@ -87,6 +95,7 @@ class ExpoMediaSessionModule : Module() {
 
       val service = MediaService.instance
       if (service != null) {
+        service.stopMetadataPolling()
         @Suppress("DEPRECATION")
         service.stopForeground(true)
         service.stopSelf()

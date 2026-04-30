@@ -58,6 +58,14 @@ class RadioService {
     return getLogoUri(siteConfig.radio.logoUrl);
   }
 
+  /** Build the AzuraCast nowplaying API URL from the stream URL. */
+  private get pollingUrl(): string {
+    const url = new URL(siteConfig.radio.streamUrl);
+    const pathParts = url.pathname.split('/').filter(Boolean);
+    const shortcode = pathParts[1] || 'olha_que_duas';
+    return `${url.protocol}//${url.host}/api/nowplaying/${shortcode}`;
+  }
+
   private clearReconnectTimeout() {
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
@@ -402,6 +410,11 @@ class RadioService {
       // started, so cached dedup keys from a previous session must not block.
       this.resetNotificationCache();
 
+      // Start native-side metadata polling — the JS thread is suspended by
+      // Android when the app is backgrounded, so the native MediaService
+      // polls the AzuraCast API directly to keep the notification current.
+      ExpoMediaSession.startMetadataPolling(this.pollingUrl);
+
       this.player.play();
 
       this.unsubscribeFromNowPlaying();
@@ -639,6 +652,7 @@ class RadioService {
     // Stop the foreground service — removes notification, releases WiFi lock.
     if (this.mediaSessionActive) {
       try {
+        ExpoMediaSession.stopMetadataPolling();
         ExpoMediaSession.deactivate();
       } catch (e) {
         logger.error('Error deactivating media session:', e);

@@ -21,8 +21,10 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.IBinder
 import android.os.Looper
+import android.util.Log
 import java.net.HttpURLConnection
 import java.net.URL
+import org.json.JSONObject
 
 /**
  * Foreground service that owns the entire media session and notification.
@@ -42,6 +44,7 @@ class MediaService : Service() {
     const val ACTION_PLAY = "expo.modules.mediasession.PLAY"
     const val ACTION_PAUSE = "expo.modules.mediasession.PAUSE"
     const val ACTION_STOP = "expo.modules.mediasession.STOP"
+    const val POLL_INTERVAL_MS = 10_000L
 
     @Volatile
     var instance: MediaService? = null
@@ -74,9 +77,15 @@ class MediaService : Service() {
   // Kept as a named reference so it can be cancelled when artwork arrives early.
   private val flushReadyTimeout = Runnable { flushReady() }
 
-  // Background thread for bitmap decoding — keeps main thread free.
+  // Background thread for bitmap decoding AND metadata polling — keeps main thread free.
   private val artworkThread = HandlerThread("media-artwork").apply { start() }
   private val artworkHandler = Handler(artworkThread.looper)
+
+  // ---- Native metadata polling (runs when JS thread is suspended in background) ----
+  private var pollingUrl: String? = null
+  private var pollingActive = false
+  private var lastPolledTitle = ""
+  private var lastPolledArtist = ""
 
   override fun onBind(intent: Intent?): IBinder? = null
 
@@ -147,6 +156,7 @@ class MediaService : Service() {
 
   override fun onDestroy() {
     instance = null
+    stopMetadataPolling()
     releaseWifiLock()
     mediaSession?.isActive = false
     mediaSession?.release()
@@ -443,6 +453,80 @@ class MediaService : Service() {
     }
 
     mediaSession?.setMetadata(builder.build())
+  }
+
+  // =========================================================================
+  // Native metadata polling — runs on artworkHandler thread independently
+  // of the JS thread, which Android suspends when the app is backgrounded.
+  // This ensures the lock screen / notification stays up-to-date even when
+  // the React Native JS event loop is frozen.
+  // =========================================================================
+
+  private val metadataPollingRunnable = object : Runnable {
+    override fun run() {
+      if (!pollingActive) return
+      pollMetadataFromApi()
+      artworkHandler.postDelayed(this, POLL_INTERVAL_MS)
+    }
+  }
+
+  fun startMetadataPolling(url: String) {
+    pollingUrl = url
+    pollingActive = true
+    // Sync dedup state so the first poll doesn't repeat what JS already set.
+    lastPolledTitle = currentTitle
+    lastPolledArtist = currentArtist
+    artworkHandler.removeCallbacks(metadataPollingRunnable)
+    artworkHandler.postDelayed(metadataPollingRunnable, POLL_INTERVAL_MS)
+    Log.w("MediaService", "Metadata polling started: $url")
+  }
+
+  fun stopMetadataPolling() {
+    pollingActive = false
+    artworkHandler.removeCallbacks(metadataPollingRunnable)
+    Log.w("MediaService", "Metadata polling stopped")
+  }
+
+  private fun pollMetadataFromApi() {
+    val url = pollingUrl ?: return
+    var conn: HttpURLConnection? = null
+    try {
+      conn = URL(url).openConnection() as HttpURLConnection
+      conn.connectTimeout = 8000
+      conn.readTimeout = 8000
+      conn.setRequestProperty("Accept", "application/json")
+
+      if (conn.responseCode != 200) return
+
+      val body = conn.inputStream.bufferedReader().readText()
+      val json = JSONObject(body)
+
+      val nowPlaying = json.optJSONObject("now_playing") ?: return
+      val song = nowPlaying.optJSONObject("song") ?: return
+      val title = song.optString("title", "").trim()
+      val artist = song.optString("artist", "").trim()
+      val artUrl = song.optString("art", "")
+
+      // Skip empty/invalid entries
+      if (title.isEmpty() || artist.isEmpty()) return
+      if (artist.equals("unknown", ignoreCase = true)) return
+
+      // Skip if nothing changed (dedup)
+      if (title == lastPolledTitle && artist == lastPolledArtist) return
+
+      lastPolledTitle = title
+      lastPolledArtist = artist
+      Log.w("MediaService", "Poll detected change: '$title' / '$artist'")
+
+      // Post metadata update to main thread
+      mainHandler.post {
+        updateMetadata(title, artist, artUrl)
+      }
+    } catch (e: Exception) {
+      Log.w("MediaService", "Poll failed: ${e.message}")
+    } finally {
+      conn?.disconnect()
+    }
   }
 
   // =========================================================================

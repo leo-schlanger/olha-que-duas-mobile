@@ -33,6 +33,23 @@ export function updatePlaybackState(isPlaying: boolean): void {
 }
 
 /**
+ * Start native-side metadata polling. The MediaService will poll the
+ * AzuraCast API directly on its own thread, bypassing the JS thread
+ * which Android suspends when the app is backgrounded. This ensures
+ * the lock screen / notification stays up-to-date.
+ */
+export function startMetadataPolling(pollingUrl: string): void {
+  ExpoMediaSessionModule.startMetadataPolling(pollingUrl);
+}
+
+/**
+ * Stop native-side metadata polling.
+ */
+export function stopMetadataPolling(): void {
+  ExpoMediaSessionModule.stopMetadataPolling();
+}
+
+/**
  * Stop the foreground service and remove the notification.
  * Releases WiFi lock and MediaSession.
  */
