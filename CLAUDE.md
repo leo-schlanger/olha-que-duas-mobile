@@ -7,8 +7,8 @@
 - **EAS Account**: schlanger
 
 ## Versoes Atuais
-- **versionCode**: 71 (Android)
-- **versionName**: 1.17.0
+- **versionCode**: 72 (Android)
+- **versionName**: 1.17.1
 - **Expo SDK**: 55.0.0
 - **React Native**: 0.83.6
 
@@ -213,6 +213,7 @@ Deve mostrar SHA1: C8:0B:28:E9:EF:84:19:BD:CE:72:C7:DE:5C:A7:7E:83:E6:58:0F:22
 - ACCESS_FINE_LOCATION (clima)
 - AD_ID (anuncios)
 - BILLING (compras in-app)
+- REQUEST_IGNORE_BATTERY_OPTIMIZATIONS (background playback em OEMs agressivos)
 
 ## Supabase
 - URL: jjifjbdfpvgeseqbjpkg.supabase.co
@@ -276,3 +277,14 @@ Deve mostrar SHA1: C8:0B:28:E9:EF:84:19:BD:CE:72:C7:DE:5C:A7:7E:83:E6:58:0F:22
 - radioService.ts: pollingUrl getter, integracao com activate/deactivate
 - Testado: 3 trocas de musica detectadas consecutivamente em background no emulador
 - Release notes: docs/releases/v1.17.0.md
+
+## v1.17.1: Checkup geral + Troubleshooting - CONCLUIDA
+- Checkup completo: 0 erros TS, 0 lint warnings, 38/38 testes passando
+- Weather verificado: sem bugs, problema era permissao de localizacao apos reinstalar
+- Secao Resolucao de Problemas em Settings com instrucoes por marca (Xiaomi, Samsung, Huawei, OPPO, outros)
+- Botao para desativar otimizacao de bateria
+- Permissao REQUEST_IGNORE_BATTERY_OPTIMIZATIONS adicionada
+- Orientacao para bloquear app nos recentes
+- Link para dontkillmyapp.com
+- ~20 novas chaves i18n (PT + EN)
+- Release notes: docs/releases/v1.17.1.md
