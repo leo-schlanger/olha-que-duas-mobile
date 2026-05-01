@@ -7,8 +7,8 @@
 - **EAS Account**: schlanger
 
 ## Versoes Atuais
-- **versionCode**: 72 (Android)
-- **versionName**: 1.17.1
+- **versionCode**: 73 (Android)
+- **versionName**: 1.17.2
 - **Expo SDK**: 55.0.0
 - **React Native**: 0.83.6
 
@@ -277,6 +277,13 @@ Deve mostrar SHA1: C8:0B:28:E9:EF:84:19:BD:CE:72:C7:DE:5C:A7:7E:83:E6:58:0F:22
 - radioService.ts: pollingUrl getter, integracao com activate/deactivate
 - Testado: 3 trocas de musica detectadas consecutivamente em background no emulador
 - Release notes: docs/releases/v1.17.0.md
+
+## v1.17.2: Location fix + Settings reorder + Xiaomi logging - CONCLUIDA
+- useLocation: auto-prompt para status 'denied' (nao so 'undetermined'), corrige APK reinstalado que nao pedia permissao
+- Settings: Radio movido acima de Language
+- MediaService: logging melhorado (CPU wake lock, HTTP status em polls) para diagnostico Xiaomi
+- Checkup completo: 0 erros TS, 0 lint, 38/38 testes, 248/248 i18n keys
+- Release notes: docs/releases/v1.17.2.md
 
 ## v1.17.1: Checkup geral + Troubleshooting - CONCLUIDA
 - Checkup completo: 0 erros TS, 0 lint warnings, 38/38 testes passando
