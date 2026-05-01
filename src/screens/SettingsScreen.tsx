@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Linking,
   Platform,
   BackHandler,
+  NativeModules,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
@@ -486,6 +487,248 @@ function NotificationSection({
   );
 }
 
+function BrandInstructions({
+  brand,
+  steps,
+  colors,
+  isLast,
+}: {
+  brand: string;
+  steps: string;
+  colors: ThemeColors;
+  isLast?: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <TouchableOpacity
+      style={[
+        {
+          padding: 14,
+          borderBottomWidth: isLast ? 0 : 1,
+          borderBottomColor: colors.background,
+        },
+      ]}
+      onPress={() => setExpanded(!expanded)}
+      activeOpacity={0.7}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text
+          style={[
+            { fontSize: 15, fontWeight: '500' as const },
+            { color: colors.text, flex: 1 },
+          ]}
+        >
+          {brand}
+        </Text>
+        <MaterialCommunityIcons
+          name={expanded ? 'chevron-up' : 'chevron-down'}
+          size={20}
+          color={colors.textSecondary}
+        />
+      </View>
+      {expanded && (
+        <Text
+          style={{
+            color: colors.textSecondary,
+            fontSize: 13,
+            marginTop: 8,
+            lineHeight: 19,
+          }}
+        >
+          {steps}
+        </Text>
+      )}
+    </TouchableOpacity>
+  );
+}
+
+function TroubleshootingSection({
+  colors,
+  dynamicStyles,
+}: {
+  colors: ThemeColors;
+  dynamicStyles: ReturnType<typeof createDynamicStyles>;
+}) {
+  const { t } = useTranslation();
+  const [batteryOptimized, setBatteryOptimized] = useState<boolean | null>(null);
+
+  const checkBatteryOptimization = useCallback(async () => {
+    if (Platform.OS !== 'android') return;
+    try {
+      const { PowerManagerModule } = NativeModules;
+      if (PowerManagerModule?.isIgnoringBatteryOptimizations) {
+        const isIgnoring = await PowerManagerModule.isIgnoringBatteryOptimizations();
+        setBatteryOptimized(!isIgnoring);
+      }
+    } catch {
+      // Module not available — leave as null (unknown)
+    }
+  }, []);
+
+  useEffect(() => {
+    checkBatteryOptimization();
+  }, [checkBatteryOptimization]);
+
+  const handleDisableBatteryOptimization = useCallback(async () => {
+    try {
+      await Linking.sendIntent('android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS');
+    } catch {
+      try {
+        await Linking.openSettings();
+      } catch {
+        // Best effort
+      }
+    }
+  }, []);
+
+  const brands = [
+    {
+      key: 'xiaomi',
+      brand: t('settings.troubleshooting.xiaomi'),
+      steps: t('settings.troubleshooting.xiaomiSteps'),
+    },
+    {
+      key: 'samsung',
+      brand: t('settings.troubleshooting.samsung'),
+      steps: t('settings.troubleshooting.samsungSteps'),
+    },
+    {
+      key: 'huawei',
+      brand: t('settings.troubleshooting.huawei'),
+      steps: t('settings.troubleshooting.huaweiSteps'),
+    },
+    {
+      key: 'oppo',
+      brand: t('settings.troubleshooting.oppo'),
+      steps: t('settings.troubleshooting.oppoSteps'),
+    },
+    {
+      key: 'other',
+      brand: t('settings.troubleshooting.other'),
+      steps: t('settings.troubleshooting.otherSteps'),
+    },
+  ];
+
+  return (
+    <View style={dynamicStyles.section}>
+      <Text style={dynamicStyles.sectionTitle}>{t('settings.troubleshooting.title')}</Text>
+
+      {Platform.OS === 'android' && (
+        <View style={dynamicStyles.menuCard}>
+          <View style={{ padding: 14 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+              <MaterialCommunityIcons
+                name="battery-alert-variant-outline"
+                size={22}
+                color={colors.primary}
+              />
+              <Text
+                style={[
+                  { fontSize: 15, fontWeight: '500' as const },
+                  { color: colors.text, marginLeft: 10 },
+                ]}
+              >
+                {t('settings.troubleshooting.batteryTitle')}
+              </Text>
+            </View>
+            <Text
+              style={{
+                color: colors.textSecondary,
+                fontSize: 13,
+                lineHeight: 19,
+                marginBottom: 12,
+              }}
+            >
+              {t('settings.troubleshooting.batteryDesc')}
+            </Text>
+            <TouchableOpacity
+              style={{
+                backgroundColor: batteryOptimized === false ? colors.muted : colors.primary,
+                paddingHorizontal: 16,
+                paddingVertical: 10,
+                borderRadius: 8,
+                alignItems: 'center',
+              }}
+              onPress={handleDisableBatteryOptimization}
+              disabled={batteryOptimized === false}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={{
+                  color: batteryOptimized === false ? colors.text : '#FFFFFF',
+                  fontWeight: '600',
+                  fontSize: 14,
+                }}
+              >
+                {batteryOptimized === false
+                  ? `✓ ${t('settings.troubleshooting.batteryDone')}`
+                  : t('settings.troubleshooting.batteryButton')}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      <View style={[dynamicStyles.menuCard, { marginTop: 12 }]}>
+        <View style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: colors.background }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+            <MaterialCommunityIcons name="cellphone-cog" size={22} color={colors.primary} />
+            <Text
+              style={[
+                { fontSize: 15, fontWeight: '500' as const },
+                { color: colors.text, marginLeft: 10 },
+              ]}
+            >
+              {t('settings.troubleshooting.brandTitle')}
+            </Text>
+          </View>
+          <Text style={{ color: colors.textSecondary, fontSize: 13, lineHeight: 19 }}>
+            {t('settings.troubleshooting.brandDesc')}
+          </Text>
+        </View>
+        {brands.map((b, i) => (
+          <BrandInstructions
+            key={b.key}
+            brand={b.brand}
+            steps={b.steps}
+            colors={colors}
+            isLast={i === brands.length - 1}
+          />
+        ))}
+      </View>
+
+      <View style={[dynamicStyles.menuCard, { marginTop: 12 }]}>
+        <View style={{ padding: 14 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+            <MaterialCommunityIcons name="lock-outline" size={22} color={colors.primary} />
+            <Text
+              style={[
+                { fontSize: 15, fontWeight: '500' as const },
+                { color: colors.text, marginLeft: 10 },
+              ]}
+            >
+              {t('settings.troubleshooting.lockApp')}
+            </Text>
+          </View>
+          <Text style={{ color: colors.textSecondary, fontSize: 13, lineHeight: 19 }}>
+            {t('settings.troubleshooting.lockAppDesc')}
+          </Text>
+        </View>
+      </View>
+
+      <TouchableOpacity
+        style={{ marginTop: 12, alignItems: 'center', padding: 8 }}
+        onPress={() => Linking.openURL(t('settings.troubleshooting.moreInfoUrl'))}
+        activeOpacity={0.7}
+      >
+        <Text style={{ color: colors.primary, fontSize: 13, fontWeight: '500' }}>
+          {t('settings.troubleshooting.moreInfo')} — dontkillmyapp.com
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 function AboutSection({
   colors,
   dynamicStyles,
@@ -735,6 +978,7 @@ export function SettingsScreen() {
           setReminderMinutes={setReminderMinutes}
           dynamicStyles={dynamicStyles}
         />
+        <TroubleshootingSection colors={colors} dynamicStyles={dynamicStyles} />
         <AboutSection
           colors={colors}
           dynamicStyles={dynamicStyles}
