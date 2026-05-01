@@ -500,7 +500,11 @@ class MediaService : Service() {
       conn.readTimeout = 8000
       conn.setRequestProperty("Accept", "application/json")
 
-      if (conn.responseCode != 200) return
+      val code = conn.responseCode
+      if (code != 200) {
+        Log.w("MediaService", "Poll HTTP $code for $url")
+        return
+      }
 
       val body = conn.inputStream.bufferedReader().readText()
       val json = JSONObject(body)
@@ -575,7 +579,10 @@ class MediaService : Service() {
         setReferenceCounted(false)
         acquire()
       }
-    } catch (_: Exception) {}
+      Log.w("MediaService", "CPU wake lock acquired")
+    } catch (e: Exception) {
+      Log.e("MediaService", "Failed to acquire CPU wake lock: ${e.message}")
+    }
   }
 
   private fun releaseCpuWakeLock() {

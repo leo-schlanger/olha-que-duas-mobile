@@ -916,17 +916,17 @@ export function SettingsScreen() {
           setThemeMode={setThemeMode}
           dynamicStyles={dynamicStyles}
         />
-        <LanguageSection
-          colors={colors}
-          currentLang={currentLang}
-          onLanguageChange={handleLanguageChange}
-          dynamicStyles={dynamicStyles}
-        />
         <RadioSection
           colors={colors}
           radioSettings={radioSettings}
           radioSettingsLoading={radioSettingsLoading}
           updateRadioSetting={updateRadioSetting}
+          dynamicStyles={dynamicStyles}
+        />
+        <LanguageSection
+          colors={colors}
+          currentLang={currentLang}
+          onLanguageChange={handleLanguageChange}
           dynamicStyles={dynamicStyles}
         />
         <PremiumSection

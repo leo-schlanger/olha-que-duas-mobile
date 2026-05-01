@@ -142,19 +142,22 @@ export function useLocation(): UseLocationResult {
         return;
       }
 
-      // First launch (undetermined): auto-prompt the system permission dialog
-      // so the user is not silently sent to the Lisbon fallback.
-      if (status === 'undetermined') {
+      // Auto-prompt the system permission dialog if we can still ask.
+      // Covers first launch ('undetermined') AND reinstalls where Android
+      // carries over a 'denied' state but canAskAgain is still true.
+      if (status !== 'denied-permanent') {
         try {
-          const { status: requested } = await Location.requestForegroundPermissionsAsync();
+          const { status: requested, canAskAgain } =
+            await Location.requestForegroundPermissionsAsync();
           if (requested === Location.PermissionStatus.GRANTED) {
             setPermissionStatus('granted');
             lastPermissionRef.current = 'granted';
             await fetchLocation();
             return;
           }
-          setPermissionStatus('denied');
-          lastPermissionRef.current = 'denied';
+          const newStatus: PermissionStatus = canAskAgain ? 'denied' : 'denied-permanent';
+          setPermissionStatus(newStatus);
+          lastPermissionRef.current = newStatus;
         } catch (err) {
           logger.error('Error auto-requesting location permission:', err);
         }
