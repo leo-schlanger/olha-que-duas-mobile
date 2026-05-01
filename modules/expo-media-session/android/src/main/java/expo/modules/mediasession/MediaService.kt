@@ -17,6 +17,7 @@ import android.media.session.MediaSession
 import android.media.session.PlaybackState
 import android.net.wifi.WifiManager
 import android.os.Build
+import android.os.PowerManager
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.IBinder
@@ -61,6 +62,7 @@ class MediaService : Service() {
 
   private var mediaSession: MediaSession? = null
   private var wifiLock: WifiManager.WifiLock? = null
+  private var cpuWakeLock: PowerManager.WakeLock? = null
   private val mainHandler = Handler(Looper.getMainLooper())
 
   private var currentTitle = ""
@@ -95,6 +97,7 @@ class MediaService : Service() {
     createNotificationChannel()
     initMediaSession()
     acquireWifiLock()
+    acquireCpuWakeLock()
   }
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -157,6 +160,7 @@ class MediaService : Service() {
   override fun onDestroy() {
     instance = null
     stopMetadataPolling()
+    releaseCpuWakeLock()
     releaseWifiLock()
     mediaSession?.isActive = false
     mediaSession?.release()
@@ -553,5 +557,31 @@ class MediaService : Service() {
       wifiLock?.let { if (it.isHeld) it.release() }
     } catch (_: Exception) {}
     wifiLock = null
+  }
+
+  // =========================================================================
+  // CPU wake lock — keeps the CPU active so native threads (metadata polling)
+  // continue running in background. Critical for OEM skins (Xiaomi, Samsung)
+  // that aggressively throttle background threads even with foreground service.
+  // =========================================================================
+
+  private fun acquireCpuWakeLock() {
+    try {
+      val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return
+      cpuWakeLock = pm.newWakeLock(
+        PowerManager.PARTIAL_WAKE_LOCK,
+        "olhaqueduas:radio-cpu"
+      ).apply {
+        setReferenceCounted(false)
+        acquire()
+      }
+    } catch (_: Exception) {}
+  }
+
+  private fun releaseCpuWakeLock() {
+    try {
+      cpuWakeLock?.let { if (it.isHeld) it.release() }
+    } catch (_: Exception) {}
+    cpuWakeLock = null
   }
 }
