@@ -64,7 +64,8 @@ function mergeTodayPrograms(
       isAllDay?: boolean;
       iconUrl: string;
     }[];
-  }[]
+  }[],
+  defaultSlotName = 'Programação'
 ): DailyPeriod[] {
   const todayDay = scheduleByDay.find((d) => d.isToday);
   if (!todayDay || todayDay.shows.length === 0) return periods;
@@ -192,7 +193,7 @@ function mergeTodayPrograms(
 
       resumeSlot = {
         time: formatMinsToSlotTime(endMins),
-        name: origSlot?.name ?? 'Programação',
+        name: origSlot?.name ?? defaultSlotName,
       };
     }
 
@@ -313,8 +314,8 @@ export function RadioPlayer() {
 
   // Merge today's special programs into daily schedule
   const mergedSchedule = useMemo(
-    () => mergeTodayPrograms(dailySchedule, scheduleByDay),
-    [dailySchedule, scheduleByDay]
+    () => mergeTodayPrograms(dailySchedule, scheduleByDay, t('radio.schedule.defaultSlotName')),
+    [dailySchedule, scheduleByDay, t]
   );
 
   const handleExitApp = useCallback(() => {

@@ -92,7 +92,8 @@
       },
       "showCount_one": "{{count}} show",
       "showCount_other": "{{count}} shows",
-      "allDay": "All day"
+      "allDay": "All day",
+      "defaultSlotName": "Schedule"
     },
     "info": {
       "highQuality": "High Quality",

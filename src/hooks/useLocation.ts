@@ -137,6 +137,8 @@ export function useLocation(): UseLocationResult {
   useEffect(() => {
     const initialize = async () => {
       const status = await checkPermission();
+      logger.log(`[Location] init: status=${status}`);
+
       if (status === 'granted') {
         await fetchLocation();
         return;
@@ -147,8 +149,10 @@ export function useLocation(): UseLocationResult {
       // carries over a 'denied' state but canAskAgain is still true.
       if (status !== 'denied-permanent') {
         try {
+          logger.log('[Location] requesting permission dialog...');
           const { status: requested, canAskAgain } =
             await Location.requestForegroundPermissionsAsync();
+          logger.log(`[Location] dialog result: status=${requested}, canAskAgain=${canAskAgain}`);
           if (requested === Location.PermissionStatus.GRANTED) {
             setPermissionStatus('granted');
             lastPermissionRef.current = 'granted';
@@ -161,6 +165,8 @@ export function useLocation(): UseLocationResult {
         } catch (err) {
           logger.error('Error auto-requesting location permission:', err);
         }
+      } else {
+        logger.log('[Location] skipped dialog: denied-permanent (user must enable in Settings)');
       }
 
       // Permission denied/unavailable — fall back to Lisbon

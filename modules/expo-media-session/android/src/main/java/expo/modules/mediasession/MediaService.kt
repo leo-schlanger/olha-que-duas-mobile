@@ -88,6 +88,7 @@ class MediaService : Service() {
   private var pollingActive = false
   private var lastPolledTitle = ""
   private var lastPolledArtist = ""
+  private var lastPolledArtUrl = ""
 
   override fun onBind(intent: Intent?): IBinder? = null
 
@@ -478,8 +479,12 @@ class MediaService : Service() {
     pollingUrl = url
     pollingActive = true
     // Sync dedup state so the first poll doesn't repeat what JS already set.
+    // Note: lastPolledArtUrl is left empty because cachedArtworkUri may be a
+    // file:// URI (from JS artwork cache) while the API returns https://.
+    // The first poll will trigger one updateMetadata() call which is harmless.
     lastPolledTitle = currentTitle
     lastPolledArtist = currentArtist
+    lastPolledArtUrl = ""
     artworkHandler.removeCallbacks(metadataPollingRunnable)
     artworkHandler.postDelayed(metadataPollingRunnable, POLL_INTERVAL_MS)
     Log.w("MediaService", "Metadata polling started: $url")
@@ -519,12 +524,13 @@ class MediaService : Service() {
       if (title.isEmpty() || artist.isEmpty()) return
       if (artist.equals("unknown", ignoreCase = true)) return
 
-      // Skip if nothing changed (dedup)
-      if (title == lastPolledTitle && artist == lastPolledArtist) return
+      // Skip if nothing changed (dedup — includes artwork URL)
+      if (title == lastPolledTitle && artist == lastPolledArtist && artUrl == lastPolledArtUrl) return
 
       lastPolledTitle = title
       lastPolledArtist = artist
-      Log.w("MediaService", "Poll detected change: '$title' / '$artist'")
+      lastPolledArtUrl = artUrl
+      Log.w("MediaService", "Poll detected change: '$title' / '$artist' | art=${artUrl.takeLast(50)}")
 
       // Post metadata update to main thread
       mainHandler.post {

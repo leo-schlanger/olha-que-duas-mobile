@@ -186,6 +186,11 @@ export function WeatherScreen() {
           <TouchableOpacity
             style={[styles.defaultLocationBanner, { backgroundColor: colors.primary + '25' }]}
             onPress={async () => {
+              // Permanently denied: go straight to Settings (dialog won't show)
+              if (permissionStatus === 'denied-permanent') {
+                Linking.openSettings();
+                return;
+              }
               const granted = await requestPermission();
               if (!granted) {
                 Alert.alert(

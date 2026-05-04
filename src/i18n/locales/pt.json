@@ -92,7 +92,8 @@
       },
       "showCount_one": "{{count}} programa",
       "showCount_other": "{{count}} programas",
-      "allDay": "Dia inteiro"
+      "allDay": "Dia inteiro",
+      "defaultSlotName": "Programação"
     },
     "info": {
       "highQuality": "Alta Qualidade",
