@@ -45,6 +45,10 @@ export const TIMING = {
 
   // Network
   FETCH_TIMEOUT: 15000, // 15 segundos
+  // Timeout para obter a posição GPS. Sem isto, getCurrentPositionAsync pode
+  // ficar pendurado indefinidamente quando o dispositivo não consegue fix de
+  // GPS (interior, sinal fraco), deixando o ecrã do clima preso em loading.
+  LOCATION_TIMEOUT: 15000, // 15 segundos
 
   // Animations
   VISUALIZER_INTERVAL: 150,

@@ -18,6 +18,15 @@ expo-env.d.ts
 .kotlin/
 *.orig.*
 
+# Local module native build output
+modules/**/android/build/
+
+# Test coverage reports
+coverage/
+
+# Ad-hoc test screenshots (emulator captures)
+test_*.png
+
 # Signing keys and certificates
 *.jks
 *.keystore

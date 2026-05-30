@@ -8,6 +8,7 @@ import { AppState, AppStateStatus } from 'react-native';
 import * as Location from 'expo-location';
 import { LocationCoords } from '../types/weather';
 import { logger } from '../utils/logger';
+import { TIMING } from '../config/constants';
 
 export type PermissionStatus = 'undetermined' | 'granted' | 'denied' | 'denied-permanent';
 
@@ -66,13 +67,25 @@ export function useLocation(): UseLocationResult {
   }, []);
 
   const fetchLocation = useCallback(async () => {
+    // Guard against getCurrentPositionAsync hanging forever when the device
+    // can't get a GPS fix (indoors, weak signal). Without this the weather
+    // screen stays stuck on the loading spinner and never falls back to Lisbon.
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     try {
       setIsLoading(true);
       setError(null);
 
-      const position = await Location.getCurrentPositionAsync({
+      const positionPromise = Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(
+          () => reject(new Error('location-timeout')),
+          TIMING.LOCATION_TIMEOUT
+        );
+      });
+
+      const position = await Promise.race([positionPromise, timeoutPromise]);
 
       // Validate coordinates
       const lat = position.coords.latitude;
@@ -94,6 +107,7 @@ export function useLocation(): UseLocationResult {
       logger.error('Error getting location, using default:', err);
       useDefaultLocation();
     } finally {
+      if (timeoutId) clearTimeout(timeoutId);
       setIsLoading(false);
     }
   }, [useDefaultLocation]);

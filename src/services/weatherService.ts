@@ -147,6 +147,14 @@ export async function fetchWeatherData(
 
   const data: OpenMeteoResponse = await response.json();
 
+  // Defensive validation: the API normally returns 4xx on errors (handled
+  // above), but guard against a 200 with a malformed/partial body so we throw
+  // a clear error instead of crashing inside transformWeatherData with
+  // "cannot read property of undefined".
+  if (!data?.current || !Array.isArray(data?.hourly?.time) || !Array.isArray(data?.daily?.time)) {
+    throw new Error('Weather API returned an unexpected response structure');
+  }
+
   const weatherData = transformWeatherData(data);
 
   // Store in cache
