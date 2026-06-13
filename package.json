@@ -1,6 +1,6 @@
 {
   "name": "olha-que-duas-mobile",
-  "version": "1.17.4",
+  "version": "2.1.0",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
@@ -36,7 +36,6 @@
     "expo-linear-gradient": "~55.0.13",
     "expo-linking": "~55.0.14",
     "expo-localization": "~55.0.13",
-    "expo-location": "~55.1.8",
     "expo-network": "~55.0.13",
     "expo-notifications": "~55.0.22",
     "expo-status-bar": "~55.0.5",
@@ -44,7 +43,6 @@
     "react": "19.2.0",
     "react-i18next": "^17.0.1",
     "react-native": "0.83.6",
-    "react-native-google-mobile-ads": "^16.0.3",
     "react-native-iap": "^15.2.0",
     "react-native-nitro-modules": "^0.35.4",
     "react-native-paper": "^5.15.0",

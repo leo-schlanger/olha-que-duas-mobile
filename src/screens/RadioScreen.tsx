@@ -4,7 +4,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { RadioPlayer } from '../components/RadioPlayer';
-import { BannerAd } from '../components/BannerAd';
 import { useTheme } from '../context/ThemeContext';
 import { radioService } from '../services/radioService';
 
@@ -52,7 +51,6 @@ export function RadioScreen() {
       <View style={styles.content}>
         <RadioPlayer />
       </View>
-      <BannerAd />
     </SafeAreaView>
   );
 }

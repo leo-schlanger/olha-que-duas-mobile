@@ -71,6 +71,11 @@ class MediaService : Service() {
   private var cachedArtworkUri = ""
   private var isPlaying = false
 
+  // Station logo, kept as a fallback so that when a track's artwork fails to
+  // download (e.g. constrained network in background/Doze) we show the logo
+  // instead of leaving the PREVIOUS track's cover on screen.
+  private var fallbackBitmap: Bitmap? = null
+
   // Monotonic counter — each artwork request gets a unique ID so stale
   // results from a previous download are discarded.
   private var artworkRequestId = 0L
@@ -129,6 +134,9 @@ class MediaService : Service() {
               if (requestId == artworkRequestId && bitmap != null) {
                 currentBitmap = bitmap
                 cachedArtworkUri = uriCopy
+                // The initial activate artwork is the station logo — keep it
+                // as the fallback used when a track's cover fails to load.
+                if (fallbackBitmap == null) fallbackBitmap = bitmap
                 updateSessionMetadata()
                 postNotification()
               }
@@ -172,6 +180,7 @@ class MediaService : Service() {
     // Don't recycle currentBitmap — Android may still reference it in the
     // notification system. Let GC collect it.
     currentBitmap = null
+    fallbackBitmap = null
     super.onDestroy()
   }
 
@@ -198,12 +207,31 @@ class MediaService : Service() {
 
       // Load artwork on background thread, post result to main thread.
       artworkHandler.post {
-        val bitmap = loadBitmap(uriCopy)
+        var bitmap = loadBitmap(uriCopy)
+        // One retry on failure — in background/Doze the first connection can
+        // be dropped by the network restrictions even while audio streams.
+        if (bitmap == null) {
+          try {
+            Thread.sleep(1500)
+          } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+          }
+          bitmap = loadBitmap(uriCopy)
+        }
+        val resolved = bitmap
         mainHandler.post {
           // Only apply if this is still the latest request.
-          if (requestId == artworkRequestId && bitmap != null) {
-            currentBitmap = bitmap
-            cachedArtworkUri = uriCopy
+          if (requestId == artworkRequestId) {
+            if (resolved != null) {
+              currentBitmap = resolved
+              cachedArtworkUri = uriCopy
+            } else {
+              // New track but its cover is unavailable. Drop the stale cover
+              // (showing the PREVIOUS song's art was the reported bug) and
+              // fall back to the station logo. cachedArtworkUri is left
+              // unchanged so a later poll can retry this same artwork.
+              currentBitmap = fallbackBitmap
+            }
             updateSessionMetadata()
             postNotification()
           }
@@ -427,6 +455,8 @@ class MediaService : Service() {
       conn = URL(url).openConnection() as HttpURLConnection
       conn.connectTimeout = 8000
       conn.readTimeout = 8000
+      conn.instanceFollowRedirects = true
+      conn.setRequestProperty("User-Agent", "OlhaQueDuas-Android")
 
       // Reject unreasonably large files (> 5 MB).
       val contentLength = conn.contentLength

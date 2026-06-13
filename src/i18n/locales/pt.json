@@ -2,6 +2,12 @@
   "splash": {
     "tagline": "A sua voz, 24 horas por dia"
   },
+  "batteryPrompt": {
+    "title": "Reprodução em segundo plano",
+    "message": "Para a rádio continuar a tocar e a capa a atualizar com o ecrã desligado, permita que o Olha que Duas ignore a otimização de bateria.",
+    "confirm": "Permitir",
+    "later": "Agora não"
+  },
   "error": {
     "title": "Algo correu mal",
     "message": "Ocorreu um erro inesperado. Tente novamente.",
@@ -27,10 +33,8 @@
   "tabs": {
     "radio": "Rádio",
     "radioA11y": "Rádio - ouvir em direto",
-    "news": "Notícias",
-    "newsA11y": "Notícias - ver últimas notícias",
-    "weather": "Clima",
-    "weatherA11y": "Clima - ver previsão do tempo",
+    "schedule": "Programação",
+    "scheduleA11y": "Programação - ver os horários dos programas",
     "settings": "Definições",
     "settingsA11y": "Definições - configurações da aplicação"
   },
@@ -170,61 +174,20 @@
     "syncedToast": "Lembretes sincronizados",
     "permissionDeniedToast": "Permissão de notificações negada"
   },
-  "weather": {
-    "feelsLike": "Sensação térmica: {{temp}}°C",
-    "humidity": "Humidade",
-    "wind": "Vento",
-    "precipitation": "Precipitação",
+  "schedule": {
+    "nowOnAir": "Agora no ar",
+    "nothingOnAir": "Sem programa no ar de momento",
+    "remaining_one": "falta {{count}} min",
+    "remaining_other": "faltam {{count}} min",
+    "program": "Programa",
+    "music": "Música",
     "today": "Hoje",
-    "tomorrow": "Amanhã",
-    "now": "Agora",
-    "hourlyForecast": "Previsão Horária",
-    "weeklyForecast": "Previsão Semanal",
-    "loading": "A carregar dados meteorológicos...",
-    "errorTitle": "Erro ao Carregar",
-    "permissionRequired": {
-      "title": "Permissão Necessária",
-      "message": "Para obter dados meteorológicos da sua localização, precisa permitir o acesso à localização nas definições do dispositivo."
-    },
-    "useLisbon": "Usar Lisboa",
-    "lisbonDefault": "Lisboa (padrão)",
-    "currentLocation": "Localização atual",
-    "locationBanner": "A mostrar dados de Lisboa. Toque para ativar a localização.",
-    "error": "Erro ao carregar dados meteorológicos. Tente novamente.",
-    "locationError": "Erro ao solicitar permissão de localização"
-  },
-  "news": {
-    "title": "Notícias",
-    "subtitle": "As últimas notícias para si",
-    "searchPlaceholder": "Pesquisar notícias...",
-    "noResults": "Nenhuma notícia encontrada.",
-    "clearFilters": "Limpar filtros",
-    "clear": "Limpar",
-    "toggleFilters": "Alternar filtros",
-    "clearSearch": "Limpar pesquisa",
-    "loading": "A carregar notícias...",
-    "notFound": "Notícia não encontrada",
-    "back": "Voltar",
-    "viewOriginalSource": "Ver fonte original",
-    "source": "Fonte: {{source}}",
-    "shareNews": "Partilhar notícia",
-    "tags": "Tags:",
-    "openOriginalSource": "Abrir fonte original da notícia",
-    "loadError": "Erro ao carregar notícias. Tente novamente.",
-    "openSourceErrorTitle": "Não foi possível abrir o link",
-    "openSourceErrorMessage": "Verifique a sua ligação à internet e tente novamente.",
-    "detailError": "Erro ao carregar notícia.",
-    "notFound": "Notícia não encontrada.",
-    "errors": {
-      "offline": "Sem ligação à internet. Verifique a sua rede e tente novamente.",
-      "timeout": "O servidor demorou demasiado a responder. Tente novamente.",
-      "notFound": "Notícia não encontrada.",
-      "server": "O servidor está com problemas. Tente novamente em instantes."
-    },
-    "accessibility": {
-      "newsItem": "Notícia: {{title}}. Categoria: {{category}}. Publicado em {{date}}",
-      "tapToRead": "Toque para ler a notícia completa"
-    }
+    "empty": "Sem programação para este dia",
+    "emptyHint": "Volte mais tarde para ver os próximos programas.",
+    "reminderFor": "Lembrete de {{show}}",
+    "reminderAdded": "Lembrete ativado para \"{{show}}\"",
+    "reminderRemoved": "Lembrete removido de \"{{show}}\"",
+    "reminderPermission": "Permita notificações para receber lembretes"
   },
   "settings": {
     "title": "Definições",
@@ -250,18 +213,18 @@
       "stopOnClose": "Parar ao fechar aplicação",
       "stopOnCloseDesc": "Por defeito a rádio continua a tocar em background. Ative para parar quando fechar a app."
     },
-    "premium": {
-      "title": "Premium",
-      "youArePremium": "Você é Premium!",
-      "thankYou": "Obrigado por apoiar o Olha que Duas. Aproveite a experiência sem anúncios.",
-      "removeAds": "Remover Anúncios",
-      "removeAdsDesc": "Apoie o Olha que Duas e remova todos os anúncios com um pagamento único.",
-      "oneTimePayment": "pagamento único",
-      "restorePurchase": "Restaurar compra anterior"
+    "support": {
+      "title": "Apoiar o projeto",
+      "description": "O Olha que Duas é totalmente gratuito. Se gosta da rádio, pode apoiar o projeto com um contributo único — ajuda-nos a manter tudo no ar.",
+      "oneTime": "contributo voluntário",
+      "button": "Apoiar",
+      "donateAgain": "Apoiar novamente",
+      "restore": "Restaurar contributo anterior",
+      "thankYouTitle": "Obrigado pelo apoio! 💛",
+      "thankYouDesc": "O seu contributo ajuda a manter o Olha que Duas no ar. Sempre que quiser, pode voltar a apoiar."
     },
     "privacy": {
       "title": "Privacidade",
-      "adPreferences": "Preferências de anúncios",
       "privacyPolicy": "Política de Privacidade",
       "termsOfUse": "Termos de Utilização"
     },
@@ -313,8 +276,8 @@
       "message": "As compras não estão disponíveis nesta versão de teste."
     },
     "success": {
-      "title": "Compra realizada!",
-      "message": "Obrigado por apoiar o Olha que Duas! Os anúncios foram removidos."
+      "title": "Obrigado pelo apoio!",
+      "message": "O seu contributo ajuda a manter o Olha que Duas no ar. Muito obrigado!"
     },
     "error": {
       "title": "Erro na compra",
@@ -329,30 +292,6 @@
       "message": "Não encontrámos nenhuma compra anterior associada à sua conta."
     }
   },
-  "consent": {
-    "title": "A sua privacidade",
-    "description": "Utilizamos cookies e tecnologias semelhantes para exibir anúncios. Pode escolher como pretende que os seus dados sejam utilizados:",
-    "personalizedTitle": "Anúncios personalizados",
-    "personalizedDesc": "Anúncios baseados nos seus interesses e histórico de navegação. Os dados são processados pelo Google AdMob.",
-    "nonPersonalizedTitle": "Anúncios não personalizados",
-    "nonPersonalizedDesc": "Anúncios genéricos que não utilizam os seus dados pessoais para personalização.",
-    "readPrivacyPolicy": "Ler Política de Privacidade completa",
-    "acceptAll": "Aceitar todos",
-    "acceptNonPersonalized": "Apenas anúncios não personalizados",
-    "reset": {
-      "title": "Redefinir preferências",
-      "message": "Pretende redefinir as suas preferências de anúncios? O diálogo de consentimento será mostrado novamente.",
-      "button": "Redefinir"
-    },
-    "resetSuccess": {
-      "title": "Preferências redefinidas",
-      "message": "Reinicie a aplicação para ver o diálogo de consentimento novamente."
-    },
-    "personalized": "Anúncios personalizados",
-    "nonPersonalized": "Anúncios não personalizados",
-    "notSet": "Não definido",
-    "mustChoose": "Por favor, escolha uma opção de consentimento para continuar."
-  },
   "exitApp": {
     "android": {
       "title": "Sair da aplicação",
@@ -363,14 +302,5 @@
       "title": "Informação",
       "message": "No iOS, deslize para cima a partir do fundo do ecrã e arraste a app para cima para a fechar."
     }
-  },
-  "ads": {
-    "title": "Publicidade",
-    "unavailableExpoGo": "Anúncios indisponíveis no Expo Go",
-    "loadingAd": "A carregar anúncio...",
-    "closeIn": "{{seconds}}s",
-    "close": "Fechar",
-    "helpKeepFree": "Os anúncios ajudam a manter a app gratuita",
-    "advertisement": "Publicidade"
   }
 }

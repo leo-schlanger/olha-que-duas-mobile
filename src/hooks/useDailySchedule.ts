@@ -9,6 +9,9 @@ export interface DailySlot {
   duration?: string;
   iconUrl?: string;
   isAllDay?: boolean;
+  genres?: string;
+  /** true = programa especial (programação semanal), definido no merge. */
+  isSpecial?: boolean;
 }
 
 export interface DailyPeriod {
@@ -30,11 +33,28 @@ export function parsePeriodRange(range: string): { start: number; end: number } 
   return { start, end };
 }
 
-/** Parse "07h" → 420, "10h30" → 630 (minutes from midnight). */
+/**
+ * Parse o INÍCIO de um slot em minutos. Aceita tempo único ("07h", "10h30")
+ * e intervalo ("07h-10h" → 420), que é o formato usado no Supabase.
+ */
 export function parseSlotTime(t: string): number {
-  const match = t.match(/^(\d{1,2})h(\d{2})?$/);
+  const start = t.split('-')[0].trim();
+  const match = start.match(/^(\d{1,2})h(\d{2})?$/);
   if (!match) return 0;
   return parseInt(match[1]) * 60 + (match[2] ? parseInt(match[2]) : 0);
+}
+
+/**
+ * Parse o FIM de um slot em intervalo ("07h-10h" → 600). Devolve null se o
+ * slot não tiver fim explícito (tempo único). "00h" no fim = 1440 (meia-noite).
+ */
+export function parseSlotEndTime(t: string): number | null {
+  const parts = t.split('-');
+  if (parts.length < 2) return null;
+  const match = parts[1].trim().match(/^(\d{1,2})h(\d{2})?$/);
+  if (!match) return null;
+  const mins = parseInt(match[1]) * 60 + (match[2] ? parseInt(match[2]) : 0);
+  return mins === 0 ? 24 * 60 : mins;
 }
 
 /** Format a duration in minutes as e.g. "2h", "1h30". */
@@ -55,11 +75,11 @@ export function addDurations(periods: DailyPeriod[]): DailyPeriod[] {
       // Skip all-day slots and slots that already have a duration (from end_time)
       if (slot.isAllDay || slot.duration) return slot;
       const start = parseSlotTime(slot.time);
-      let end: number;
-      if (i < period.slots.length - 1) {
-        end = parseSlotTime(period.slots[i + 1].time);
-      } else {
-        end = rangeEnd;
+      // Prefer the slot's own embedded end ("07h-10h"); fall back to the next
+      // slot's start, then the period end.
+      let end = parseSlotEndTime(slot.time);
+      if (end == null) {
+        end = i < period.slots.length - 1 ? parseSlotTime(period.slots[i + 1].time) : rangeEnd;
       }
       let diff = end - start;
       if (diff <= 0) diff += 24 * 60;
@@ -112,23 +132,6 @@ const fallbackSchedule: DailyPeriod[] = addDurations([
   },
 ]);
 
-export function getCurrentPeriod(): string {
-  // Use Portugal timezone to match the schedule data (checkIsLive uses Europe/Lisbon too).
-  const ptHourStr =
-    new Intl.DateTimeFormat('en-US', {
-      timeZone: 'Europe/Lisbon',
-      hour: '2-digit',
-      hour12: false,
-    })
-      .formatToParts(new Date())
-      .find((p) => p.type === 'hour')?.value ?? '0';
-  const hour = parseInt(ptHourStr, 10);
-  if (hour >= 7 && hour < 12) return 'manha';
-  if (hour >= 12 && hour < 18) return 'tarde';
-  if (hour >= 18) return 'noite';
-  return 'madrugada';
-}
-
 export function useDailySchedule() {
   const [schedule, setSchedule] = useState<DailyPeriod[]>(fallbackSchedule);
   const [loading, setLoading] = useState(true);
@@ -172,6 +175,8 @@ export function useDailySchedule() {
           grouped.get(row.period)!.slots.push({
             time: row.slot_time,
             name: row.slot_name,
+            genres: row.genres || undefined,
+            iconUrl: row.icon_url || undefined,
           });
         }
 

@@ -71,3 +71,24 @@ export function addRemotePauseListener(listener: () => void): EventSubscription 
 export function addRemoteStopListener(listener: () => void): EventSubscription {
   return ExpoMediaSessionModule.addListener('onRemoteStop', listener);
 }
+
+/**
+ * Whether the app is exempt from battery optimization (Doze). On aggressive
+ * OEMs, reliable background metadata/artwork updates depend on this.
+ * Resolves to false on platforms/versions where it can't be determined.
+ */
+export async function isIgnoringBatteryOptimizations(): Promise<boolean> {
+  try {
+    return await ExpoMediaSessionModule.isIgnoringBatteryOptimizations();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Show the Android system dialog asking the user to exempt the app from
+ * battery optimization. No-op if unavailable.
+ */
+export function requestIgnoreBatteryOptimizations(): void {
+  ExpoMediaSessionModule.requestIgnoreBatteryOptimizations?.();
+}

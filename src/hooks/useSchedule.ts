@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { supabase } from '../services/supabase';
 import { siteConfig } from '../config/site';
 import { logger } from '../utils/logger';
+import { getPtNowMinutes, getPtDayNumber } from '../utils/ptTime';
 
 interface ScheduleEvent {
   id: string;
@@ -68,40 +69,9 @@ function checkIsLive(
   endTimes?: (string | null)[],
   isAllDay?: boolean
 ): boolean {
-  const now = new Date();
-
-  // Get current time in Portugal timezone
-  const ptFormatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Europe/Lisbon',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    weekday: 'short',
-  });
-
-  const parts = ptFormatter.formatToParts(now);
-  const hourStr = parts.find((p) => p.type === 'hour')?.value ?? '0';
-  const minuteStr = parts.find((p) => p.type === 'minute')?.value ?? '0';
-  const ptHour = parseInt(hourStr, 10);
-  const ptMinute = parseInt(minuteStr, 10);
-  const ptTimeInMinutes = ptHour * 60 + ptMinute;
-
-  // Get current day in Portugal timezone
-  const ptDayFormatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Europe/Lisbon',
-    weekday: 'long',
-  });
-  const ptDayName = ptDayFormatter.format(now);
-  const dayNameToNumber: Record<string, number> = {
-    Sunday: 0,
-    Monday: 1,
-    Tuesday: 2,
-    Wednesday: 3,
-    Thursday: 4,
-    Friday: 5,
-    Saturday: 6,
-  };
-  const ptDay = dayNameToNumber[ptDayName] ?? 0;
+  // Current time and day evaluated in Portugal timezone (Europe/Lisbon)
+  const ptTimeInMinutes = getPtNowMinutes();
+  const ptDay = getPtDayNumber();
 
   if (ptDay !== dayNumber) return false;
 
@@ -128,28 +98,6 @@ function checkIsLive(
   }
 
   return false;
-}
-
-/**
- * Get current day number in Portugal timezone
- */
-function getCurrentPtDayNumber(): number {
-  const now = new Date();
-  const ptDayFormatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Europe/Lisbon',
-    weekday: 'long',
-  });
-  const ptDayName = ptDayFormatter.format(now);
-  const dayNameToNumber: Record<string, number> = {
-    Sunday: 0,
-    Monday: 1,
-    Tuesday: 2,
-    Wednesday: 3,
-    Thursday: 4,
-    Friday: 5,
-    Saturday: 6,
-  };
-  return dayNameToNumber[ptDayName] ?? 0;
 }
 
 // Fallback schedule from config (only active items)
@@ -184,7 +132,7 @@ export function useSchedule() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [currentDay, setCurrentDay] = useState(() => getCurrentPtDayNumber());
+  const [currentDay, setCurrentDay] = useState(() => getPtDayNumber());
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -206,7 +154,7 @@ export function useSchedule() {
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
-        setCurrentDay(getCurrentPtDayNumber());
+        setCurrentDay(getPtDayNumber());
       }
     });
     return () => sub.remove();

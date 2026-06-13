@@ -30,7 +30,6 @@ export const environment = {
 
   // Feature flags
   features: {
-    ads: canUseNativeModules,
     purchases: canUseNativeModules,
   },
 };

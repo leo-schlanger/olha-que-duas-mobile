@@ -24,6 +24,10 @@ interface UseNotificationsReturn {
     _dayOfWeek: number,
     _times: string[]
   ) => Promise<boolean>;
+  scheduleShowOccurrences: (
+    _showName: string,
+    _occurrences: { dayOfWeek: number; times: string[] }[]
+  ) => Promise<{ ok: boolean; error?: string }>;
   cancelShowReminders: (_showName: string) => Promise<boolean>;
   cancelAllReminders: () => Promise<boolean>;
   isShowEnabled: (_showName: string) => boolean;
@@ -232,6 +236,43 @@ export function useNotifications(): UseNotificationsReturn {
     []
   );
 
+  const scheduleShowOccurrences = useCallback(
+    async (
+      showName: string,
+      occurrences: { dayOfWeek: number; times: string[] }[]
+    ): Promise<{ ok: boolean; error?: string }> => {
+      if (!isMountedRef.current) return { ok: false };
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const result = await notificationService.scheduleShowOccurrences(showName, occurrences);
+
+        if (isMountedRef.current) {
+          if (!result.success) {
+            setError(result.error || 'Erro ao agendar lembretes');
+          }
+          const permission = await notificationService.checkPermissions();
+          setHasPermission(permission);
+        }
+
+        return { ok: result.success, error: result.error };
+      } catch (err) {
+        if (isMountedRef.current) {
+          logger.error('Error scheduling show occurrences:', err);
+          setError('Erro ao agendar lembretes');
+        }
+        return { ok: false, error: 'unknown' };
+      } finally {
+        if (isMountedRef.current) {
+          setIsLoading(false);
+        }
+      }
+    },
+    []
+  );
+
   const cancelShowReminders = useCallback(async (showName: string): Promise<boolean> => {
     if (!isMountedRef.current) return false;
 
@@ -361,6 +402,7 @@ export function useNotifications(): UseNotificationsReturn {
     toggleShowReminder,
     scheduleReminder,
     scheduleAllTimesForShow,
+    scheduleShowOccurrences,
     cancelShowReminders,
     cancelAllReminders,
     isShowEnabled,

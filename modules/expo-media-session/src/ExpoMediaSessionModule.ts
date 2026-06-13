@@ -8,6 +8,8 @@ interface ExpoMediaSessionModuleType {
   startMetadataPolling(pollingUrl: string): void;
   stopMetadataPolling(): void;
   deactivate(): void;
+  isIgnoringBatteryOptimizations(): Promise<boolean>;
+  requestIgnoreBatteryOptimizations(): void;
   addListener(
     eventName: 'onRemotePlay' | 'onRemotePause' | 'onRemoteStop',
     listener: () => void

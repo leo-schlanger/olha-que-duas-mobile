@@ -1,19 +1,26 @@
 /**
  * Purchase Service - In-App Purchases
  *
- * Handles Google Play Store purchases for removing ads.
- * Uses expo-iap (Expo module, NewArch-native) — replaces the old
- * react-native-iap which crashed on SDK 55 / New Architecture.
+ * Handles Google Play Store purchases. Desde a v1.18.0 a compra é um
+ * contributo voluntário ("Apoiar o projeto") — não desbloqueia nada.
  *
- * expo-iap exports the same listener-based API (initConnection,
- * purchaseUpdatedListener, etc.) so the service logic is preserved.
+ * Usa `react-native-iap` v15 (API Nitro: initConnection, fetchProducts,
+ * requestPurchase, purchaseUpdatedListener, finishTransaction). O SKU
+ * `remove_ads` é mantido por corresponder ao produto já existente na Play
+ * Console (renomear quebraria compras existentes).
+ *
+ * IMPORTANTE (v15 / Nitro): o objeto Purchase do Android NÃO tem
+ * `transactionId` fiável (é opcional e quase sempre `null`). A prova de
+ * compra válida é `purchaseState === 'purchased'`; o token para finalizar é
+ * `purchaseToken`. Tratamos o donativo como CONSUMÍVEL para que o utilizador
+ * possa apoiar o projeto mais do que uma vez.
  */
 
 import { Platform } from 'react-native';
 import { logger } from '../utils/logger';
 import { environment } from '../config/environment';
 
-// Product ID for removing ads (must match Play Console)
+// Product ID for the donation (must match Play Console)
 const REMOVE_ADS_SKU = 'remove_ads';
 
 // All product SKUs
@@ -22,35 +29,39 @@ const PRODUCT_SKUS = Platform.select({
   ios: [REMOVE_ADS_SKU],
 }) as string[];
 
-// Subscription type — expo-iap listeners return { remove() }
+// Subscription type — react-native-iap listeners return { remove() }
 type PurchaseSubscription = { remove: () => void };
 
-// Generic product type for cross-platform compatibility
+// Generic product type (subset of react-native-iap v15 Product we use)
 type IAP_Product = {
   productId?: string;
+  id?: string;
   title?: string;
   description?: string;
-  price?: string;
-  localizedPrice?: string;
+  /** v15 cross-platform formatted price, e.g. "3,69 €" */
+  displayPrice?: string;
   currency?: string;
-  oneTimePurchaseOfferDetails?: {
-    formattedPrice?: string;
-    priceAmountMicros?: string;
-    priceCurrencyCode?: string;
-  };
+  oneTimePurchaseOfferDetailsAndroid?: Array<{ formattedPrice?: string }> | null;
 };
 
-// IAP module interface (subset of expo-iap we actually use)
+// Purchase shape (subset of react-native-iap v15 Purchase we use)
+type IAP_Purchase = {
+  id?: string;
+  productId?: string;
+  /** 'pending' | 'purchased' | 'unknown' */
+  purchaseState?: string;
+  purchaseToken?: string | null;
+};
+
+// IAP module interface (subset of react-native-iap we actually use)
 interface IAPModule {
   initConnection: () => Promise<boolean>;
-  endConnection: () => Promise<void>;
-  getAvailablePurchases: () => Promise<Array<{ productId: string }>>;
+  endConnection: () => Promise<boolean>;
+  getAvailablePurchases: () => Promise<IAP_Purchase[]>;
   fetchProducts: (params: { skus: string[]; type?: string }) => Promise<IAP_Product[]>;
-  requestPurchase: (params: { request: unknown; type?: string }) => Promise<void>;
+  requestPurchase: (params: { request: unknown; type?: string }) => Promise<unknown>;
   finishTransaction: (params: { purchase: unknown; isConsumable: boolean }) => Promise<void>;
-  purchaseUpdatedListener: (
-    callback: (purchase: { transactionId?: string }) => void
-  ) => PurchaseSubscription;
+  purchaseUpdatedListener: (callback: (purchase: IAP_Purchase) => void) => PurchaseSubscription;
   purchaseErrorListener: (callback: (error: unknown) => void) => PurchaseSubscription;
 }
 
@@ -87,9 +98,8 @@ class PurchaseService {
   // Long-lived observer used by PremiumContext. Unlike onPurchaseComplete
   // (a transient one-shot for the active flow), this is invoked for *every*
   // valid purchase the store delivers — including late deliveries that
-  // arrive after a timeout, and pending purchases the store re-emits on
-  // app launch. Lets premium status converge without requiring an app
-  // restart in those edge cases.
+  // arrive after a timeout, and previously-owned purchases consumed on app
+  // launch. Lets the "obrigado" state converge without an app restart.
   private purchaseDetectedListeners: Set<() => void> = new Set();
 
   /**
@@ -117,6 +127,11 @@ class PurchaseService {
       // Load products
       await this.loadProducts();
 
+      // Consume any leftover/owned `remove_ads` purchases so the user can
+      // donate again. This also acknowledges purchases that completed while
+      // the app was closed (otherwise Google auto-refunds them after 3 days).
+      await this.consumeOutstandingPurchases();
+
       logger.log('PurchaseService: Initialized successfully');
     } catch (error) {
       logger.error('PurchaseService: Initialization error:', error);
@@ -133,31 +148,42 @@ class PurchaseService {
 
     // Listen for purchase updates
     this.purchaseUpdateSubscription = iap.purchaseUpdatedListener(async (purchase) => {
-      logger.log('PurchaseService: Purchase updated:', purchase);
+      logger.log(
+        'PurchaseService: Purchase updated:',
+        purchase?.productId,
+        purchase?.purchaseState
+      );
 
-      // Check if purchase has a transaction ID (indicates valid purchase)
-      const transactionId = purchase.transactionId;
-      if (transactionId) {
-        try {
-          // Acknowledge the purchase (required for Google Play)
-          await iap.finishTransaction({ purchase, isConsumable: false });
-          logger.log('PurchaseService: Transaction finished');
+      // Ignore unrelated products (defensive — we only sell remove_ads).
+      if (purchase?.productId && purchase.productId !== REMOVE_ADS_SKU) return;
 
-          // Notify the in-flight UI flow (one-shot) — may be null if the
-          // purchase arrives after the 2-min timeout in purchaseRemoveAds().
-          if (this.onPurchaseComplete) {
-            this.onPurchaseComplete(true);
-            this.onPurchaseComplete = null;
-          }
-
-          // Always notify long-lived observers so PremiumContext can
-          // converge even when the user closed the dialog before the
-          // store delivered the receipt.
-          this.notifyPurchaseDetected();
-        } catch (error) {
-          logger.error('PurchaseService: Error finishing transaction:', error);
-        }
+      // Only act on completed purchases. 'pending' = awaiting payment (e.g.
+      // slow card, cash payment) — do NOT finish/consume those yet.
+      if (purchase?.purchaseState !== 'purchased') {
+        logger.log('PurchaseService: purchase not completed yet:', purchase?.purchaseState);
+        return;
       }
+
+      try {
+        // Consumable: consuming makes the product purchasable again so the
+        // user can donate multiple times.
+        await iap.finishTransaction({ purchase, isConsumable: true });
+        logger.log('PurchaseService: Transaction consumed');
+      } catch (error) {
+        // Payment already succeeded; if the consume fails it stays "owned"
+        // and will be consumed on the next initialize(). Still report success.
+        logger.error('PurchaseService: Error finishing transaction:', error);
+      }
+
+      // Notify the in-flight UI flow (one-shot) — may be null if the
+      // purchase arrives after the timeout in purchaseRemoveAds().
+      if (this.onPurchaseComplete) {
+        this.onPurchaseComplete(true);
+        this.onPurchaseComplete = null;
+      }
+
+      // Always notify long-lived observers so the "obrigado" state converges.
+      this.notifyPurchaseDetected();
     });
 
     // Listen for purchase errors
@@ -181,10 +207,41 @@ class PurchaseService {
 
     try {
       const products = await iap.fetchProducts({ skus: PRODUCT_SKUS, type: 'in-app' });
-      this.products = (products ?? []) as unknown as IAP_Product[];
+      this.products = (products ?? []) as IAP_Product[];
       logger.log('PurchaseService: Products loaded:', this.products.length);
     } catch (error) {
       logger.error('PurchaseService: Error loading products:', error);
+    }
+  }
+
+  /**
+   * Consume every outstanding `remove_ads` purchase. Frees the product up for
+   * re-purchase (donate again) and acknowledges purchases delivered while the
+   * app was closed. Safe to call repeatedly — no-op when nothing is owned.
+   */
+  private async consumeOutstandingPurchases(): Promise<void> {
+    const iap = getIAPModule();
+    if (!iap) return;
+
+    try {
+      const purchases = await iap.getAvailablePurchases();
+      const owned = purchases.filter(
+        (p) => p.productId === REMOVE_ADS_SKU && p.purchaseState === 'purchased'
+      );
+      if (owned.length === 0) return;
+
+      logger.log('PurchaseService: Consuming outstanding purchases:', owned.length);
+      for (const purchase of owned) {
+        try {
+          await iap.finishTransaction({ purchase, isConsumable: true });
+          // A past donation existed — let the "obrigado" state light up.
+          this.notifyPurchaseDetected();
+        } catch (error) {
+          logger.error('PurchaseService: Error consuming outstanding purchase:', error);
+        }
+      }
+    } catch (error) {
+      logger.error('PurchaseService: Error querying available purchases:', error);
     }
   }
 
@@ -217,19 +274,21 @@ class PurchaseService {
   }
 
   /**
-   * Get remove ads product information
+   * Get the donation product information
    */
   async getRemoveAdsProduct(): Promise<IAP_Product | null> {
     if (!this.isConnected) {
       await this.initialize();
     }
 
-    const product = this.products.find((p) => p.productId === REMOVE_ADS_SKU);
+    const product = this.products.find(
+      (p) => p.productId === REMOVE_ADS_SKU || p.id === REMOVE_ADS_SKU
+    );
     return product || null;
   }
 
   /**
-   * Start the remove ads purchase flow
+   * Start the donation purchase flow
    */
   async purchaseRemoveAds(): Promise<boolean> {
     const iap = getIAPModule();
@@ -251,7 +310,7 @@ class PurchaseService {
     this.isPurchaseInProgress = true;
 
     return new Promise<boolean>((resolve) => {
-      // Timeout after 2 minutes to prevent infinite loading
+      // Timeout to prevent infinite loading
       const timeoutId = setTimeout(() => {
         logger.log('PurchaseService: Purchase timeout');
         this.onPurchaseComplete = null;
@@ -259,14 +318,14 @@ class PurchaseService {
         resolve(false);
       }, 120000);
 
-      // Set callback for when purchase completes
+      // Set callback for when purchase completes (delivered via listener)
       this.onPurchaseComplete = (success: boolean) => {
         clearTimeout(timeoutId);
         this.isPurchaseInProgress = false;
         resolve(success);
       };
 
-      // Request the purchase using the new API format
+      // Request the purchase using the v15 API format
       const purchaseRequest =
         Platform.OS === 'android'
           ? { google: { skus: [REMOVE_ADS_SKU] } }
@@ -290,7 +349,10 @@ class PurchaseService {
   }
 
   /**
-   * Check if user has already purchased remove ads
+   * Whether the user currently has an unconsumed `remove_ads` purchase.
+   * With a consumable donation this is normally false right after init
+   * (we consume on launch), so callers should not treat it as a permanent
+   * entitlement — it exists only to detect a purchase stuck mid-flow.
    */
   async checkPurchaseStatus(): Promise<boolean> {
     const iap = getIAPModule();
@@ -302,11 +364,10 @@ class PurchaseService {
 
     try {
       const purchases = await iap.getAvailablePurchases();
-      logger.log('PurchaseService: Available purchases:', purchases.length);
-
-      const hasRemoveAds = purchases.some((purchase) => purchase.productId === REMOVE_ADS_SKU);
-
-      return hasRemoveAds;
+      return purchases.some(
+        (purchase) =>
+          purchase.productId === REMOVE_ADS_SKU && purchase.purchaseState === 'purchased'
+      );
     } catch (error) {
       logger.error('PurchaseService: Error checking purchase status:', error);
       return false;
@@ -314,17 +375,19 @@ class PurchaseService {
   }
 
   /**
-   * Restore previous purchases (important for iOS, also works on Android)
+   * Re-check and consume any outstanding purchase. Kept for API compatibility
+   * with PremiumContext; with a consumable donation there is nothing to
+   * "restore" in the classic sense.
    */
   async restorePurchases(): Promise<boolean> {
-    return this.checkPurchaseStatus();
+    const had = await this.checkPurchaseStatus();
+    await this.consumeOutstandingPurchases();
+    return had;
   }
 
   /**
    * Subscribe to long-lived "any valid purchase detected" notifications.
-   * Used by PremiumContext to update premium state when late or pending
-   * purchases are delivered outside the explicit purchase flow. Returns
-   * an unsubscribe function.
+   * Returns an unsubscribe function.
    */
   onPurchaseDetected(listener: () => void): () => void {
     this.purchaseDetectedListeners.add(listener);
@@ -344,25 +407,20 @@ class PurchaseService {
   }
 
   /**
-   * Get the formatted price of the remove ads product
+   * Get the formatted price of the donation product
    */
   async getFormattedPrice(): Promise<string> {
     const product = await this.getRemoveAdsProduct();
 
     if (product) {
-      // Try localizedPrice first (iOS)
-      if (product.localizedPrice) {
-        return product.localizedPrice;
+      // v15 cross-platform formatted price
+      if (product.displayPrice) {
+        return product.displayPrice;
       }
-
-      // Try price (generic)
-      if (product.price) {
-        return product.price;
-      }
-
-      // Android oneTimePurchaseOfferDetails fallback
-      if (product.oneTimePurchaseOfferDetails?.formattedPrice) {
-        return product.oneTimePurchaseOfferDetails.formattedPrice;
+      // Android one-time purchase offer fallback
+      const androidPrice = product.oneTimePurchaseOfferDetailsAndroid?.[0]?.formattedPrice;
+      if (androidPrice) {
+        return androidPrice;
       }
     }
 

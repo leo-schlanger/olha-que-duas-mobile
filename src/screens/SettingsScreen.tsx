@@ -11,15 +11,15 @@ import {
   Linking,
   Platform,
   BackHandler,
-  NativeModules,
+  AppState,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as ExpoMediaSession from '../../modules/expo-media-session/src';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import Constants from 'expo-constants';
 import { useTranslation } from 'react-i18next';
 import { usePremium } from '../context/PremiumContext';
 import { useTheme, ThemeMode, ThemeColors } from '../context/ThemeContext';
-import { resetGDPRConsent, getGDPRConsentStatus } from '../components/GDPRConsent';
 import { useRadioSettings } from '../hooks/useRadioSettings';
 import { useNotifications } from '../hooks/useNotifications';
 import { SettingRow, MenuItem } from '../components/settings';
@@ -27,7 +27,6 @@ import { AboutBottomSheet } from '../components/AboutBottomSheet';
 import { ReminderTime } from '../services/notificationService';
 import { environment } from '../config/environment';
 import { logger } from '../utils/logger';
-import { LANGUAGES, LanguageCode, changeLanguage, getCurrentLanguage } from '../i18n';
 
 const PRIVACY_POLICY_URL = 'https://olhaqueduas.com/privacidade';
 const TERMS_URL = 'https://olhaqueduas.com/termos';
@@ -145,56 +144,6 @@ function AppearanceSection({
   );
 }
 
-function LanguageSection({
-  colors,
-  currentLang,
-  onLanguageChange,
-  dynamicStyles,
-}: {
-  colors: ThemeColors;
-  currentLang: LanguageCode;
-  onLanguageChange: (_lang: LanguageCode) => void;
-  dynamicStyles: ReturnType<typeof createDynamicStyles>;
-}) {
-  const { t } = useTranslation();
-  return (
-    <View style={dynamicStyles.section}>
-      <Text style={dynamicStyles.sectionTitle}>{t('settings.language.title')}</Text>
-      <View style={dynamicStyles.themeCard}>
-        <View style={dynamicStyles.themeHeader}>
-          <MaterialCommunityIcons name="translate" size={22} color={colors.text} />
-          <Text style={dynamicStyles.themeHeaderText}>{t('settings.language.chooseLanguage')}</Text>
-        </View>
-        <View style={dynamicStyles.themeOptions}>
-          {(Object.keys(LANGUAGES) as LanguageCode[]).map((langCode) => (
-            <TouchableOpacity
-              key={langCode}
-              style={[
-                styles.themeOption,
-                {
-                  backgroundColor: currentLang === langCode ? colors.primary : colors.background,
-                  borderColor: currentLang === langCode ? colors.primary : colors.muted,
-                },
-              ]}
-              onPress={() => onLanguageChange(langCode)}
-              activeOpacity={0.7}
-            >
-              <Text
-                style={[
-                  styles.themeOptionText,
-                  { color: currentLang === langCode ? colors.white : colors.text },
-                ]}
-              >
-                {LANGUAGES[langCode].nativeName}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-    </View>
-  );
-}
-
 function RadioSection({
   colors,
   radioSettings,
@@ -259,14 +208,13 @@ function RadioSection({
   );
 }
 
-function PremiumSection({
+function SupportSection({
   colors,
   isPremium,
   isLoading,
   price,
   isProcessing,
   onPurchase,
-  onRestore,
   dynamicStyles,
 }: {
   colors: ThemeColors;
@@ -275,69 +223,67 @@ function PremiumSection({
   price: string | null;
   isProcessing: boolean;
   onPurchase: () => void;
-  onRestore: () => void;
   dynamicStyles: ReturnType<typeof createDynamicStyles>;
 }) {
   const { t } = useTranslation();
+  // O donativo é consumível: o botão de apoiar está SEMPRE disponível para que
+  // o utilizador possa apoiar mais do que uma vez. Depois da 1ª doação mostra
+  // uma nota de agradecimento, mas mantém a possibilidade de apoiar de novo.
   return (
     <View style={dynamicStyles.section}>
-      <Text style={dynamicStyles.sectionTitle}>{t('settings.premium.title')}</Text>
+      <Text style={dynamicStyles.sectionTitle}>{t('settings.support.title')}</Text>
       <View style={dynamicStyles.premiumCard}>
         <View
           style={[
             dynamicStyles.premiumBadge,
-            { backgroundColor: isPremium ? colors.success : colors.secondary },
+            { backgroundColor: isPremium ? colors.success : colors.primary },
           ]}
         >
           <MaterialCommunityIcons
-            name={isPremium ? 'check-circle' : 'star'}
+            name={isPremium ? 'heart' : 'heart-outline'}
             size={28}
             color={colors.white}
           />
         </View>
+
         {isPremium ? (
           <>
-            <Text style={dynamicStyles.premiumTitle}>{t('settings.premium.youArePremium')}</Text>
-            <Text style={dynamicStyles.premiumDescription}>{t('settings.premium.thankYou')}</Text>
+            <Text style={dynamicStyles.premiumTitle}>{t('settings.support.thankYouTitle')}</Text>
+            <Text style={dynamicStyles.premiumDescription}>
+              {t('settings.support.thankYouDesc')}
+            </Text>
           </>
         ) : (
           <>
-            <Text style={dynamicStyles.premiumTitle}>{t('settings.premium.removeAds')}</Text>
+            <Text style={dynamicStyles.premiumTitle}>{t('settings.support.title')}</Text>
             <Text style={dynamicStyles.premiumDescription}>
-              {t('settings.premium.removeAdsDesc')}
+              {t('settings.support.description')}
             </Text>
-            <View style={dynamicStyles.priceTag}>
-              <Text style={dynamicStyles.priceText}>{price ?? '...'}</Text>
-              <Text style={dynamicStyles.priceSubtext}>{t('settings.premium.oneTimePayment')}</Text>
-            </View>
-            <TouchableOpacity
-              style={[dynamicStyles.purchaseButton, { backgroundColor: colors.primary }]}
-              onPress={onPurchase}
-              disabled={isLoading || isProcessing}
-              activeOpacity={0.8}
-            >
-              {isProcessing ? (
-                <ActivityIndicator color={colors.white} />
-              ) : (
-                <>
-                  <MaterialCommunityIcons name="heart-outline" size={20} color={colors.white} />
-                  <Text style={dynamicStyles.purchaseButtonText}>
-                    {t('settings.premium.removeAds')}
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={dynamicStyles.restoreButton}
-              onPress={onRestore}
-              disabled={isLoading || isProcessing}
-            >
-              <Text style={dynamicStyles.restoreButtonText}>
-                {t('settings.premium.restorePurchase')}
-              </Text>
-            </TouchableOpacity>
           </>
         )}
+
+        <View style={dynamicStyles.priceTag}>
+          <Text style={dynamicStyles.priceText}>{price ?? '...'}</Text>
+          <Text style={dynamicStyles.priceSubtext}>{t('settings.support.oneTime')}</Text>
+        </View>
+
+        <TouchableOpacity
+          style={[dynamicStyles.purchaseButton, { backgroundColor: colors.primary }]}
+          onPress={onPurchase}
+          disabled={isLoading || isProcessing}
+          activeOpacity={0.8}
+        >
+          {isProcessing ? (
+            <ActivityIndicator color={colors.white} />
+          ) : (
+            <>
+              <MaterialCommunityIcons name="heart" size={20} color={colors.white} />
+              <Text style={dynamicStyles.purchaseButtonText}>
+                {isPremium ? t('settings.support.donateAgain') : t('settings.support.button')}
+              </Text>
+            </>
+          )}
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -555,11 +501,8 @@ function TroubleshootingSection({
   const checkBatteryOptimization = useCallback(async () => {
     if (Platform.OS !== 'android') return;
     try {
-      const { PowerManagerModule } = NativeModules;
-      if (PowerManagerModule?.isIgnoringBatteryOptimizations) {
-        const isIgnoring = await PowerManagerModule.isIgnoringBatteryOptimizations();
-        setBatteryOptimized(!isIgnoring);
-      }
+      const isIgnoring = await ExpoMediaSession.isIgnoringBatteryOptimizations();
+      setBatteryOptimized(!isIgnoring);
     } catch {
       // Module not available — leave as null (unknown)
     }
@@ -567,16 +510,26 @@ function TroubleshootingSection({
 
   useEffect(() => {
     checkBatteryOptimization();
+    // Re-check when returning from the system dialog / settings.
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') checkBatteryOptimization();
+    });
+    return () => sub.remove();
   }, [checkBatteryOptimization]);
 
   const handleDisableBatteryOptimization = useCallback(async () => {
     try {
-      await Linking.sendIntent('android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS');
+      // Direct per-app system dialog (needs REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).
+      ExpoMediaSession.requestIgnoreBatteryOptimizations();
     } catch {
       try {
-        await Linking.openSettings();
+        await Linking.sendIntent('android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS');
       } catch {
-        // Best effort
+        try {
+          await Linking.openSettings();
+        } catch {
+          // Best effort
+        }
       }
     }
   }, []);
@@ -784,8 +737,7 @@ function AboutSection({
 export function SettingsScreen() {
   const { t } = useTranslation();
   const { colors, isDark, themeMode, setThemeMode } = useTheme();
-  const { isPremium, isLoading, purchasePremium, restorePurchases } = usePremium();
-  const [currentLang, setCurrentLang] = useState<LanguageCode>(getCurrentLanguage());
+  const { isPremium, isLoading, purchasePremium } = usePremium();
   const {
     settings: radioSettings,
     updateSetting: updateRadioSetting,
@@ -799,12 +751,10 @@ export function SettingsScreen() {
   } = useNotifications();
   const [price, setPrice] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [adsConsentStatus, setAdsConsentStatus] = useState<string | null>(null);
   const [showAboutSheet, setShowAboutSheet] = useState(false);
 
   useEffect(() => {
     loadPrice();
-    loadConsentStatus();
   }, []);
 
   async function loadPrice() {
@@ -819,11 +769,6 @@ export function SettingsScreen() {
     } else {
       setPrice('3,69 €');
     }
-  }
-
-  async function loadConsentStatus() {
-    const status = await getGDPRConsentStatus();
-    setAdsConsentStatus(status);
   }
 
   async function handlePurchase() {
@@ -841,50 +786,6 @@ export function SettingsScreen() {
       [{ text: t('common.ok') }]
     );
     setIsProcessing(false);
-  }
-
-  async function handleRestore() {
-    if (!environment.features.purchases) {
-      Alert.alert(t('purchase.unavailable.title'), t('purchase.unavailable.message'), [
-        { text: t('common.ok') },
-      ]);
-      return;
-    }
-    setIsProcessing(true);
-    const success = await restorePurchases();
-    Alert.alert(
-      success ? t('purchase.restored.title') : t('purchase.notFound.title'),
-      success ? t('purchase.restored.message') : t('purchase.notFound.message'),
-      [{ text: t('common.ok') }]
-    );
-    setIsProcessing(false);
-  }
-
-  async function handleResetAdsConsent() {
-    Alert.alert(t('consent.reset.title'), t('consent.reset.message'), [
-      { text: t('common.cancel'), style: 'cancel' },
-      {
-        text: t('consent.reset.button'),
-        onPress: async () => {
-          await resetGDPRConsent();
-          setAdsConsentStatus(null);
-          Alert.alert(t('consent.resetSuccess.title'), t('consent.resetSuccess.message'), [
-            { text: t('common.ok') },
-          ]);
-        },
-      },
-    ]);
-  }
-
-  function getConsentLabel() {
-    if (adsConsentStatus === 'personalized') return t('consent.personalized');
-    if (adsConsentStatus === 'non_personalized') return t('consent.nonPersonalized');
-    return t('consent.notSet');
-  }
-
-  async function handleLanguageChange(lang: LanguageCode) {
-    await changeLanguage(lang);
-    setCurrentLang(lang);
   }
 
   function handleExitApp() {
@@ -923,35 +824,19 @@ export function SettingsScreen() {
           updateRadioSetting={updateRadioSetting}
           dynamicStyles={dynamicStyles}
         />
-        <LanguageSection
-          colors={colors}
-          currentLang={currentLang}
-          onLanguageChange={handleLanguageChange}
-          dynamicStyles={dynamicStyles}
-        />
-        <PremiumSection
+        <SupportSection
           colors={colors}
           isPremium={isPremium}
           isLoading={isLoading}
           price={price}
           isProcessing={isProcessing}
           onPurchase={handlePurchase}
-          onRestore={handleRestore}
           dynamicStyles={dynamicStyles}
         />
 
         <View style={dynamicStyles.section}>
           <Text style={dynamicStyles.sectionTitle}>{t('settings.privacy.title')}</Text>
           <View style={dynamicStyles.menuCard}>
-            {!isPremium && (
-              <MenuItem
-                icon="eye-outline"
-                title={t('settings.privacy.adPreferences')}
-                subtitle={getConsentLabel()}
-                colors={colors}
-                onPress={handleResetAdsConsent}
-              />
-            )}
             <MenuItem
               icon="shield-check-outline"
               title={t('settings.privacy.privacyPolicy')}
@@ -1015,11 +900,6 @@ export function SettingsScreen() {
               <DebugRow
                 label="Native Modules"
                 value={environment.canUseNativeModules ? 'Sim' : 'Não'}
-                colors={colors}
-              />
-              <DebugRow
-                label="Ads"
-                value={environment.features.ads ? 'Activo' : 'Placeholder'}
                 colors={colors}
               />
               <DebugRow

@@ -142,7 +142,9 @@ function isValidScheduledNotification(data: unknown): data is ScheduledNotificat
     typeof obj.showName === 'string' &&
     typeof obj.dayOfWeek === 'number' &&
     typeof obj.time === 'string' &&
-    typeof obj.notificationId === 'string'
+    typeof obj.notificationId === 'string' &&
+    typeof obj.scheduledAt === 'number' &&
+    obj.scheduledAt > 0
   );
 }
 
@@ -317,7 +319,9 @@ class NotificationService {
         importance: Notifications.AndroidImportance.HIGH,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#d6402e',
-        sound: 'default',
+        // Omitir `sound` usa o som de notificação default do sistema. Passar a
+        // string 'default' fazia o expo-notifications procurar um ficheiro
+        // custom chamado "default" (res/raw/default) → warning + som silencioso.
       });
     } catch (error) {
       logger.error('Error setting up Android channel:', error);
@@ -405,6 +409,11 @@ class NotificationService {
   // ==========================================================================
 
   async syncWithSystem(): Promise<void> {
+    // Respeita o lock de operações. Sem isto, um sync (initialize/forceSync no
+    // mount, periodicSync, AppState) pode correr DURANTE um agendamento e
+    // tratar a notificação acabada de criar como "system orphan" (já no
+    // sistema, ainda não no estado local) — cancelando o lembrete do utilizador.
+    if (this.isBusy) return;
     try {
       const systemNotifications = await Notifications.getAllScheduledNotificationsAsync();
       const systemIds = new Set(systemNotifications.map((n) => n.identifier));
@@ -703,7 +712,9 @@ class NotificationService {
             show: showName,
             minutes: reminderMinutes,
           }),
-          sound: 'default',
+          // `true` = som default. A string 'default' era tratada como ficheiro
+          // custom inexistente (warning "Custom sound 'default' not found").
+          sound: true,
           data: { showName, dayOfWeek, time: normalizedTime, type: 'program-reminder' },
         },
         trigger,
@@ -791,6 +802,70 @@ class NotificationService {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       logger.error('Error scheduling all times for show:', error);
+      return { success: false, error: message };
+    } finally {
+      this.isBusy = false;
+    }
+  }
+
+  /**
+   * Agenda TODAS as ocorrências semanais de um programa (vários dias) numa
+   * única operação atómica: adquire o lock uma vez e pede permissão uma vez.
+   *
+   * Resolve o agendamento parcial e o "toast de permissão errado" — o chamador
+   * (UI) recebe a causa real do erro ('Permission not granted' vs
+   * 'Operation in progress' vs falha de agendamento) em vez de um boolean.
+   */
+  async scheduleShowOccurrences(
+    showName: string,
+    occurrences: { dayOfWeek: number; times: string[] }[]
+  ): Promise<OperationResult<{ scheduled: number; failed: number }>> {
+    if (this.isBusy) return { success: false, error: 'Operation in progress' };
+    this.isBusy = true;
+
+    try {
+      // Permissão pedida UMA vez para todo o programa
+      if (!this.preferences.enabled) {
+        const hasPermission = await this.requestPermissions();
+        if (!hasPermission) return { success: false, error: 'Permission not granted' };
+        this.preferences = { ...this.preferences, enabled: true };
+        await this.savePreferences();
+      }
+
+      let knownSystemIds: Set<string> | undefined;
+      try {
+        const systemNotifications = await Notifications.getAllScheduledNotificationsAsync();
+        knownSystemIds = new Set(systemNotifications.map((n) => n.identifier));
+      } catch (error) {
+        logger.error('Could not pre-load system notifications, falling back per-call:', error);
+      }
+
+      let scheduled = 0;
+      let failed = 0;
+      for (const occ of occurrences) {
+        for (const time of occ.times) {
+          const result = await this.scheduleShowReminderInternal(
+            showName,
+            occ.dayOfWeek,
+            time,
+            knownSystemIds
+          );
+          if (result.success) {
+            scheduled++;
+            if (knownSystemIds && result.data) knownSystemIds.add(result.data);
+          } else {
+            failed++;
+          }
+        }
+      }
+
+      if (scheduled === 0) {
+        return { success: false, error: 'Failed to schedule any notifications' };
+      }
+      return { success: true, data: { scheduled, failed } };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('Error scheduling show occurrences:', error);
       return { success: false, error: message };
     } finally {
       this.isBusy = false;

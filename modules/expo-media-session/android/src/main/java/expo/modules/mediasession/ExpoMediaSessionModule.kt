@@ -1,6 +1,10 @@
 package expo.modules.mediasession
 
+import android.content.Context
 import android.content.Intent
+import android.net.Uri
+import android.os.PowerManager
+import android.provider.Settings
 import android.util.Log
 import androidx.core.content.ContextCompat
 import expo.modules.kotlin.modules.Module
@@ -86,6 +90,32 @@ class ExpoMediaSessionModule : Module() {
 
     Function("stopMetadataPolling") {
       MediaService.instance?.stopMetadataPolling()
+    }
+
+    // Whether the app is exempt from battery optimization (Doze). Reliable
+    // background metadata/artwork updates depend on this on aggressive OEMs.
+    AsyncFunction("isIgnoringBatteryOptimizations") {
+      val ctx = appContext.reactContext ?: return@AsyncFunction false
+      val pm = ctx.getSystemService(Context.POWER_SERVICE) as? PowerManager
+        ?: return@AsyncFunction false
+      pm.isIgnoringBatteryOptimizations(ctx.packageName)
+    }
+
+    // Show the system dialog asking the user to exempt the app from battery
+    // optimization. Requires the REQUEST_IGNORE_BATTERY_OPTIMIZATIONS permission.
+    Function("requestIgnoreBatteryOptimizations") {
+      val ctx = appContext.reactContext
+      if (ctx != null) {
+        try {
+          val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+            data = Uri.parse("package:${ctx.packageName}")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+          }
+          ctx.startActivity(intent)
+        } catch (e: Exception) {
+          Log.w("ExpoMediaSession", "Battery optimization request failed: ${e.message}")
+        }
+      }
     }
 
     Function("deactivate") {

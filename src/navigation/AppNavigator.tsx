@@ -30,9 +30,7 @@ export function navigateToTab(tabName: keyof MainTabParamList) {
 }
 
 import { RadioScreen } from '../screens/RadioScreen';
-import { NewsScreen } from '../screens/NewsScreen';
-import { NewsDetailScreen } from '../screens/NewsDetailScreen';
-import { WeatherScreen } from '../screens/WeatherScreen';
+import { ScheduleScreen } from '../screens/ScheduleScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 
 // Wrap screens in ScreenErrorBoundary for per-screen error isolation
@@ -41,14 +39,9 @@ const SafeRadioScreen = () => (
     <RadioScreen />
   </ScreenErrorBoundary>
 );
-const SafeNewsScreen = () => (
+const SafeScheduleScreen = () => (
   <ScreenErrorBoundary>
-    <NewsScreen />
-  </ScreenErrorBoundary>
-);
-const SafeWeatherScreen = () => (
-  <ScreenErrorBoundary>
-    <WeatherScreen />
+    <ScheduleScreen />
   </ScreenErrorBoundary>
 );
 const SafeSettingsScreen = () => (
@@ -70,12 +63,10 @@ const linking: LinkingOptions<RootStackParamList> = {
   ],
   config: {
     screens: {
-      NewsDetail: 'noticias/:slug',
       MainTabs: {
         screens: {
           Radio: { path: '', exact: true },
-          News: 'noticias',
-          Weather: 'clima',
+          Schedule: 'programacao',
           Settings: 'definicoes',
         },
       },
@@ -85,13 +76,11 @@ const linking: LinkingOptions<RootStackParamList> = {
 
 export type RootStackParamList = {
   MainTabs: undefined;
-  NewsDetail: { slug: string };
 };
 
 export type MainTabParamList = {
   Radio: undefined;
-  News: undefined;
-  Weather: undefined;
+  Schedule: undefined;
   Settings: undefined;
 };
 
@@ -137,24 +126,13 @@ function MainTabs() {
         }}
       />
       <Tab.Screen
-        name="News"
-        component={SafeNewsScreen}
+        name="Schedule"
+        component={SafeScheduleScreen}
         options={{
-          tabBarLabel: t('tabs.news'),
-          tabBarAccessibilityLabel: t('tabs.newsA11y'),
+          tabBarLabel: t('tabs.schedule'),
+          tabBarAccessibilityLabel: t('tabs.scheduleA11y'),
           tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="newspaper-variant-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="Weather"
-        component={SafeWeatherScreen}
-        options={{
-          tabBarLabel: t('tabs.weather'),
-          tabBarAccessibilityLabel: t('tabs.weatherA11y'),
-          tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="weather-partly-cloudy" size={size} color={color} />
+            <MaterialCommunityIcons name="calendar-clock" size={size} color={color} />
           ),
         }}
       />
@@ -211,13 +189,6 @@ export function AppNavigator() {
         }}
       >
         <Stack.Screen name="MainTabs" component={MainTabs} />
-        <Stack.Screen
-          name="NewsDetail"
-          component={NewsDetailScreen}
-          options={{
-            animation: 'slide_from_right',
-          }}
-        />
       </Stack.Navigator>
     </NavigationContainer>
   );

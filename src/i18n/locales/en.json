@@ -2,6 +2,12 @@
   "splash": {
     "tagline": "Your voice, 24 hours a day"
   },
+  "batteryPrompt": {
+    "title": "Background playback",
+    "message": "To keep the radio playing and the cover art updating with the screen off, allow Olha que Duas to ignore battery optimization.",
+    "confirm": "Allow",
+    "later": "Not now"
+  },
   "error": {
     "title": "Something went wrong",
     "message": "An unexpected error occurred. Please try again.",
@@ -27,10 +33,8 @@
   "tabs": {
     "radio": "Radio",
     "radioA11y": "Radio - listen live",
-    "news": "News",
-    "newsA11y": "News - latest stories",
-    "weather": "Weather",
-    "weatherA11y": "Weather - check the forecast",
+    "schedule": "Schedule",
+    "scheduleA11y": "Schedule - see the show times",
     "settings": "Settings",
     "settingsA11y": "Settings - app preferences"
   },
@@ -170,61 +174,20 @@
     "syncedToast": "Reminders synced",
     "permissionDeniedToast": "Notifications permission denied"
   },
-  "weather": {
-    "feelsLike": "Feels like: {{temp}}°C",
-    "humidity": "Humidity",
-    "wind": "Wind",
-    "precipitation": "Precipitation",
+  "schedule": {
+    "nowOnAir": "Now on air",
+    "nothingOnAir": "Nothing on air right now",
+    "remaining_one": "{{count}} min left",
+    "remaining_other": "{{count}} min left",
+    "program": "Show",
+    "music": "Music",
     "today": "Today",
-    "tomorrow": "Tomorrow",
-    "now": "Now",
-    "hourlyForecast": "Hourly Forecast",
-    "weeklyForecast": "Weekly Forecast",
-    "loading": "Loading weather data...",
-    "errorTitle": "Error Loading",
-    "permissionRequired": {
-      "title": "Permission Required",
-      "message": "To get weather data for your location, you need to allow location access in your device settings."
-    },
-    "useLisbon": "Use Lisbon",
-    "lisbonDefault": "Lisbon (default)",
-    "currentLocation": "Current location",
-    "locationBanner": "Showing data for Lisbon. Tap to enable location.",
-    "error": "Error loading weather data. Please try again.",
-    "locationError": "Error requesting location permission"
-  },
-  "news": {
-    "title": "News",
-    "subtitle": "The latest news for you",
-    "searchPlaceholder": "Search news...",
-    "noResults": "No news found.",
-    "clearFilters": "Clear filters",
-    "clear": "Clear",
-    "toggleFilters": "Toggle filters",
-    "clearSearch": "Clear search",
-    "loading": "Loading news...",
-    "notFound": "News article not found",
-    "back": "Back",
-    "viewOriginalSource": "View original source",
-    "source": "Source: {{source}}",
-    "shareNews": "Share article",
-    "tags": "Tags:",
-    "openOriginalSource": "Open original news source",
-    "loadError": "Error loading news. Please try again.",
-    "openSourceErrorTitle": "Could not open link",
-    "openSourceErrorMessage": "Check your internet connection and try again.",
-    "detailError": "Error loading article.",
-    "notFound": "Article not found.",
-    "errors": {
-      "offline": "No internet connection. Check your network and try again.",
-      "timeout": "The server took too long to respond. Please try again.",
-      "notFound": "Article not found.",
-      "server": "The server is having issues. Please try again shortly."
-    },
-    "accessibility": {
-      "newsItem": "News: {{title}}. Category: {{category}}. Published on {{date}}",
-      "tapToRead": "Tap to read the full article"
-    }
+    "empty": "No schedule for this day",
+    "emptyHint": "Check back later for upcoming shows.",
+    "reminderFor": "Reminder for {{show}}",
+    "reminderAdded": "Reminder set for \"{{show}}\"",
+    "reminderRemoved": "Reminder removed for \"{{show}}\"",
+    "reminderPermission": "Allow notifications to receive reminders"
   },
   "settings": {
     "title": "Settings",
@@ -250,18 +213,18 @@
       "stopOnClose": "Stop on close",
       "stopOnCloseDesc": "By default the radio keeps playing in the background. Enable to stop when closing the app."
     },
-    "premium": {
-      "title": "Premium",
-      "youArePremium": "You are Premium!",
-      "thankYou": "Thank you for supporting Olha que Duas. Enjoy the ad-free experience.",
-      "removeAds": "Remove Ads",
-      "removeAdsDesc": "Support Olha que Duas and remove all ads with a one-time payment.",
-      "oneTimePayment": "one-time payment",
-      "restorePurchase": "Restore previous purchase"
+    "support": {
+      "title": "Support the project",
+      "description": "Olha que Duas is completely free. If you enjoy the radio, you can support the project with a one-time contribution — it helps us keep everything on air.",
+      "oneTime": "voluntary contribution",
+      "button": "Support",
+      "donateAgain": "Support again",
+      "restore": "Restore previous contribution",
+      "thankYouTitle": "Thank you for your support! 💛",
+      "thankYouDesc": "Your contribution helps keep Olha que Duas on air. You can support again any time you like."
     },
     "privacy": {
       "title": "Privacy",
-      "adPreferences": "Ad preferences",
       "privacyPolicy": "Privacy Policy",
       "termsOfUse": "Terms of Use"
     },
@@ -313,8 +276,8 @@
       "message": "Purchases are not available in this test version."
     },
     "success": {
-      "title": "Purchase completed!",
-      "message": "Thank you for supporting Olha que Duas! Ads have been removed."
+      "title": "Thank you for your support!",
+      "message": "Your contribution helps keep Olha que Duas on air. Thank you so much!"
     },
     "error": {
       "title": "Purchase error",
@@ -329,30 +292,6 @@
       "message": "We could not find any previous purchase associated with your account."
     }
   },
-  "consent": {
-    "title": "Your privacy",
-    "description": "We use cookies and similar technologies to display ads. You can choose how your data is used:",
-    "personalizedTitle": "Personalized ads",
-    "personalizedDesc": "Ads based on your interests and browsing history. Data is processed by Google AdMob.",
-    "nonPersonalizedTitle": "Non-personalized ads",
-    "nonPersonalizedDesc": "Generic ads that do not use your personal data for personalization.",
-    "readPrivacyPolicy": "Read full Privacy Policy",
-    "acceptAll": "Accept all",
-    "acceptNonPersonalized": "Non-personalized ads only",
-    "reset": {
-      "title": "Reset preferences",
-      "message": "Do you want to reset your ad preferences? The consent dialog will be shown again.",
-      "button": "Reset"
-    },
-    "resetSuccess": {
-      "title": "Preferences reset",
-      "message": "Restart the app to see the consent dialog again."
-    },
-    "personalized": "Personalized ads",
-    "nonPersonalized": "Non-personalized ads",
-    "notSet": "Not set",
-    "mustChoose": "Please choose a consent option to continue."
-  },
   "exitApp": {
     "android": {
       "title": "Exit application",
@@ -363,14 +302,5 @@
       "title": "Information",
       "message": "On iOS, swipe up from the bottom of the screen and drag the app up to close it."
     }
-  },
-  "ads": {
-    "title": "Advertisement",
-    "unavailableExpoGo": "Ads unavailable in Expo Go",
-    "loadingAd": "Loading ad...",
-    "closeIn": "{{seconds}}s",
-    "close": "Close",
-    "helpKeepFree": "Ads help keep the app free",
-    "advertisement": "Advertisement"
   }
 }

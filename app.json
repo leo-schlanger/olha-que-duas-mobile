@@ -2,7 +2,7 @@
   "expo": {
     "name": "Olha que Duas",
     "slug": "olha-que-duas",
-    "version": "1.17.4",
+    "version": "2.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -26,7 +26,6 @@
           "remote-notification"
         ],
         "NSMicrophoneUsageDescription": "Esta aplicação não utiliza o microfone.",
-        "NSLocationWhenInUseUsageDescription": "A sua localização é utilizada para mostrar a previsão meteorológica da sua área.",
         "BGTaskSchedulerPermittedIdentifiers": [
           "com.olhaqueduas.app.background"
         ]
@@ -34,7 +33,7 @@
     },
     "android": {
       "package": "com.olhaqueduas.app",
-      "versionCode": 75,
+      "versionCode": 80,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#d6402e"
@@ -47,22 +46,12 @@
             {
               "scheme": "https",
               "host": "www.olhaqueduas.com",
-              "pathPrefix": "/noticias"
+              "pathPrefix": "/programacao"
             },
             {
               "scheme": "https",
               "host": "olhaqueduas.com",
-              "pathPrefix": "/noticias"
-            },
-            {
-              "scheme": "https",
-              "host": "www.olhaqueduas.com",
-              "pathPrefix": "/clima"
-            },
-            {
-              "scheme": "https",
-              "host": "olhaqueduas.com",
-              "pathPrefix": "/clima"
+              "pathPrefix": "/programacao"
             },
             {
               "scheme": "https",
@@ -89,9 +78,6 @@
         "android.permission.ACCESS_NETWORK_STATE",
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.SCHEDULE_EXACT_ALARM",
-        "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION",
-        "com.google.android.gms.permission.AD_ID",
         "com.android.vending.BILLING",
         "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"
       ]
@@ -102,21 +88,6 @@
     "plugins": [
       "expo-font",
       "react-native-iap",
-      [
-        "expo-location",
-        {
-          "locationAlwaysAndWhenInUsePermission": "A sua localização é utilizada para mostrar a previsão meteorológica da sua área.",
-          "locationAlwaysPermission": "A sua localização é utilizada para mostrar a previsão meteorológica da sua área.",
-          "locationWhenInUsePermission": "A sua localização é utilizada para mostrar a previsão meteorológica da sua área."
-        }
-      ],
-      [
-        "react-native-google-mobile-ads",
-        {
-          "androidAppId": "ca-app-pub-7365386697613870~4390180141",
-          "iosAppId": "ca-app-pub-7365386697613870~4390180141"
-        }
-      ],
       [
         "expo-audio",
         {

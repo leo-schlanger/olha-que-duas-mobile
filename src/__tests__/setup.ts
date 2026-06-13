@@ -56,19 +56,13 @@ jest.mock('../../modules/expo-media-session/src', () => ({
   updateMetadata: jest.fn(),
   updatePlaybackState: jest.fn(),
   deactivate: jest.fn(),
+  startMetadataPolling: jest.fn(),
+  stopMetadataPolling: jest.fn(),
   addRemotePlayListener: jest.fn(() => ({ remove: jest.fn() })),
   addRemotePauseListener: jest.fn(() => ({ remove: jest.fn() })),
   addRemoteStopListener: jest.fn(() => ({ remove: jest.fn() })),
-}));
-
-// Mock expo-location
-jest.mock('expo-location', () => ({
-  requestForegroundPermissionsAsync: jest.fn(() => Promise.resolve({ status: 'granted' })),
-  getCurrentPositionAsync: jest.fn(() =>
-    Promise.resolve({
-      coords: { latitude: 40.0, longitude: -8.0 },
-    })
-  ),
+  isIgnoringBatteryOptimizations: jest.fn(() => Promise.resolve(true)),
+  requestIgnoreBatteryOptimizations: jest.fn(),
 }));
 
 // Mock expo-constants
@@ -110,7 +104,6 @@ jest.mock('../services/supabase', () => ({
 // Mock constants
 jest.mock('../config/constants', () => ({
   LIMITS: {
-    POSTS_PER_PAGE: 10,
     MAX_RECONNECT_ATTEMPTS: 5,
   },
   STORAGE_KEYS: {

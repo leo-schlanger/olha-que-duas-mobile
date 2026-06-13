@@ -13,7 +13,6 @@ import {
   Linking,
   Platform,
   BackHandler,
-  AppState,
 } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useTranslation } from 'react-i18next';
@@ -21,202 +20,15 @@ import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useRadio } from '../hooks/useRadio';
 import { radioService } from '../services/radioService';
 import { useNowPlaying } from '../hooks/useNowPlaying';
+import { useBatteryOptimizationPrompt } from '../hooks/useBatteryOptimizationPrompt';
 import { useTheme, ThemeColors } from '../context/ThemeContext';
-import { useSchedule } from '../hooks/useSchedule';
-import {
-  useDailySchedule,
-  getCurrentPeriod,
-  DailyPeriod,
-  DailySlot,
-  parsePeriodRange,
-  parseSlotTime,
-  addDurations,
-} from '../hooks/useDailySchedule';
 import { logger } from '../utils/logger';
 import { environment } from '../config/environment';
 import { AboutBottomSheet } from './AboutBottomSheet';
 
 const KEEP_AWAKE_TAG = 'olhaqueduas-radio';
 
-/**
- * Merge today's special programs (from weekly schedule) into the daily
- * periods. Special programs get an `iconUrl` to render their logo; routine
- * slots remain icon-less. Ported from the web sister project.
- */
-/** Format minutes-from-midnight as "12h" or "12h30" */
-function formatMinsToSlotTime(totalMins: number): string {
-  const h = Math.floor(totalMins / 60) % 24;
-  const m = totalMins % 60;
-  return m
-    ? `${String(h).padStart(2, '0')}h${String(m).padStart(2, '0')}`
-    : `${String(h).padStart(2, '0')}h`;
-}
-
-function mergeTodayPrograms(
-  periods: DailyPeriod[],
-  scheduleByDay: {
-    dayName: string;
-    isToday?: boolean;
-    shows: {
-      show: string;
-      times: string[];
-      endTimes?: (string | null)[];
-      isAllDay?: boolean;
-      iconUrl: string;
-    }[];
-  }[],
-  defaultSlotName = 'Programação'
-): DailyPeriod[] {
-  const todayDay = scheduleByDay.find((d) => d.isToday);
-  if (!todayDay || todayDay.shows.length === 0) return periods;
-
-  // Keep original periods for gap-filling
-  const originalPeriods = periods;
-
-  const merged: DailyPeriod[] = periods.map((p) => ({
-    ...p,
-    slots: [...p.slots],
-  }));
-
-  const allDayProg = todayDay.shows.find((p) => p.isAllDay);
-
-  if (allDayProg) {
-    const allDaySlot: DailySlot = {
-      time: '—',
-      name: allDayProg.show,
-      iconUrl: allDayProg.iconUrl,
-      isAllDay: true,
-    };
-    for (const period of merged) {
-      period.slots = period.slots.filter((s) => !!s.iconUrl);
-      period.slots.unshift({ ...allDaySlot });
-    }
-  }
-
-  const specialsWithEnd: { periodIdx: number; endMins: number }[] = [];
-
-  for (const prog of todayDay.shows) {
-    if (prog.isAllDay) continue;
-
-    for (let i = 0; i < prog.times.length; i++) {
-      const rawTime = prog.times[i];
-      const rawEndTime = prog.endTimes?.[i] ?? null;
-
-      const [h, m] = rawTime.split(':').map(Number);
-      const mins = h * 60 + (m || 0);
-
-      const periodIdx = merged.findIndex((p) => {
-        const range = parsePeriodRange(p.range);
-        return range ? mins >= range.start && mins < range.end : false;
-      });
-      if (periodIdx < 0) continue;
-      const target = merged[periodIdx];
-
-      const formatted = formatMinsToSlotTime(mins);
-
-      let duration: string | undefined;
-      let endMins: number | undefined;
-      if (rawEndTime) {
-        const [eh, em] = rawEndTime.split(':').map(Number);
-        endMins = eh * 60 + (em || 0);
-        let diff = endMins - mins;
-        if (diff <= 0) diff += 24 * 60;
-        const dh = Math.floor(diff / 60);
-        const dm = diff % 60;
-        duration =
-          dh === 0 ? `${dm}min` : dm > 0 ? `${dh}h${String(dm).padStart(2, '0')}` : `${dh}h`;
-      }
-
-      const existingIdx = target.slots.findIndex(
-        (s) => !s.isAllDay && parseSlotTime(s.time) === mins
-      );
-      const specialSlot: DailySlot = {
-        time: formatted,
-        name: prog.show,
-        iconUrl: prog.iconUrl,
-        ...(duration && { duration }),
-      };
-
-      if (existingIdx >= 0) {
-        target.slots[existingIdx] = specialSlot;
-      } else {
-        target.slots.push(specialSlot);
-      }
-
-      if (endMins !== undefined) {
-        specialsWithEnd.push({ periodIdx, endMins });
-      }
-    }
-  }
-
-  // Sort all periods
-  for (const period of merged) {
-    period.slots.sort((a, b) => {
-      if (a.isAllDay) return -1;
-      if (b.isAllDay) return 1;
-      return parseSlotTime(a.time) - parseSlotTime(b.time);
-    });
-  }
-
-  // Gap-fill: after each special with end_time, insert a "resume" slot if there's dead air
-  for (const { periodIdx, endMins } of specialsWithEnd) {
-    const target = merged[periodIdx];
-    const range = parsePeriodRange(target.range);
-    if (!range) continue;
-
-    if (endMins >= range.end || endMins < range.start) continue;
-
-    const alreadyExists = target.slots.some(
-      (s) => !s.isAllDay && parseSlotTime(s.time) === endMins
-    );
-    if (alreadyExists) continue;
-
-    const nextSlot = target.slots.find((s) => !s.isAllDay && parseSlotTime(s.time) > endMins);
-    const nextStart = nextSlot ? parseSlotTime(nextSlot.time) : range.end;
-    if (endMins >= nextStart) continue;
-
-    let resumeSlot: DailySlot;
-    if (allDayProg) {
-      resumeSlot = {
-        time: formatMinsToSlotTime(endMins),
-        name: allDayProg.show,
-        iconUrl: allDayProg.iconUrl,
-      };
-    } else {
-      const origPeriod = originalPeriods.find((p) => {
-        const r = parsePeriodRange(p.range);
-        return r ? endMins >= r.start && endMins < r.end : false;
-      });
-      const origSlots = origPeriod?.slots ?? [];
-      const covering = origSlots.filter((s) => parseSlotTime(s.time) <= endMins);
-      const origSlot = covering[covering.length - 1];
-
-      resumeSlot = {
-        time: formatMinsToSlotTime(endMins),
-        name: origSlot?.name ?? defaultSlotName,
-      };
-    }
-
-    target.slots.push(resumeSlot);
-
-    target.slots.sort((a, b) => {
-      if (a.isAllDay) return -1;
-      if (b.isAllDay) return 1;
-      return parseSlotTime(a.time) - parseSlotTime(b.time);
-    });
-  }
-
-  return addDurations(merged);
-}
-
-import {
-  RadioControls,
-  NowPlaying,
-  RadioVisualizer,
-  DailyScheduleSection,
-  SocialLinks,
-  RadioInfoCards,
-} from './radio';
+import { RadioControls, NowPlaying, RadioVisualizer, SocialLinks, RadioInfoCards } from './radio';
 
 export function RadioPlayer() {
   const { t } = useTranslation();
@@ -234,20 +46,11 @@ export function RadioPlayer() {
     forceReconnect,
   } = useRadio();
 
-  const { scheduleByDay } = useSchedule();
-  const { schedule: dailySchedule, loading: dailyLoading, error: dailyError } = useDailySchedule();
-  const [currentPeriod, setCurrentPeriod] = useState(() => getCurrentPeriod());
-
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') {
-        setCurrentPeriod(getCurrentPeriod());
-      }
-    });
-    return () => sub.remove();
-  }, []);
-
   const nowPlaying = useNowPlaying(isPlaying);
+
+  // Ask once (on first playback) to exempt the app from battery optimization —
+  // the decisive factor for reliable background playback/artwork in Doze.
+  useBatteryOptimizationPrompt(isPlaying);
 
   const [showAboutSheet, setShowAboutSheet] = useState(false);
   const [keepAwake, setKeepAwake] = useState(false);
@@ -311,12 +114,6 @@ export function RadioPlayer() {
   }, [isReconnecting, isLoading, isPlaying, reconnectAttempt, colors, t]);
 
   const styles = useMemo(() => createStyles(colors), [colors]);
-
-  // Merge today's special programs into daily schedule
-  const mergedSchedule = useMemo(
-    () => mergeTodayPrograms(dailySchedule, scheduleByDay, t('radio.schedule.defaultSlotName')),
-    [dailySchedule, scheduleByDay, t]
-  );
 
   const handleExitApp = useCallback(() => {
     if (Platform.OS === 'android') {
@@ -419,18 +216,6 @@ export function RadioPlayer() {
 
         {/* Info Cards */}
         <RadioInfoCards colors={colors} />
-
-        {/* Daily Schedule with merged programs */}
-        <DailyScheduleSection
-          schedule={mergedSchedule}
-          currentPeriod={currentPeriod}
-          loading={dailyLoading}
-          error={dailyError}
-          colors={colors}
-          isDark={isDark}
-        />
-
-        {/* TODO: Reminders/notifications — reimplementar se público pedir */}
       </View>
 
       {/* About Bottom Sheet */}

@@ -66,39 +66,19 @@ export function PremiumProvider({ children }: PremiumProviderProps) {
 
         if (storedPremium === 'true') {
           setIsPremium(true);
-          setIsLoading(false); // Libera UI imediatamente se já é premium
         }
+        setIsLoading(false); // Libera UI imediatamente (a app é gratuita)
 
-        // Then, verify with stores in background (only if native modules available)
+        // Initialize the store connection in the background. initialize()
+        // consumes any outstanding `remove_ads` purchase (so the user can
+        // donate again) and, for past donors, fires onPurchaseDetected which
+        // lights up the "obrigado" state below. We no longer derive premium
+        // from getAvailablePurchases — the donation is consumable, so it does
+        // not persist as an entitlement.
         if (purchaseService && environment.features.purchases) {
-          // Initialize the purchase service connection
-          purchaseService
-            .initialize()
-            .then(() => {
-              if (!mounted) return;
-              return purchaseService.checkPurchaseStatus();
-            })
-            .then(async (hasValidPurchase) => {
-              if (hasValidPurchase === undefined) return;
-              if (!mounted) return;
-              if (hasValidPurchase) {
-                setIsPremium(true);
-                await AsyncStorage.setItem(PREMIUM_STORAGE_KEY, 'true');
-              }
-            })
-            .catch((error: Error) => {
-              logger.error('Error verifying purchases:', error);
-            })
-            .finally(() => {
-              if (mounted) {
-                setIsLoading(false);
-              }
-            });
-        } else {
-          // Se não há purchase service, libera loading
-          if (mounted) {
-            setIsLoading(false);
-          }
+          purchaseService.initialize().catch((error: Error) => {
+            logger.error('Error initializing purchases:', error);
+          });
         }
       } catch (error) {
         logger.error('Error loading premium status:', error);

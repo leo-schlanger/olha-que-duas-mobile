@@ -37,18 +37,8 @@ export const TIMING = {
   // Purchases
   PURCHASE_TIMEOUT: 120000, // 2 minutos
 
-  // Ads
-  AD_SDK_CHECK_INTERVAL: 500,
-  AD_SDK_INIT_TIMEOUT: 5000,
-  AD_BANNER_TIMEOUT: 10000,
-  AD_INTERSTITIAL_WAIT_SECONDS: 5,
-
   // Network
   FETCH_TIMEOUT: 15000, // 15 segundos
-  // Timeout para obter a posição GPS. Sem isto, getCurrentPositionAsync pode
-  // ficar pendurado indefinidamente quando o dispositivo não consegue fix de
-  // GPS (interior, sinal fraco), deixando o ecrã do clima preso em loading.
-  LOCATION_TIMEOUT: 15000, // 15 segundos
 
   // Animations
   VISUALIZER_INTERVAL: 150,
@@ -58,9 +48,6 @@ export const TIMING = {
 
 // Limites e quantidades
 export const LIMITS = {
-  // Paginação
-  POSTS_PER_PAGE: 10,
-
   // Radio
   MAX_RECONNECT_ATTEMPTS: 10,
 
@@ -87,12 +74,4 @@ export const STORAGE_KEYS = {
   SCHEDULED_NOTIFICATIONS: '@olhaqueduas:scheduled_notifications',
   RADIO_SETTINGS: '@olhaqueduas:radio_settings',
   PREMIUM_STATUS: '@olhaqueduas:premium',
-  GDPR_CONSENT: '@olhaqueduas:gdpr_consent',
-} as const;
-
-// Fallback de localização (Lisboa)
-export const DEFAULT_LOCATION = {
-  latitude: 38.7223,
-  longitude: -9.1393,
-  city: 'Lisboa',
 } as const;

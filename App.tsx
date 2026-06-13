@@ -3,13 +3,12 @@ import { StatusBar } from "expo-status-bar";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppNavigator, navigateToTab } from "./src/navigation/AppNavigator";
-import { PremiumProvider, usePremium } from "./src/context/PremiumContext";
+import { PremiumProvider } from "./src/context/PremiumContext";
 import { ToastProvider } from "./src/context/ToastContext";
 import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 import { NetworkProvider } from "./src/context/NetworkContext";
 import { ErrorBoundary } from "./src/components/ErrorBoundary";
 import { OfflineBanner } from "./src/components/OfflineBanner";
-import { GDPRConsent } from "./src/components/GDPRConsent";
 import { AnimatedSplash } from "./src/components/AnimatedSplash";
 import { environment } from "./src/config/environment";
 import { logger } from "./src/utils/logger";
@@ -34,7 +33,6 @@ import { prefetchLogo } from "./src/utils/artworkCache";
 import { siteConfig } from "./src/config/site";
 
 // Lazy load native-only services
-let adService: any = null;
 let purchaseService: any = null;
 
 const theme = {
@@ -44,7 +42,6 @@ const theme = {
 
 if (environment.canUseNativeModules) {
   try {
-    adService = require("./src/services/adService").adService;
     purchaseService = require("./src/services/purchaseService").purchaseService;
   } catch (error) {
     logger.log("Native services not available");
@@ -58,8 +55,6 @@ const INIT_TIMEOUT_MS = 8000;
 function AppContent() {
   const { t } = useTranslation();
   const { isDark, colors } = useTheme();
-  const { isPremium, isLoading: isPremiumLoading } = usePremium();
-  const [adsConsent, setAdsConsent] = useState<boolean | null>(null);
   const [initState, setInitState] = useState<InitState>('loading');
   const [splashDone, setSplashDone] = useState(false);
 
@@ -169,52 +164,6 @@ function AppContent() {
     };
   }, [initializeServices]);
 
-  useEffect(() => {
-    if (adsConsent === null || !environment.canUseNativeModules || !adService) {
-      return;
-    }
-    // Wait until premium status is known before deciding whether to init the
-    // ad SDK at all. Avoids briefly initializing ads for users who turn out
-    // to be premium once their AsyncStorage / IAP check resolves.
-    if (isPremiumLoading) {
-      return;
-    }
-    // Premium users never get ads — don't even initialize the SDK
-    if (isPremium) {
-      return;
-    }
-
-    // Diferimos a init do AdMob 4s para depois do app abrir. Razão: o stream
-    // da rádio precisa de TCP handshake + prebuffer no arranque (1-3s) e o
-    // ad SDK init faz network calls + decoder init que competem pelo mesmo
-    // CPU/network e amplificam o tempo até a rádio começar a tocar suave.
-    // 4s dá margem para o stream estabilizar antes de pedir ads.
-    let cancelled = false;
-    const deferredInit = setTimeout(() => {
-      if (cancelled) return;
-      (async () => {
-        try {
-          await adService.initialize(adsConsent);
-          if (cancelled) return;
-          // Pre-load the interstitial so it's ready when the user opens the
-          // 4th news article. Auto-reloads after each show.
-          adService.loadInterstitial?.();
-        } catch (err) {
-          logger.error("Failed to initialize ads", err);
-        }
-      })();
-    }, 4000);
-
-    return () => {
-      cancelled = true;
-      clearTimeout(deferredInit);
-    };
-  }, [adsConsent, isPremium, isPremiumLoading]);
-
-  function handleGDPRConsent(personalizedAds: boolean) {
-    setAdsConsent(personalizedAds);
-  }
-
   const isInitialized = initState !== 'loading';
   const initFailed = initState === 'failed';
 
@@ -242,7 +191,6 @@ function AppContent() {
       )}
       <OfflineBanner />
       <AppNavigator />
-      <GDPRConsent onConsentGiven={handleGDPRConsent} />
     </>
   );
 }
