@@ -110,7 +110,6 @@ jest.mock('../config/constants', () => ({
     NOTIFICATION_PREFS: 'notification_prefs',
     SCHEDULED_NOTIFICATIONS: 'scheduled_notifications',
     THEME: 'theme',
-    PREMIUM: 'premium',
   },
 }));
 

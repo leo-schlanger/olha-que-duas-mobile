@@ -3,14 +3,12 @@ import { StatusBar } from "expo-status-bar";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppNavigator, navigateToTab } from "./src/navigation/AppNavigator";
-import { PremiumProvider } from "./src/context/PremiumContext";
 import { ToastProvider } from "./src/context/ToastContext";
 import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 import { NetworkProvider } from "./src/context/NetworkContext";
 import { ErrorBoundary } from "./src/components/ErrorBoundary";
 import { OfflineBanner } from "./src/components/OfflineBanner";
 import { AnimatedSplash } from "./src/components/AnimatedSplash";
-import { environment } from "./src/config/environment";
 import { logger } from "./src/utils/logger";
 import * as Notifications from "expo-notifications";
 
@@ -32,21 +30,10 @@ import { notificationService } from "./src/services/notificationService";
 import { prefetchLogo } from "./src/utils/artworkCache";
 import { siteConfig } from "./src/config/site";
 
-// Lazy load native-only services
-let purchaseService: any = null;
-
 const theme = {
   ...DefaultTheme,
   isV3: true as const,
 };
-
-if (environment.canUseNativeModules) {
-  try {
-    purchaseService = require("./src/services/purchaseService").purchaseService;
-  } catch (error) {
-    logger.log("Native services not available");
-  }
-}
 
 type InitState = 'loading' | 'ready' | 'failed';
 
@@ -95,10 +82,6 @@ function AppContent() {
         // Initialize notification service
         await notificationService.initialize();
         logger.log("Notification service initialized");
-
-        if (environment.canUseNativeModules && purchaseService) {
-          await purchaseService.initialize();
-        }
       })();
 
       // Race against timeout to prevent infinite splash
@@ -159,7 +142,6 @@ function AppContent() {
         .cleanup()
         .catch((e) => logger.error('Error cleaning up radio:', e));
 
-      purchaseService?.disconnect();
       notificationService.cleanup();
     };
   }, [initializeServices]);
@@ -232,9 +214,7 @@ export default function App() {
           <NetworkProvider>
             <ThemeProvider>
               <ToastProvider>
-                <PremiumProvider>
-                  <AppContent />
-                </PremiumProvider>
+                <AppContent />
               </ToastProvider>
             </ThemeProvider>
           </NetworkProvider>

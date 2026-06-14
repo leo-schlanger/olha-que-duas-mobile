@@ -213,16 +213,6 @@
       "stopOnClose": "Parar ao fechar aplicação",
       "stopOnCloseDesc": "Por defeito a rádio continua a tocar em background. Ative para parar quando fechar a app."
     },
-    "support": {
-      "title": "Apoiar o projeto",
-      "description": "O Olha que Duas é totalmente gratuito. Se gosta da rádio, pode apoiar o projeto com um contributo único — ajuda-nos a manter tudo no ar.",
-      "oneTime": "contributo voluntário",
-      "button": "Apoiar",
-      "donateAgain": "Apoiar novamente",
-      "restore": "Restaurar contributo anterior",
-      "thankYouTitle": "Obrigado pelo apoio! 💛",
-      "thankYouDesc": "O seu contributo ajuda a manter o Olha que Duas no ar. Sempre que quiser, pode voltar a apoiar."
-    },
     "privacy": {
       "title": "Privacidade",
       "privacyPolicy": "Política de Privacidade",
@@ -268,28 +258,6 @@
     },
     "debug": {
       "title": "Debug"
-    }
-  },
-  "purchase": {
-    "unavailable": {
-      "title": "Indisponível",
-      "message": "As compras não estão disponíveis nesta versão de teste."
-    },
-    "success": {
-      "title": "Obrigado pelo apoio!",
-      "message": "O seu contributo ajuda a manter o Olha que Duas no ar. Muito obrigado!"
-    },
-    "error": {
-      "title": "Erro na compra",
-      "message": "Não foi possível completar a compra. Tente novamente."
-    },
-    "restored": {
-      "title": "Compra restaurada!",
-      "message": "A sua compra foi restaurada com sucesso."
-    },
-    "notFound": {
-      "title": "Nenhuma compra encontrada",
-      "message": "Não encontrámos nenhuma compra anterior associada à sua conta."
     }
   },
   "exitApp": {

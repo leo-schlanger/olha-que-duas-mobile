@@ -1,6 +1,6 @@
 {
   "name": "olha-que-duas-mobile",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
@@ -43,8 +43,6 @@
     "react": "19.2.0",
     "react-i18next": "^17.0.1",
     "react-native": "0.83.6",
-    "react-native-iap": "^15.2.0",
-    "react-native-nitro-modules": "^0.35.4",
     "react-native-paper": "^5.15.0",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.23.0",

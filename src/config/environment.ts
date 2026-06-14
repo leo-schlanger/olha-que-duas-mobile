@@ -27,11 +27,6 @@ export const environment = {
   isDevelopment,
   canUseNativeModules,
   executionEnvironment,
-
-  // Feature flags
-  features: {
-    purchases: canUseNativeModules,
-  },
 };
 
 // Log environment only in development

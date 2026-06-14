@@ -213,16 +213,6 @@
       "stopOnClose": "Stop on close",
       "stopOnCloseDesc": "By default the radio keeps playing in the background. Enable to stop when closing the app."
     },
-    "support": {
-      "title": "Support the project",
-      "description": "Olha que Duas is completely free. If you enjoy the radio, you can support the project with a one-time contribution — it helps us keep everything on air.",
-      "oneTime": "voluntary contribution",
-      "button": "Support",
-      "donateAgain": "Support again",
-      "restore": "Restore previous contribution",
-      "thankYouTitle": "Thank you for your support! 💛",
-      "thankYouDesc": "Your contribution helps keep Olha que Duas on air. You can support again any time you like."
-    },
     "privacy": {
       "title": "Privacy",
       "privacyPolicy": "Privacy Policy",
@@ -268,28 +258,6 @@
     },
     "debug": {
       "title": "Debug"
-    }
-  },
-  "purchase": {
-    "unavailable": {
-      "title": "Unavailable",
-      "message": "Purchases are not available in this test version."
-    },
-    "success": {
-      "title": "Thank you for your support!",
-      "message": "Your contribution helps keep Olha que Duas on air. Thank you so much!"
-    },
-    "error": {
-      "title": "Purchase error",
-      "message": "Could not complete the purchase. Please try again."
-    },
-    "restored": {
-      "title": "Purchase restored!",
-      "message": "Your purchase has been successfully restored."
-    },
-    "notFound": {
-      "title": "No purchase found",
-      "message": "We could not find any previous purchase associated with your account."
     }
   },
   "exitApp": {

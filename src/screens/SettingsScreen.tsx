@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
   Alert,
   ScrollView,
   StatusBar,
@@ -18,7 +17,6 @@ import * as ExpoMediaSession from '../../modules/expo-media-session/src';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import Constants from 'expo-constants';
 import { useTranslation } from 'react-i18next';
-import { usePremium } from '../context/PremiumContext';
 import { useTheme, ThemeMode, ThemeColors } from '../context/ThemeContext';
 import { useRadioSettings } from '../hooks/useRadioSettings';
 import { useNotifications } from '../hooks/useNotifications';
@@ -37,19 +35,6 @@ const REMINDER_OPTIONS: { value: ReminderTime; label: string }[] = [
   { value: 30, label: '30 min' },
   { value: 60, label: '1 hora' },
 ];
-
-interface PurchaseServiceType {
-  getFormattedPrice: () => Promise<string>;
-}
-
-let purchaseService: PurchaseServiceType | null = null;
-if (environment.canUseNativeModules) {
-  try {
-    purchaseService = require('../services/purchaseService').purchaseService;
-  } catch (_error) {
-    logger.log('Purchase service not available');
-  }
-}
 
 // --- Section Components ---
 
@@ -203,87 +188,6 @@ function RadioSection({
           disabled={radioSettingsLoading}
           isLast
         />
-      </View>
-    </View>
-  );
-}
-
-function SupportSection({
-  colors,
-  isPremium,
-  isLoading,
-  price,
-  isProcessing,
-  onPurchase,
-  dynamicStyles,
-}: {
-  colors: ThemeColors;
-  isPremium: boolean;
-  isLoading: boolean;
-  price: string | null;
-  isProcessing: boolean;
-  onPurchase: () => void;
-  dynamicStyles: ReturnType<typeof createDynamicStyles>;
-}) {
-  const { t } = useTranslation();
-  // O donativo é consumível: o botão de apoiar está SEMPRE disponível para que
-  // o utilizador possa apoiar mais do que uma vez. Depois da 1ª doação mostra
-  // uma nota de agradecimento, mas mantém a possibilidade de apoiar de novo.
-  return (
-    <View style={dynamicStyles.section}>
-      <Text style={dynamicStyles.sectionTitle}>{t('settings.support.title')}</Text>
-      <View style={dynamicStyles.premiumCard}>
-        <View
-          style={[
-            dynamicStyles.premiumBadge,
-            { backgroundColor: isPremium ? colors.success : colors.primary },
-          ]}
-        >
-          <MaterialCommunityIcons
-            name={isPremium ? 'heart' : 'heart-outline'}
-            size={28}
-            color={colors.white}
-          />
-        </View>
-
-        {isPremium ? (
-          <>
-            <Text style={dynamicStyles.premiumTitle}>{t('settings.support.thankYouTitle')}</Text>
-            <Text style={dynamicStyles.premiumDescription}>
-              {t('settings.support.thankYouDesc')}
-            </Text>
-          </>
-        ) : (
-          <>
-            <Text style={dynamicStyles.premiumTitle}>{t('settings.support.title')}</Text>
-            <Text style={dynamicStyles.premiumDescription}>
-              {t('settings.support.description')}
-            </Text>
-          </>
-        )}
-
-        <View style={dynamicStyles.priceTag}>
-          <Text style={dynamicStyles.priceText}>{price ?? '...'}</Text>
-          <Text style={dynamicStyles.priceSubtext}>{t('settings.support.oneTime')}</Text>
-        </View>
-
-        <TouchableOpacity
-          style={[dynamicStyles.purchaseButton, { backgroundColor: colors.primary }]}
-          onPress={onPurchase}
-          disabled={isLoading || isProcessing}
-          activeOpacity={0.8}
-        >
-          {isProcessing ? (
-            <ActivityIndicator color={colors.white} />
-          ) : (
-            <>
-              <MaterialCommunityIcons name="heart" size={20} color={colors.white} />
-              <Text style={dynamicStyles.purchaseButtonText}>
-                {isPremium ? t('settings.support.donateAgain') : t('settings.support.button')}
-              </Text>
-            </>
-          )}
-        </TouchableOpacity>
       </View>
     </View>
   );
@@ -737,7 +641,6 @@ function AboutSection({
 export function SettingsScreen() {
   const { t } = useTranslation();
   const { colors, isDark, themeMode, setThemeMode } = useTheme();
-  const { isPremium, isLoading, purchasePremium } = usePremium();
   const {
     settings: radioSettings,
     updateSetting: updateRadioSetting,
@@ -749,44 +652,7 @@ export function SettingsScreen() {
     setEnabled: setNotificationsEnabled,
     setReminderMinutes,
   } = useNotifications();
-  const [price, setPrice] = useState<string | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [showAboutSheet, setShowAboutSheet] = useState(false);
-
-  useEffect(() => {
-    loadPrice();
-  }, []);
-
-  async function loadPrice() {
-    if (purchaseService && environment.features.purchases) {
-      try {
-        const formattedPrice = await purchaseService.getFormattedPrice();
-        setPrice(formattedPrice);
-      } catch (error) {
-        logger.error('Error loading price:', error);
-        setPrice('3,69 €');
-      }
-    } else {
-      setPrice('3,69 €');
-    }
-  }
-
-  async function handlePurchase() {
-    if (!environment.features.purchases) {
-      Alert.alert(t('purchase.unavailable.title'), t('purchase.unavailable.message'), [
-        { text: t('common.ok') },
-      ]);
-      return;
-    }
-    setIsProcessing(true);
-    const success = await purchasePremium();
-    Alert.alert(
-      success ? t('purchase.success.title') : t('purchase.error.title'),
-      success ? t('purchase.success.message') : t('purchase.error.message'),
-      [{ text: t('common.ok') }]
-    );
-    setIsProcessing(false);
-  }
 
   function handleExitApp() {
     if (Platform.OS === 'android') {
@@ -824,16 +690,6 @@ export function SettingsScreen() {
           updateRadioSetting={updateRadioSetting}
           dynamicStyles={dynamicStyles}
         />
-        <SupportSection
-          colors={colors}
-          isPremium={isPremium}
-          isLoading={isLoading}
-          price={price}
-          isProcessing={isProcessing}
-          onPurchase={handlePurchase}
-          dynamicStyles={dynamicStyles}
-        />
-
         <View style={dynamicStyles.section}>
           <Text style={dynamicStyles.sectionTitle}>{t('settings.privacy.title')}</Text>
           <View style={dynamicStyles.menuCard}>
@@ -900,11 +756,6 @@ export function SettingsScreen() {
               <DebugRow
                 label="Native Modules"
                 value={environment.canUseNativeModules ? 'Sim' : 'Não'}
-                colors={colors}
-              />
-              <DebugRow
-                label="Purchases"
-                value={environment.features.purchases ? 'Activo' : 'Desactivado'}
                 colors={colors}
               />
               <DebugRow label="Theme Mode" value={themeMode} colors={colors} />
@@ -1059,61 +910,6 @@ function createDynamicStyles(colors: ThemeColors, _isDark: boolean) {
     themeHeaderText: { color: colors.text, fontSize: 16, fontWeight: '600' },
     themeOptions: { flexDirection: 'row', gap: 10 },
     menuCard: { backgroundColor: colors.card, borderRadius: 16, overflow: 'hidden' },
-    premiumCard: {
-      backgroundColor: colors.card,
-      borderRadius: 16,
-      padding: 24,
-      alignItems: 'center',
-    },
-    premiumBadge: {
-      width: 56,
-      height: 56,
-      borderRadius: 28,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginBottom: 16,
-    },
-    premiumTitle: {
-      color: colors.text,
-      fontSize: 20,
-      fontWeight: 'bold',
-      marginBottom: 8,
-      textAlign: 'center',
-    },
-    premiumDescription: {
-      color: colors.textSecondary,
-      fontSize: 14,
-      textAlign: 'center',
-      lineHeight: 20,
-      marginBottom: 20,
-    },
-    priceTag: {
-      backgroundColor: colors.secondary + '15',
-      paddingHorizontal: 20,
-      paddingVertical: 12,
-      borderRadius: 12,
-      alignItems: 'center',
-      marginBottom: 20,
-    },
-    priceText: { color: colors.secondary, fontSize: 28, fontWeight: 'bold' },
-    priceSubtext: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
-    purchaseButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingVertical: 14,
-      paddingHorizontal: 32,
-      borderRadius: 25,
-      gap: 8,
-      width: '100%',
-    },
-    purchaseButtonText: { color: colors.white, fontSize: 16, fontWeight: 'bold' },
-    restoreButton: { marginTop: 16, padding: 12 },
-    restoreButtonText: {
-      color: colors.textSecondary,
-      fontSize: 14,
-      textDecorationLine: 'underline',
-    },
     aboutCard: {
       backgroundColor: colors.card,
       borderRadius: 16,

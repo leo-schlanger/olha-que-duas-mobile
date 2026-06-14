@@ -73,5 +73,4 @@ export const STORAGE_KEYS = {
   NOTIFICATION_PREFS: '@olhaqueduas:notification_prefs',
   SCHEDULED_NOTIFICATIONS: '@olhaqueduas:scheduled_notifications',
   RADIO_SETTINGS: '@olhaqueduas:radio_settings',
-  PREMIUM_STATUS: '@olhaqueduas:premium',
 } as const;
