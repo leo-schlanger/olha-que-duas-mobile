@@ -16,6 +16,8 @@ interface TimelineProps {
   liveStartMins: number | null; // startMins do programa ao vivo (só quando a ver hoje)
   loading: boolean;
   error?: string | null;
+  /** true = a mostrar a última programação guardada (sem rede) */
+  fromCache?: boolean;
   colors: ThemeColors;
   isShowEnabled: (_showName: string) => boolean;
   reminderLoadingShows: Set<string>;
@@ -27,6 +29,7 @@ export const Timeline = memo(function Timeline({
   liveStartMins,
   loading,
   error,
+  fromCache,
   colors,
   isShowEnabled,
   reminderLoadingShows,
@@ -51,18 +54,24 @@ export const Timeline = memo(function Timeline({
           size={44}
           color={colors.textSecondary}
         />
-        <Text style={styles.emptyText}>{t('schedule.empty')}</Text>
-        <Text style={styles.emptyHint}>{t('schedule.emptyHint')}</Text>
+        <Text style={styles.emptyText}>
+          {error ? t('radio.schedule.loadError') : t('schedule.empty')}
+        </Text>
+        <Text style={styles.emptyHint}>
+          {error ? t('schedule.pullToRetry') : t('schedule.emptyHint')}
+        </Text>
       </View>
     );
   }
 
   return (
     <View>
-      {error ? (
+      {error && fromCache ? (
         <View style={styles.errorBanner}>
           <MaterialCommunityIcons name="alert-circle-outline" size={16} color={colors.primary} />
-          <Text style={styles.errorText}>{t('radio.schedule.loadErrorHint')}</Text>
+          <Text style={styles.errorText}>
+            {t('radio.schedule.loadErrorHint')} {t('schedule.pullToRetry')}
+          </Text>
         </View>
       ) : null}
 

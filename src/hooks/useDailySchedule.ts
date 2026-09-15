@@ -1,12 +1,17 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { AppState } from 'react-native';
 import { supabase } from '../services/supabase';
 import { siteConfig } from '../config/site';
 import { logger } from '../utils/logger';
+import { STORAGE_KEYS } from '../config/constants';
+import { readScheduleCache, writeScheduleCache, SCHEDULE_STALE_MS } from '../utils/scheduleCache';
 
 export interface DailySlot {
   time: string;
   name: string;
   duration?: string;
+  /** Fim do slot em minutos desde a meia-noite (pode passar de 1440). */
+  endMins?: number;
   iconUrl?: string;
   isAllDay?: boolean;
   genres?: string;
@@ -83,7 +88,7 @@ export function addDurations(periods: DailyPeriod[]): DailyPeriod[] {
       }
       let diff = end - start;
       if (diff <= 0) diff += 24 * 60;
-      return { ...slot, duration: formatDuration(diff) };
+      return { ...slot, duration: formatDuration(diff), endMins: start + diff };
     });
     return { ...period, slots };
   });
@@ -132,17 +137,66 @@ const fallbackSchedule: DailyPeriod[] = addDurations([
   },
 ]);
 
+interface DailyScheduleRow {
+  period: string;
+  period_label: string;
+  time_range: string;
+  slot_time: string;
+  slot_name: string;
+  genres?: string | null;
+  icon_url?: string | null;
+}
+
+/** Agrupa as linhas de `daily_schedule` em períodos ordenados. Exportada para testes. */
+export function groupDailyRows(rows: DailyScheduleRow[]): DailyPeriod[] {
+  const grouped = new Map<string, DailyPeriod>();
+
+  for (const row of rows) {
+    if (!grouped.has(row.period)) {
+      grouped.set(row.period, {
+        period: row.period,
+        label: row.period_label,
+        range: row.time_range,
+        slots: [],
+      });
+    }
+    grouped.get(row.period)!.slots.push({
+      time: row.slot_time,
+      name: row.slot_name,
+      genres: row.genres || undefined,
+      iconUrl: row.icon_url || undefined,
+    });
+  }
+
+  // A fonte ordena por sort_order dentro do período; a grelha precisa da hora.
+  for (const period of grouped.values()) {
+    period.slots.sort((a, b) => parseSlotTime(a.time) - parseSlotTime(b.time));
+  }
+
+  const known = PERIOD_ORDER.filter((p) => grouped.has(p));
+  const unknown = [...grouped.keys()].filter((p) => !PERIOD_ORDER.includes(p));
+  return addDurations([...known, ...unknown].map((p) => grouped.get(p)!));
+}
+
+const supabaseConfigured = () => !!siteConfig.supabase.url && !!siteConfig.supabase.anonKey;
+
 export function useDailySchedule() {
-  const [schedule, setSchedule] = useState<DailyPeriod[]>(fallbackSchedule);
+  // Sem Supabase (dev) usa a grelha de exemplo; com Supabase começa vazia e
+  // mostra a cache/servidor — nunca nomes de exemplo desatualizados.
+  const [schedule, setSchedule] = useState<DailyPeriod[]>(() =>
+    supabaseConfigured() ? [] : fallbackSchedule
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const mountedRef = useRef(true);
+  const lastFetchRef = useRef(0);
+  const inFlightRef = useRef<Promise<void> | null>(null);
 
-  useEffect(() => {
-    mountedRef.current = true;
+  const fetchDailySchedule = useCallback((): Promise<void> => {
+    if (inFlightRef.current) return inFlightRef.current;
 
-    async function fetchDailySchedule() {
-      if (!siteConfig.supabase.url || !siteConfig.supabase.anonKey) {
+    const run = (async () => {
+      if (!supabaseConfigured()) {
         if (mountedRef.current) setLoading(false);
         return;
       }
@@ -155,52 +209,55 @@ export function useDailySchedule() {
           .order('sort_order', { ascending: true });
 
         if (fetchError) throw fetchError;
+        const rows = (data ?? []) as DailyScheduleRow[];
+        lastFetchRef.current = Date.now();
+        writeScheduleCache(STORAGE_KEYS.DAILY_SCHEDULE_CACHE, rows);
         if (!mountedRef.current) return;
-        if (!data || data.length === 0) {
-          setLoading(false);
-          return;
-        }
-
-        const grouped = new Map<string, DailyPeriod>();
-
-        for (const row of data) {
-          if (!grouped.has(row.period)) {
-            grouped.set(row.period, {
-              period: row.period,
-              label: row.period_label,
-              range: row.time_range,
-              slots: [],
-            });
-          }
-          grouped.get(row.period)!.slots.push({
-            time: row.slot_time,
-            name: row.slot_name,
-            genres: row.genres || undefined,
-            iconUrl: row.icon_url || undefined,
-          });
-        }
-
-        const sorted = PERIOD_ORDER.filter((p) => grouped.has(p)).map((p) => grouped.get(p)!);
-
-        setSchedule(addDurations(sorted));
+        setSchedule(groupDailyRows(rows));
         setError(null);
       } catch (err) {
-        if (!mountedRef.current) return;
         logger.error('Error fetching daily schedule:', err);
+        const cached = await readScheduleCache<DailyScheduleRow[]>(
+          STORAGE_KEYS.DAILY_SCHEDULE_CACHE
+        );
+        if (!mountedRef.current) return;
         setError(err instanceof Error ? err.message : 'unknown');
+        if (cached) setSchedule(groupDailyRows(cached.data));
       } finally {
-        if (mountedRef.current) {
-          setLoading(false);
-        }
+        if (mountedRef.current) setLoading(false);
       }
-    }
+    })();
 
-    fetchDailySchedule();
-
-    return () => {
-      mountedRef.current = false;
-    };
+    inFlightRef.current = run.finally(() => {
+      inFlightRef.current = null;
+    });
+    return inFlightRef.current;
   }, []);
 
-  return { schedule, loading, error };
+  useEffect(() => {
+    mountedRef.current = true;
+    let cancelled = false;
+
+    if (supabaseConfigured()) {
+      readScheduleCache<DailyScheduleRow[]>(STORAGE_KEYS.DAILY_SCHEDULE_CACHE).then((cached) => {
+        if (cancelled || !cached || lastFetchRef.current > 0) return;
+        setSchedule(groupDailyRows(cached.data));
+      });
+    }
+    fetchDailySchedule();
+
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active' && Date.now() - lastFetchRef.current > SCHEDULE_STALE_MS) {
+        fetchDailySchedule();
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      mountedRef.current = false;
+      sub.remove();
+    };
+  }, [fetchDailySchedule]);
+
+  return { schedule, loading, error, refresh: fetchDailySchedule };
 }

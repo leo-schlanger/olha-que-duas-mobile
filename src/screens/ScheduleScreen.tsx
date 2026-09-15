@@ -13,6 +13,7 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  RefreshControl,
   StatusBar,
   TouchableOpacity,
   AppState,
@@ -23,11 +24,13 @@ import { useTranslation } from 'react-i18next';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
 import { useSchedule } from '../hooks/useSchedule';
-import { useDailySchedule, parseSlotTime } from '../hooks/useDailySchedule';
+import { useDailySchedule } from '../hooks/useDailySchedule';
 import { useNotifications } from '../hooks/useNotifications';
 import { useLiveProgram } from '../hooks/useLiveProgram';
 import { getPtDayNumber } from '../utils/ptTime';
 import { mergeProgramsForDay } from '../utils/scheduleMerge';
+import { buildTimelineEntries } from '../utils/scheduleTimeline';
+import { describeWeeklyOccurrences } from '../utils/scheduleLabels';
 import { NowOnAirHero, DaySelector, Timeline } from '../components/schedule';
 import { TimelineEntry, DayOption } from '../components/schedule/types';
 import { RemindersBottomSheet } from '../components/RemindersBottomSheet';
@@ -37,8 +40,23 @@ export function ScheduleScreen() {
   const { colors, isDark } = useTheme();
   const toast = useToast();
 
-  const { schedule, scheduleByDay, loading, error } = useSchedule();
-  const { schedule: dailySchedule, loading: dailyLoading } = useDailySchedule();
+  const { schedule, scheduleByDay, loading, error, fromCache, refresh } = useSchedule();
+  const {
+    schedule: dailySchedule,
+    loading: dailyLoading,
+    error: dailyError,
+    refresh: refreshDaily,
+  } = useDailySchedule();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([refresh(), refreshDaily()]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refresh, refreshDaily]);
   const {
     preferences,
     isShowEnabled,
@@ -103,16 +121,16 @@ export function ScheduleScreen() {
     return m;
   }, [schedule]);
 
-  // Horários por programa (para o RemindersBottomSheet)
+  // Quando passa cada programa, agrupado por hora (para o RemindersBottomSheet):
+  // "Noite de JAZZ" → ["DOM–QUA, SÁB · 20h"]
   const showTimesByName = useMemo(() => {
+    const everyDay = t('schedule.everyDay');
     const m = new Map<string, string[]>();
-    for (const item of schedule) {
-      if (!item.times || item.times.length === 0) continue;
-      const existing = m.get(item.show) ?? [];
-      m.set(item.show, [...existing, ...item.times]);
+    for (const [show, occurrences] of showOccurrences) {
+      m.set(show, describeWeeklyOccurrences(occurrences, dayLabels, everyDay));
     }
     return m;
-  }, [schedule]);
+  }, [showOccurrences, dayLabels, t]);
 
   // Timeline pré-calculada por dia (lookup instantâneo ao trocar de chip)
   const entriesByDay = useMemo(() => {
@@ -123,43 +141,10 @@ export function ScheduleScreen() {
     for (const day of days) {
       const dayShows = scheduleByDay.find((d) => d.dayNumber === day.dayNumber)?.shows ?? [];
       const merged = mergeProgramsForDay(dailySchedule, dayShows, defaultSlotName);
-
-      const entries: TimelineEntry[] = [];
-      let idx = 0;
-      for (const period of merged) {
-        for (const slot of period.slots) {
-          const isAllDay = !!slot.isAllDay;
-          const isSpecial = !!slot.isSpecial;
-          // Especiais: "Programa". Rotação: géneros (mais rico) ou "Música".
-          let subtitle: string;
-          if (isAllDay || isSpecial) subtitle = labels.program;
-          else subtitle = slot.genres || labels.music;
-          entries.push({
-            // Índice garante unicidade da key mesmo com slots no mesmo horário.
-            key: `${day.dayNumber}-${idx++}-${period.period}-${slot.time}-${slot.name}`,
-            time: isAllDay ? '—' : slot.time,
-            startMins: isAllDay ? -1 : parseSlotTime(slot.time),
-            name: slot.name,
-            subtitle,
-            iconUrl: slot.iconUrl,
-            isSpecial,
-            isAllDay,
-            showName: isSpecial && !isAllDay ? slot.name : undefined,
-            showTimes: isSpecial && !isAllDay ? showTimesByName.get(slot.name) : undefined,
-            dayNumber: day.dayNumber,
-          });
-        }
-      }
-
-      entries.sort((a, b) => {
-        if (a.isAllDay && !b.isAllDay) return -1;
-        if (!a.isAllDay && b.isAllDay) return 1;
-        return a.startMins - b.startMins;
-      });
-      map.set(day.dayNumber, entries);
+      map.set(day.dayNumber, buildTimelineEntries(day.dayNumber, merged, labels));
     }
     return map;
-  }, [days, scheduleByDay, dailySchedule, showTimesByName, t]);
+  }, [days, scheduleByDay, dailySchedule, t]);
 
   const currentEntries = entriesByDay.get(selectedDay) ?? [];
   const liveStartMins = selectedDay === todayNum && live.live ? live.live.startMins : null;
@@ -261,6 +246,15 @@ export function ScheduleScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+            progressBackgroundColor={colors.backgroundCard}
+          />
+        }
       >
         <NowOnAirHero
           live={live.live}
@@ -283,8 +277,9 @@ export function ScheduleScreen() {
           <Timeline
             items={currentEntries}
             liveStartMins={liveStartMins}
-            loading={loading || dailyLoading}
-            error={error}
+            loading={(loading || dailyLoading) && currentEntries.length === 0}
+            error={error ?? dailyError}
+            fromCache={fromCache}
             colors={colors}
             isShowEnabled={isShowEnabled}
             reminderLoadingShows={reminderLoadingShows}

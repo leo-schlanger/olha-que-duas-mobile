@@ -1,5 +1,6 @@
 import { setAudioModeAsync, AudioPlayer, createAudioPlayer } from 'expo-audio';
-import { AppState, AppStateStatus } from 'react-native';
+import { AppState, AppStateStatus, Platform } from 'react-native';
+import Constants from 'expo-constants';
 import { siteConfig } from '../config/site';
 import { radioSettingsService, RadioSettings } from './radioSettingsService';
 import { nowPlayingService } from './nowPlayingService';
@@ -7,6 +8,13 @@ import { getLogoUri } from '../utils/artworkCache';
 import * as ExpoMediaSession from '../../modules/expo-media-session/src';
 import { logger } from '../utils/logger';
 import { TIMING, LIMITS } from '../config/constants';
+
+// Identifica a app nas estatísticas de audiência (AzuraCast / painel admin).
+// Sem isto o stream chega como "okhttp/x" (Android) ou "AppleCoreMedia" (iOS),
+// iguais aos de outras apps de rádio e do Safari.
+const STREAM_USER_AGENT = `OlhaQueDuas/${Constants.expoConfig?.version ?? '0'} (${
+  Platform.OS === 'ios' ? 'iOS' : 'Android'
+})`;
 
 /**
  * Radio streaming service — clean separation:
@@ -391,7 +399,10 @@ class RadioService {
       // SLOW PATH — create new player
       logger.log('Creating audio player for:', siteConfig.radio.streamUrl);
 
-      this.player = createAudioPlayer({ uri: siteConfig.radio.streamUrl });
+      this.player = createAudioPlayer({
+        uri: siteConfig.radio.streamUrl,
+        headers: { 'User-Agent': STREAM_USER_AGENT },
+      });
       this.player.volume = this.volume;
 
       this.playerSubscription = this.player.addListener('playbackStatusUpdate', (status) => {

@@ -88,9 +88,7 @@ export const NowOnAirHero = memo(function NowOnAirHero({
       <View style={styles.mainRow}>
         <ProgramIcon name={live.name} iconUrl={live.iconUrl ?? ''} size={64} colors={colors} />
         <View style={styles.info}>
-          <Text style={styles.name} numberOfLines={2}>
-            {live.name}
-          </Text>
+          <Text style={styles.name}>{live.name}</Text>
           {live.isAllDay ? (
             <Text style={styles.time}>{t('radio.schedule.allDay')}</Text>
           ) : live.timeLabel ? (
@@ -174,9 +172,11 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     },
     info: {
       flex: 1,
+      minWidth: 0,
     },
     name: {
       fontSize: 19,
+      lineHeight: 24,
       fontWeight: '800',
       color: colors.text,
     },

@@ -1,10 +1,12 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { AppState } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../services/supabase';
 import { siteConfig } from '../config/site';
 import { logger } from '../utils/logger';
 import { getPtNowMinutes, getPtDayNumber } from '../utils/ptTime';
+import { STORAGE_KEYS } from '../config/constants';
+import { readScheduleCache, writeScheduleCache, SCHEDULE_STALE_MS } from '../utils/scheduleCache';
 
 interface ScheduleEvent {
   id: string;
@@ -13,7 +15,7 @@ interface ScheduleEvent {
   icon_url: string;
 }
 
-interface ScheduleItemRaw {
+export interface ScheduleItemRaw {
   id: string;
   event_id: string;
   day_of_week: number;
@@ -100,7 +102,7 @@ function checkIsLive(
   return false;
 }
 
-// Fallback schedule from config (only active items)
+// Fallback schedule from config (only when Supabase is not configured, e.g. dev)
 function buildFallbackSchedule(
   currentDay: number,
   daysMap: Record<number, string>
@@ -126,16 +128,90 @@ function buildFallbackSchedule(
     });
 }
 
+/**
+ * Agrupa as linhas de `schedule` (uma por dia+hora) num item por programa e
+ * dia, com os horários ordenados. Exportada para testes.
+ */
+export function groupScheduleRows(
+  rows: ScheduleItemRaw[],
+  currentDay: number,
+  daysMap: Record<number, string>
+): GroupedSchedule[] {
+  const grouped = new Map<string, GroupedSchedule>();
+
+  for (const item of rows) {
+    // Handle event being array or object
+    const event = Array.isArray(item.event) ? item.event[0] : item.event;
+    if (!event) continue;
+
+    const key = `${item.day_of_week}-${event.name}`;
+    const isAllDay = item.is_all_day ?? false;
+    const time = item.time.slice(0, 5); // HH:mm
+    const endTime = item.end_time ? item.end_time.slice(0, 5) : null;
+    const existing = grouped.get(key);
+
+    if (existing) {
+      if (isAllDay) {
+        existing.isAllDay = true;
+      } else if (!existing.times.includes(time)) {
+        existing.times.push(time);
+        existing.endTimes.push(endTime);
+      }
+    } else {
+      grouped.set(key, {
+        day: daysMap[item.day_of_week],
+        dayNumber: item.day_of_week,
+        show: event.name,
+        description: event.description,
+        times: isAllDay ? [] : [time],
+        endTimes: isAllDay ? [] : [endTime],
+        isAllDay,
+        iconUrl: event.icon_url,
+        icon: FALLBACK_ICONS[event.name] || 'radio-outline',
+        isActive: true,
+        isToday: item.day_of_week === currentDay,
+        isLive: false,
+      });
+    }
+  }
+
+  for (const schedule of grouped.values()) {
+    // Sort times and endTimes together
+    const paired = schedule.times.map((t, i) => ({ time: t, endTime: schedule.endTimes[i] }));
+    paired.sort((a, b) => a.time.localeCompare(b.time));
+    schedule.times = paired.map((p) => p.time);
+    schedule.endTimes = paired.map((p) => p.endTime);
+    schedule.isLive = checkIsLive(
+      schedule.dayNumber,
+      schedule.times,
+      schedule.endTimes,
+      schedule.isAllDay
+    );
+  }
+
+  // Sort: today first, then by day number
+  return Array.from(grouped.values()).sort((a, b) => {
+    if (a.isToday && !b.isToday) return -1;
+    if (!a.isToday && b.isToday) return 1;
+    return a.dayNumber - b.dayNumber;
+  });
+}
+
 export function useSchedule() {
   const { t } = useTranslation();
-  const [rawSchedule, setRawSchedule] = useState<GroupedSchedule[]>([]);
+  const [rows, setRows] = useState<ScheduleItemRaw[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // true = a mostrar a última programação guardada (sem rede / erro)
+  const [fromCache, setFromCache] = useState(false);
 
   const [currentDay, setCurrentDay] = useState(() => getPtDayNumber());
   const mountedRef = useRef(true);
+  const lastFetchRef = useRef(0);
+  const inFlightRef = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
       mountedRef.current = false;
     };
@@ -150,22 +226,12 @@ export function useSchedule() {
     return map;
   }, [t]);
 
-  // Update currentDay when app returns to foreground (handles midnight crossover)
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') {
-        setCurrentDay(getPtDayNumber());
-      }
-    });
-    return () => sub.remove();
-  }, []);
+  const fetchSchedule = useCallback((): Promise<void> => {
+    if (inFlightRef.current) return inFlightRef.current;
 
-  useEffect(() => {
-    async function fetchSchedule() {
-      // Check if Supabase is configured
+    const run = (async () => {
       if (!siteConfig.supabase.url || !siteConfig.supabase.anonKey) {
-        setRawSchedule(buildFallbackSchedule(currentDay, daysMap));
-        setLoading(false);
+        if (mountedRef.current) setLoading(false);
         return;
       }
 
@@ -189,93 +255,62 @@ export function useSchedule() {
           .order('time', { ascending: true });
 
         if (fetchError) throw fetchError;
+        const fresh = (data ?? []) as ScheduleItemRaw[];
+        lastFetchRef.current = Date.now();
+        writeScheduleCache(STORAGE_KEYS.SCHEDULE_CACHE, fresh);
         if (!mountedRef.current) return;
-
-        if (data && data.length > 0) {
-          // Group by day and event
-          const grouped = new Map<string, GroupedSchedule>();
-
-          for (const item of data as ScheduleItemRaw[]) {
-            // Handle event being array or object
-            const event = Array.isArray(item.event) ? item.event[0] : item.event;
-            if (!event) continue;
-
-            const key = `${item.day_of_week}-${event.name}`;
-            const isAllDay = item.is_all_day ?? false;
-            const time = item.time.slice(0, 5); // HH:mm
-            const endTime = item.end_time ? item.end_time.slice(0, 5) : null;
-
-            if (grouped.has(key)) {
-              if (!isAllDay) {
-                grouped.get(key)!.times.push(time);
-                grouped.get(key)!.endTimes.push(endTime);
-              }
-            } else {
-              const times = isAllDay ? [] : [time];
-              const endTimes = isAllDay ? [] : [endTime];
-              grouped.set(key, {
-                day: daysMap[item.day_of_week],
-                dayNumber: item.day_of_week,
-                show: event.name,
-                description: event.description,
-                times,
-                endTimes,
-                isAllDay,
-                iconUrl: event.icon_url,
-                icon: FALLBACK_ICONS[event.name] || 'radio-outline',
-                isActive: true,
-                isToday: item.day_of_week === currentDay,
-                isLive: checkIsLive(item.day_of_week, times, endTimes, isAllDay),
-              });
-            }
-          }
-
-          // Sort times within each show and update isLive after all times are grouped
-          for (const schedule of grouped.values()) {
-            // Sort times and endTimes together
-            const paired = schedule.times.map((t, i) => ({
-              time: t,
-              endTime: schedule.endTimes[i],
-            }));
-            paired.sort((a, b) => a.time.localeCompare(b.time));
-            schedule.times = paired.map((p) => p.time);
-            schedule.endTimes = paired.map((p) => p.endTime);
-            schedule.isLive = checkIsLive(
-              schedule.dayNumber,
-              schedule.times,
-              schedule.endTimes,
-              schedule.isAllDay
-            );
-          }
-
-          // Sort: today first, then by day number
-          const sortedSchedule = Array.from(grouped.values()).sort((a, b) => {
-            // Today's programs first
-            if (a.isToday && !b.isToday) return -1;
-            if (!a.isToday && b.isToday) return 1;
-            // Then by day number
-            return a.dayNumber - b.dayNumber;
-          });
-
-          setRawSchedule(sortedSchedule);
-        } else {
-          setRawSchedule(buildFallbackSchedule(currentDay, daysMap));
-        }
+        setRows(fresh);
+        setFromCache(false);
+        setError(null);
       } catch (err) {
-        if (!mountedRef.current) return;
         logger.error('Error fetching schedule:', err);
+        const cached = await readScheduleCache<ScheduleItemRaw[]>(STORAGE_KEYS.SCHEDULE_CACHE);
+        if (!mountedRef.current) return;
         setError(err instanceof Error ? err.message : 'Error fetching schedule');
-        // Keep fallback schedule on error
-        setRawSchedule(buildFallbackSchedule(currentDay, daysMap));
-      } finally {
-        if (mountedRef.current) {
-          setLoading(false);
+        if (cached) {
+          setRows(cached.data);
+          setFromCache(true);
         }
+      } finally {
+        if (mountedRef.current) setLoading(false);
       }
-    }
+    })();
 
+    inFlightRef.current = run.finally(() => {
+      inFlightRef.current = null;
+    });
+    return inFlightRef.current;
+  }, []);
+
+  // Arranque: mostra logo a cache (se houver) e vai buscar a versão atual
+  useEffect(() => {
+    let cancelled = false;
+    readScheduleCache<ScheduleItemRaw[]>(STORAGE_KEYS.SCHEDULE_CACHE).then((cached) => {
+      if (cancelled || !cached) return;
+      setRows((current) => current ?? cached.data);
+    });
     fetchSchedule();
-  }, [currentDay, daysMap]);
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchSchedule]);
+
+  // Ao voltar à app: novo dia (meia-noite) e programação atualizada se antiga
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      setCurrentDay(getPtDayNumber());
+      if (Date.now() - lastFetchRef.current > SCHEDULE_STALE_MS) fetchSchedule();
+    });
+    return () => sub.remove();
+  }, [fetchSchedule]);
+
+  const rawSchedule = useMemo<GroupedSchedule[]>(() => {
+    if (!siteConfig.supabase.url || !siteConfig.supabase.anonKey) {
+      return buildFallbackSchedule(currentDay, daysMap);
+    }
+    return rows ? groupScheduleRows(rows, currentDay, daysMap) : [];
+  }, [rows, currentDay, daysMap]);
 
   // Only return active programs
   const schedule = useMemo(() => rawSchedule.filter((item) => item.isActive), [rawSchedule]);
@@ -316,5 +351,5 @@ export function useSchedule() {
     });
   }, [schedule, currentDay, daysMap]);
 
-  return { schedule, scheduleByDay, loading, error };
+  return { schedule, scheduleByDay, loading, error, fromCache, refresh: fetchSchedule };
 }

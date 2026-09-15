@@ -96,11 +96,14 @@ export function mergeProgramsForDay(
 
       let duration: string | undefined;
       let endMins: number | undefined;
+      // Sem end_time, um especial dura 1h (mesma regra do "ao vivo")
+      let slotEndMins = mins + 60;
       if (rawEndTime) {
         const [eh, em] = rawEndTime.split(':').map(Number);
         endMins = eh * 60 + (em || 0);
         let diff = endMins - mins;
         if (diff <= 0) diff += 24 * 60;
+        slotEndMins = mins + diff;
         const dh = Math.floor(diff / 60);
         const dm = diff % 60;
         duration =
@@ -115,6 +118,7 @@ export function mergeProgramsForDay(
         name: prog.show,
         iconUrl: prog.iconUrl,
         isSpecial: true,
+        endMins: slotEndMins,
         ...(duration && { duration }),
       };
 

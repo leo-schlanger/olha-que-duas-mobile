@@ -187,7 +187,9 @@
     "reminderFor": "Lembrete de {{show}}",
     "reminderAdded": "Lembrete ativado para \"{{show}}\"",
     "reminderRemoved": "Lembrete removido de \"{{show}}\"",
-    "reminderPermission": "Permita notificações para receber lembretes"
+    "reminderPermission": "Permita notificações para receber lembretes",
+    "everyDay": "Todos os dias",
+    "pullToRetry": "Puxe para baixo para atualizar."
   },
   "settings": {
     "title": "Definições",

@@ -35,8 +35,8 @@ interface RemindersBottomSheetProps {
   enabledShows: string[];
   reminderMinutes: ReminderTime;
   isLoading: boolean;
-  // Per-show metadata so we can show times next to the title.
-  // Optional — if a show isn't in the map we just render its name.
+  // Linhas com quando cada programa passa (ex.: "SEG–SÁB · 18h30"), uma por hora.
+  // Opcional — se um programa não estiver no mapa mostra-se só o nome.
   showTimesByName?: Map<string, string[]>;
   onRemoveShow: (_show: string) => Promise<boolean>;
   onChangeReminderMinutes: (_minutes: ReminderTime) => Promise<boolean>;
@@ -239,14 +239,12 @@ export const RemindersBottomSheet = memo(function RemindersBottomSheet({
                         />
                       </View>
                       <View style={styles.rowText}>
-                        <Text style={styles.rowTitle} numberOfLines={1} ellipsizeMode="tail">
-                          {show}
-                        </Text>
-                        {times.length > 0 ? (
-                          <Text style={styles.rowSubtitle} numberOfLines={1}>
-                            {times.join(' · ')}
+                        <Text style={styles.rowTitle}>{show}</Text>
+                        {times.map((line) => (
+                          <Text key={line} style={styles.rowSubtitle}>
+                            {line}
                           </Text>
-                        ) : null}
+                        ))}
                       </View>
                       <TouchableOpacity
                         style={styles.removeButton}

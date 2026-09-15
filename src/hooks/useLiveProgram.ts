@@ -16,10 +16,11 @@ import { DailyPeriod, parsePeriodRange, parseSlotTime, parseSlotEndTime } from '
 import { DaySchedule } from './useSchedule';
 import { mergeProgramsForDay } from '../utils/scheduleMerge';
 import { getPtNowMinutes, getPtDayNumber } from '../utils/ptTime';
+import { formatTimeRange, hhmmToMins } from '../utils/scheduleLabels';
 
 export interface LiveProgram {
   name: string;
-  timeLabel: string; // "11:00 – 13:00" (especial) ou "07h" (rotação)
+  timeLabel: string; // "11h – 13h" (mesmo formato da timeline)
   iconUrl?: string;
   isSpecial: boolean;
   isAllDay: boolean;
@@ -35,24 +36,16 @@ export interface UseLiveProgramResult {
 
 const MINUTES_IN_DAY = 24 * 60;
 
-/** "HH:mm" → minutos desde a meia-noite. */
-function hhmmToMins(t: string): number {
-  const [h, m] = t.split(':').map(Number);
-  return (h || 0) * 60 + (m || 0);
-}
-
-/** "07:00" a partir de minutos. */
-function minsToHhmm(mins: number): string {
-  const norm = ((mins % MINUTES_IN_DAY) + MINUTES_IN_DAY) % MINUTES_IN_DAY;
-  const h = Math.floor(norm / 60);
-  const m = norm % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-}
-
-function computeLive(
+/**
+ * Programa/slot no ar em `nowMins` (hora PT). `yesterdayShows` cobre os
+ * especiais de ontem que passam da meia-noite (ex.: 23h – 01h).
+ * Exportada para testes.
+ */
+export function computeLive(
   nowMins: number,
   todayShows: DaySchedule['shows'],
-  mergedToday: DailyPeriod[]
+  mergedToday: DailyPeriod[],
+  yesterdayShows: DaySchedule['shows'] = []
 ): UseLiveProgramResult {
   // 1. Programa especial de dia inteiro
   const allDay = todayShows.find((s) => s.isAllDay);
@@ -72,7 +65,34 @@ function computeLive(
     };
   }
 
-  // 2. Programa especial com horário a decorrer agora
+  // 2a. Especial de ontem que atravessa a meia-noite e ainda está no ar
+  for (const show of yesterdayShows) {
+    if (show.isAllDay) continue;
+    for (let i = 0; i < show.times.length; i++) {
+      const start = hhmmToMins(show.times[i]);
+      const rawEnd = show.endTimes?.[i] ?? null;
+      if (!rawEnd) continue;
+      const end = hhmmToMins(rawEnd);
+      if (end > start || nowMins >= end) continue;
+      const total = end + MINUTES_IN_DAY - start;
+      const elapsed = nowMins + MINUTES_IN_DAY - start;
+      return {
+        live: {
+          name: show.show,
+          timeLabel: formatTimeRange(start, end),
+          iconUrl: show.iconUrl || undefined,
+          isSpecial: true,
+          isAllDay: false,
+          startMins: start,
+        },
+        progress: Math.min(1, Math.max(0, elapsed / total)),
+        minutesRemaining: Math.max(0, end - nowMins),
+        hasProgress: true,
+      };
+    }
+  }
+
+  // 2b. Programa especial de hoje com horário a decorrer agora
   for (const show of todayShows) {
     for (let i = 0; i < show.times.length; i++) {
       const start = hhmmToMins(show.times[i]);
@@ -80,9 +100,8 @@ function computeLive(
       let end = rawEnd ? hhmmToMins(rawEnd) : start + 60;
       if (end <= start) end += MINUTES_IN_DAY; // passa a meia-noite
 
-      // Se o slot atravessa a meia-noite, considerar também a manhã seguinte
-      let n = nowMins;
-      if (end > MINUTES_IN_DAY && n < start) n += MINUTES_IN_DAY;
+      // A parte depois da meia-noite pertence a amanhã (tratada em 2a)
+      const n = nowMins;
 
       if (n >= start && n < end) {
         const total = end - start;
@@ -90,7 +109,7 @@ function computeLive(
         return {
           live: {
             name: show.show,
-            timeLabel: rawEnd ? `${minsToHhmm(start)} – ${minsToHhmm(end)}` : minsToHhmm(start),
+            timeLabel: formatTimeRange(start, end),
             iconUrl: show.iconUrl || undefined,
             isSpecial: true,
             isAllDay: false,
@@ -115,25 +134,33 @@ function computeLive(
           iconUrl: s.iconUrl,
           isSpecial: !!s.isSpecial,
           start: parseSlotTime(s.time),
-          end: parseSlotEndTime(s.time),
+          end: s.endMins ?? parseSlotEndTime(s.time),
           rangeEnd: range ? range.end : MINUTES_IN_DAY,
           time: s.time,
         }));
     })
     .sort((a, b) => a.start - b.start);
 
+  const specialStarts = flat.filter((s) => s.isSpecial).map((s) => s.start);
+
   for (let i = 0; i < flat.length; i++) {
     const slot = flat[i];
     const next = flat[i + 1];
     // Prefer the slot's own embedded end; fall back to the next slot or period end.
-    const end = slot.end ?? (next ? next.start : slot.rangeEnd);
+    let end = slot.end ?? (next ? next.start : slot.rangeEnd);
+    // A rotação termina quando começa um especial por cima (igual à timeline)
+    if (!slot.isSpecial) {
+      for (const start of specialStarts) {
+        if (start > slot.start && start < end) end = start;
+      }
+    }
     if (nowMins >= slot.start && nowMins < end) {
       const total = end - slot.start;
       const elapsed = nowMins - slot.start;
       return {
         live: {
           name: slot.name,
-          timeLabel: slot.time,
+          timeLabel: formatTimeRange(slot.start, end),
           iconUrl: slot.iconUrl || undefined,
           isSpecial: slot.isSpecial,
           isAllDay: false,
@@ -188,6 +215,10 @@ export function useLiveProgram(
     () => scheduleByDay.find((d) => d.dayNumber === today)?.shows ?? [],
     [scheduleByDay, today]
   );
+  const yesterdayShows = useMemo(
+    () => scheduleByDay.find((d) => d.dayNumber === (today + 6) % 7)?.shows ?? [],
+    [scheduleByDay, today]
+  );
   const mergedToday = useMemo(
     () => mergeProgramsForDay(dailySchedule, todayShows),
     [dailySchedule, todayShows]
@@ -195,7 +226,7 @@ export function useLiveProgram(
 
   // Só o cálculo de slot ativo + progresso depende de nowMins.
   return useMemo(
-    () => computeLive(nowMins, todayShows, mergedToday),
-    [nowMins, todayShows, mergedToday]
+    () => computeLive(nowMins, todayShows, mergedToday, yesterdayShows),
+    [nowMins, todayShows, mergedToday, yesterdayShows]
   );
 }

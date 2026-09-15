@@ -101,9 +101,7 @@ export function AboutBottomSheet({ visible, onClose }: AboutBottomSheetProps) {
                     </Text>
                     {day.shows.map((item) => (
                       <View key={`${item.dayNumber}-${item.show}`} style={styles.scheduleRow}>
-                        <Text style={styles.scheduleShow} numberOfLines={1}>
-                          {item.show}
-                        </Text>
+                        <Text style={styles.scheduleShow}>{item.show}</Text>
                         <Text style={styles.scheduleTimes}>{item.times.join(' · ')}</Text>
                       </View>
                     ))}

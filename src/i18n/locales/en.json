@@ -187,7 +187,9 @@
     "reminderFor": "Reminder for {{show}}",
     "reminderAdded": "Reminder set for \"{{show}}\"",
     "reminderRemoved": "Reminder removed for \"{{show}}\"",
-    "reminderPermission": "Allow notifications to receive reminders"
+    "reminderPermission": "Allow notifications to receive reminders",
+    "everyDay": "Every day",
+    "pullToRetry": "Pull down to refresh."
   },
   "settings": {
     "title": "Settings",

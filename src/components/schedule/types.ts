@@ -2,8 +2,10 @@
 export interface TimelineEntry {
   /** Chave estável para listas (time + name). */
   key: string;
-  /** Hora a mostrar ("07h", "11:00", "—" para all-day). */
+  /** Hora de início a mostrar ("07h", "18h30", "—" para all-day). */
   time: string;
+  /** Hora de fim a mostrar ("10h"), quando conhecida. */
+  endTime?: string;
   /** Minutos de início desde a meia-noite (-1 para all-day). */
   startMins: number;
   /** Nome do programa/slot. */
@@ -18,8 +20,6 @@ export interface TimelineEntry {
   isAllDay: boolean;
   /** Nome canónico do programa para lembretes (só especiais). */
   showName?: string;
-  /** Todos os horários (HH:mm) desse programa nesse dia (para agendar lembretes). */
-  showTimes?: string[];
   /** Dia da semana (0=Domingo) a que esta entrada pertence. */
   dayNumber: number;
 }

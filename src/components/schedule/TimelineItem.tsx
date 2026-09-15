@@ -1,7 +1,10 @@
 /**
- * Uma linha da timeline da programação: rail de hora à esquerda, artwork
- * (programas especiais), nome + subtítulo, badge AO VIVO quando aplicável e
- * sino de lembrete (só especiais).
+ * Uma linha da timeline da programação: rail de hora à esquerda (início e
+ * fim), artwork (programas especiais), nome + subtítulo, badge AO VIVO quando
+ * aplicável e sino de lembrete (só especiais).
+ *
+ * Nomes e subtítulos NUNCA são cortados com "...": quebram para as linhas
+ * que forem precisas.
  */
 
 import React, { memo, useMemo } from 'react';
@@ -44,7 +47,16 @@ export const TimelineItem = memo(function TimelineItem({
         {entry.isAllDay ? (
           <MaterialDayBadge colors={colors} label={t('radio.schedule.allDay')} />
         ) : (
-          <Text style={styles.time}>{entry.time}</Text>
+          <>
+            <Text style={styles.time} maxFontSizeMultiplier={1.4}>
+              {entry.time}
+            </Text>
+            {entry.endTime ? (
+              <Text style={styles.endTime} maxFontSizeMultiplier={1.4}>
+                {entry.endTime}
+              </Text>
+            ) : null}
+          </>
         )}
         <View style={styles.railLineWrap}>
           <View style={styles.dot} />
@@ -60,9 +72,7 @@ export const TimelineItem = memo(function TimelineItem({
 
         <View style={styles.texts}>
           <View style={styles.titleRow}>
-            <Text style={styles.name} numberOfLines={1}>
-              {entry.name}
-            </Text>
+            <Text style={styles.name}>{entry.name}</Text>
             {isLive && (
               <View style={styles.liveBadge}>
                 <View style={styles.liveDot} />
@@ -70,11 +80,7 @@ export const TimelineItem = memo(function TimelineItem({
               </View>
             )}
           </View>
-          {entry.subtitle ? (
-            <Text style={styles.subtitle} numberOfLines={1}>
-              {entry.subtitle}
-            </Text>
-          ) : null}
+          {entry.subtitle ? <Text style={styles.subtitle}>{entry.subtitle}</Text> : null}
         </View>
 
         {entry.isSpecial && entry.showName ? (
@@ -101,7 +107,16 @@ function MaterialDayBadge({ colors, label }: { colors: ThemeColors; label: strin
         backgroundColor: colors.accent + '20',
       }}
     >
-      <Text style={{ fontSize: 8, fontWeight: '800', color: colors.accent, letterSpacing: 0.3 }}>
+      <Text
+        style={{
+          fontSize: 8,
+          fontWeight: '800',
+          color: colors.accent,
+          letterSpacing: 0.3,
+          textAlign: 'center',
+        }}
+        maxFontSizeMultiplier={1.4}
+      >
         {label}
       </Text>
     </View>
@@ -123,9 +138,15 @@ function createStyles(colors: ThemeColors, isLive: boolean, isSpecial: boolean) 
       fontFamily: 'monospace',
       fontWeight: '600',
       color: isLive ? colors.secondary : colors.textSecondary,
-      marginBottom: 4,
+    },
+    endTime: {
+      fontSize: 10,
+      fontFamily: 'monospace',
+      color: colors.textSecondary,
+      opacity: 0.8,
     },
     railLineWrap: {
+      marginTop: 4,
       flex: 1,
       alignItems: 'center',
     },
@@ -147,6 +168,7 @@ function createStyles(colors: ThemeColors, isLive: boolean, isSpecial: boolean) 
       flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
+      minWidth: 0,
       gap: 12,
       marginBottom: 14,
       padding: isSpecial || isLive ? 12 : 8,
@@ -161,6 +183,7 @@ function createStyles(colors: ThemeColors, isLive: boolean, isSpecial: boolean) 
     },
     texts: {
       flex: 1,
+      minWidth: 0,
     },
     titleRow: {
       flexDirection: 'row',
@@ -173,11 +196,13 @@ function createStyles(colors: ThemeColors, isLive: boolean, isSpecial: boolean) 
       fontWeight: isSpecial ? '700' : '500',
       color: isLive ? colors.text : isSpecial ? colors.text : colors.text + 'DD',
       flexShrink: 1,
+      lineHeight: isSpecial ? 20 : 19,
     },
     subtitle: {
       fontSize: 12,
       color: colors.textSecondary,
       marginTop: 2,
+      lineHeight: 16,
     },
     liveBadge: {
       flexDirection: 'row',
