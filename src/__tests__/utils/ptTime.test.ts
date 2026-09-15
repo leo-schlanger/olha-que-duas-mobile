@@ -31,3 +31,20 @@ describe('ptTime', () => {
     });
   });
 });
+
+describe('datas em Portugal', () => {
+  const { getPtDateString, addDaysToDate, weekdayOfDate } = require('../../utils/ptTime');
+
+  it('getPtDateString muda de dia à meia-noite de Lisboa', () => {
+    expect(getPtDateString(new Date('2026-09-15T22:59:00Z'))).toBe('2026-09-15');
+    expect(getPtDateString(new Date('2026-09-15T23:00:00Z'))).toBe('2026-09-16');
+    expect(getPtDateString(new Date('2026-01-15T23:30:00Z'))).toBe('2026-01-15');
+  });
+
+  it('addDaysToDate e weekdayOfDate atravessam meses e anos', () => {
+    expect(addDaysToDate('2026-12-31', 1)).toBe('2027-01-01');
+    expect(addDaysToDate('2026-03-01', -1)).toBe('2026-02-28');
+    expect(weekdayOfDate('2026-09-13')).toBe(0);
+    expect(weekdayOfDate('2026-09-15')).toBe(2);
+  });
+});

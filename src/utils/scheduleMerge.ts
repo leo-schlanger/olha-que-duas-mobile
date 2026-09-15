@@ -23,6 +23,7 @@ export interface MergeableShow {
   endTimes?: (string | null)[];
   isAllDay?: boolean;
   iconUrl: string;
+  isDated?: boolean;
 }
 
 /** Formata minutos-desde-a-meia-noite como "12h" ou "12h30". */
@@ -64,6 +65,7 @@ export function mergeProgramsForDay(
       iconUrl: allDayProg.iconUrl,
       isAllDay: true,
       isSpecial: true,
+      ...(allDayProg.isDated && { isDated: true }),
     };
     for (const period of merged) {
       // Sob um programa de dia inteiro, remove a rotação (slots não-especiais).
@@ -119,6 +121,7 @@ export function mergeProgramsForDay(
         iconUrl: prog.iconUrl,
         isSpecial: true,
         endMins: slotEndMins,
+        ...(prog.isDated && { isDated: true }),
         ...(duration && { duration }),
       };
 

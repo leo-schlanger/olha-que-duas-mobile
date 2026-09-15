@@ -4,7 +4,13 @@ import { useTranslation } from 'react-i18next';
 import { supabase } from '../services/supabase';
 import { siteConfig } from '../config/site';
 import { logger } from '../utils/logger';
-import { getPtNowMinutes, getPtDayNumber } from '../utils/ptTime';
+import {
+  getPtNowMinutes,
+  getPtDayNumber,
+  getPtDateString,
+  addDaysToDate,
+  weekdayOfDate,
+} from '../utils/ptTime';
 import { STORAGE_KEYS } from '../config/constants';
 import { readScheduleCache, writeScheduleCache, SCHEDULE_STALE_MS } from '../utils/scheduleCache';
 
@@ -19,6 +25,8 @@ export interface ScheduleItemRaw {
   id: string;
   event_id: string;
   day_of_week: number;
+  /** Só nos eventos com data (schedule_dates): "YYYY-MM-DD". */
+  event_date?: string;
   time: string;
   end_time: string | null;
   is_all_day: boolean;
@@ -38,6 +46,41 @@ export interface GroupedSchedule {
   isActive: boolean;
   isToday: boolean;
   isLive: boolean;
+  /** Evento com data (emissão única): sem lembrete semanal. */
+  isDated?: boolean;
+  /** Data da emissão única, "YYYY-MM-DD". */
+  date?: string;
+}
+
+/** Linha de `schedule_dates` (evento com data). */
+export interface ScheduleDateRaw {
+  id: string;
+  event_id: string;
+  event_date: string;
+  time: string;
+  end_time: string | null;
+  is_all_day: boolean;
+  event: ScheduleEvent | ScheduleEvent[] | null;
+}
+
+/**
+ * Eventos com data dos próximos 7 dias (hoje incluído) como linhas da grelha,
+ * no dia da semana em que calham. Exportada para testes.
+ */
+export function datedRowsForWeek(rows: ScheduleDateRaw[], today: string): ScheduleItemRaw[] {
+  const end = addDaysToDate(today, 6);
+  return rows
+    .filter((r) => r.event_date >= today && r.event_date <= end)
+    .map((r) => ({
+      id: r.id,
+      event_id: r.event_id,
+      day_of_week: weekdayOfDate(r.event_date),
+      event_date: r.event_date,
+      time: r.time,
+      end_time: r.end_time,
+      is_all_day: r.is_all_day,
+      event: r.event,
+    }));
 }
 
 export interface DaySchedule {
@@ -144,7 +187,8 @@ export function groupScheduleRows(
     const event = Array.isArray(item.event) ? item.event[0] : item.event;
     if (!event) continue;
 
-    const key = `${item.day_of_week}-${event.name}`;
+    // Eventos com data ficam num grupo próprio: não herdam o lembrete semanal
+    const key = `${item.day_of_week}-${event.name}${item.event_date ? '-dated' : ''}`;
     const isAllDay = item.is_all_day ?? false;
     const time = item.time.slice(0, 5); // HH:mm
     const endTime = item.end_time ? item.end_time.slice(0, 5) : null;
@@ -171,6 +215,7 @@ export function groupScheduleRows(
         isActive: true,
         isToday: item.day_of_week === currentDay,
         isLive: false,
+        ...(item.event_date && { isDated: true, date: item.event_date }),
       });
     }
   }
@@ -200,6 +245,7 @@ export function groupScheduleRows(
 export function useSchedule() {
   const { t } = useTranslation();
   const [rows, setRows] = useState<ScheduleItemRaw[] | null>(null);
+  const [datedRows, setDatedRows] = useState<ScheduleDateRaw[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // true = a mostrar a última programação guardada (sem rede / erro)
@@ -258,8 +304,36 @@ export function useSchedule() {
         const fresh = (data ?? []) as ScheduleItemRaw[];
         lastFetchRef.current = Date.now();
         writeScheduleCache(STORAGE_KEYS.SCHEDULE_CACHE, fresh);
+
+        // Eventos com data: extra; se falhar, fica a última lista guardada
+        const today = getPtDateString();
+        const { data: dated, error: datedError } = await supabase
+          .from('schedule_dates')
+          .select(
+            'id, event_id, event_date, time, end_time, is_all_day, event:events!inner(id, name, description, icon_url, is_active)'
+          )
+          .eq('is_active', true)
+          .eq('events.is_active', true)
+          .gte('event_date', today)
+          .lte('event_date', addDaysToDate(today, 6));
+        let freshDated: ScheduleDateRaw[] | null = null;
+        if (datedError) {
+          logger.warn('Error fetching dated events:', datedError);
+        } else {
+          freshDated = (dated ?? []) as ScheduleDateRaw[];
+          writeScheduleCache(STORAGE_KEYS.SCHEDULE_DATES_CACHE, freshDated);
+        }
+
         if (!mountedRef.current) return;
         setRows(fresh);
+        if (freshDated) {
+          setDatedRows(freshDated);
+        } else {
+          const cachedDated = await readScheduleCache<ScheduleDateRaw[]>(
+            STORAGE_KEYS.SCHEDULE_DATES_CACHE
+          );
+          if (cachedDated && mountedRef.current) setDatedRows(cachedDated.data);
+        }
         setFromCache(false);
         setError(null);
       } catch (err) {
@@ -271,6 +345,10 @@ export function useSchedule() {
           setRows(cached.data);
           setFromCache(true);
         }
+        const cachedDated = await readScheduleCache<ScheduleDateRaw[]>(
+          STORAGE_KEYS.SCHEDULE_DATES_CACHE
+        );
+        if (cachedDated && mountedRef.current) setDatedRows(cachedDated.data);
       } finally {
         if (mountedRef.current) setLoading(false);
       }
@@ -288,6 +366,10 @@ export function useSchedule() {
     readScheduleCache<ScheduleItemRaw[]>(STORAGE_KEYS.SCHEDULE_CACHE).then((cached) => {
       if (cancelled || !cached) return;
       setRows((current) => current ?? cached.data);
+    });
+    readScheduleCache<ScheduleDateRaw[]>(STORAGE_KEYS.SCHEDULE_DATES_CACHE).then((cached) => {
+      if (cancelled || !cached) return;
+      setDatedRows((current) => (current.length > 0 ? current : cached.data));
     });
     fetchSchedule();
     return () => {
@@ -309,8 +391,11 @@ export function useSchedule() {
     if (!siteConfig.supabase.url || !siteConfig.supabase.anonKey) {
       return buildFallbackSchedule(currentDay, daysMap);
     }
-    return rows ? groupScheduleRows(rows, currentDay, daysMap) : [];
-  }, [rows, currentDay, daysMap]);
+    if (!rows) return [];
+    // A janela de 7 dias acompanha o dia atual (currentDay muda à meia-noite)
+    const week = datedRowsForWeek(datedRows, getPtDateString());
+    return groupScheduleRows([...rows, ...week], currentDay, daysMap);
+  }, [rows, datedRows, currentDay, daysMap]);
 
   // Only return active programs
   const schedule = useMemo(() => rawSchedule.filter((item) => item.isActive), [rawSchedule]);

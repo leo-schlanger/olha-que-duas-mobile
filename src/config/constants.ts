@@ -74,5 +74,6 @@ export const STORAGE_KEYS = {
   SCHEDULED_NOTIFICATIONS: '@olhaqueduas:scheduled_notifications',
   RADIO_SETTINGS: '@olhaqueduas:radio_settings',
   SCHEDULE_CACHE: '@olhaqueduas:schedule_cache',
+  SCHEDULE_DATES_CACHE: '@olhaqueduas:schedule_dates_cache',
   DAILY_SCHEDULE_CACHE: '@olhaqueduas:daily_schedule_cache',
 } as const;

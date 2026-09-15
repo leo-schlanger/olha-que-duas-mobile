@@ -39,6 +39,28 @@ export function getPtDayNumber(now: Date = new Date()): number {
   return DAY_NAME_TO_NUMBER[ptDayName] ?? 0;
 }
 
+/** Data de hoje em Portugal, "YYYY-MM-DD". */
+export function getPtDateString(now: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Lisbon',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now);
+}
+
+/** Soma dias a "YYYY-MM-DD" (independente do fuso do dispositivo). */
+export function addDaysToDate(date: string, days: number): string {
+  const [y, m, d] = date.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
+/** Dia da semana (0=Domingo) de "YYYY-MM-DD". */
+export function weekdayOfDate(date: string): number {
+  const [y, m, d] = date.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+}
+
 /** Hora atual em Portugal (0..23). */
 export function getPtHour(now: Date = new Date()): number {
   return Math.floor(getPtNowMinutes(now) / 60);

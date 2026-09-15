@@ -189,7 +189,8 @@
     "reminderRemoved": "Reminder removed for \"{{show}}\"",
     "reminderPermission": "Allow notifications to receive reminders",
     "everyDay": "Every day",
-    "pullToRetry": "Pull down to refresh."
+    "pullToRetry": "Pull down to refresh.",
+    "oneOff": "Special broadcast"
   },
   "settings": {
     "title": "Settings",

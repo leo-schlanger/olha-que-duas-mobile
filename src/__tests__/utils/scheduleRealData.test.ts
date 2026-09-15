@@ -3,7 +3,7 @@
  * da rotação, especial curto a substituir um bloco).
  */
 import { groupDailyRows } from '../../hooks/useDailySchedule';
-import { groupScheduleRows } from '../../hooks/useSchedule';
+import { groupScheduleRows, datedRowsForWeek } from '../../hooks/useSchedule';
 import { computeLive } from '../../hooks/useLiveProgram';
 import { mergeProgramsForDay } from '../../utils/scheduleMerge';
 import { buildTimelineEntries } from '../../utils/scheduleTimeline';
@@ -220,5 +220,67 @@ describe('computeLive (terça-feira real)', () => {
       hasProgress: false,
     });
     expect(computeLive(at(12), [], [], []).live).toBeNull();
+  });
+});
+
+describe('eventos com data (emissões únicas)', () => {
+  const event = { id: 'e9', name: names.ENTREVISTA, description: null, icon_url: '' };
+  const dated = [
+    {
+      id: 'x',
+      event_id: 'e9',
+      event_date: '2026-09-20',
+      time: '19:00:00',
+      end_time: '20:00:00',
+      is_all_day: false,
+      event,
+    },
+    {
+      id: 'y',
+      event_id: 'e9',
+      event_date: '2026-09-22',
+      time: '19:00:00',
+      end_time: null,
+      is_all_day: false,
+      event,
+    },
+    {
+      id: 'z',
+      event_id: 'e9',
+      event_date: '2026-09-14',
+      time: '19:00:00',
+      end_time: null,
+      is_all_day: false,
+      event,
+    },
+  ];
+
+  it('only keeps the next 7 days, on their weekday', () => {
+    const week = datedRowsForWeek(dated, '2026-09-15');
+    expect(week.map((r) => [r.id, r.day_of_week, r.event_date])).toEqual([['x', 0, '2026-09-20']]);
+  });
+
+  it('keeps a dated broadcast apart from the weekly show and without reminder', () => {
+    // Domingo: JAZZ semanal + entrevista com data
+    const sunday = groupScheduleRows(
+      [...scheduleRows, ...datedRowsForWeek(dated, '2026-09-15')],
+      TUESDAY,
+      dayShort
+    ).filter((s) => s.dayNumber === 0);
+    const interview = sunday.find((s) => s.show === names.ENTREVISTA)!;
+    expect(interview).toMatchObject({ isDated: true, date: '2026-09-20', times: ['19:00'] });
+    expect(sunday.find((s) => s.show === names.JAZZ)?.isDated).toBeUndefined();
+
+    const merged = mergeProgramsForDay(daily, sunday);
+    const entries = buildTimelineEntries(0, merged, { ...labels, oneOff: 'Emissão especial' });
+    const entry = entries.find((e) => e.name === names.ENTREVISTA)!;
+    expect(entry).toMatchObject({
+      subtitle: 'Emissão especial',
+      time: '19h',
+      endTime: '20h',
+      isSpecial: true,
+    });
+    expect(entry.showName).toBeUndefined();
+    expect(entries.find((e) => e.name === names.JAZZ)?.showName).toBe(names.JAZZ);
   });
 });

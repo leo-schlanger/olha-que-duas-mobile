@@ -189,7 +189,8 @@
     "reminderRemoved": "Lembrete removido de \"{{show}}\"",
     "reminderPermission": "Permita notificações para receber lembretes",
     "everyDay": "Todos os dias",
-    "pullToRetry": "Puxe para baixo para atualizar."
+    "pullToRetry": "Puxe para baixo para atualizar.",
+    "oneOff": "Emissão especial"
   },
   "settings": {
     "title": "Definições",

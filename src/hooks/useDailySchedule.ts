@@ -17,6 +17,8 @@ export interface DailySlot {
   genres?: string;
   /** true = programa especial (programação semanal), definido no merge. */
   isSpecial?: boolean;
+  /** true = evento com data (emissão única), sem lembrete. */
+  isDated?: boolean;
 }
 
 export interface DailyPeriod {

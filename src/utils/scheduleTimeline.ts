@@ -12,7 +12,7 @@ const MINUTES_IN_DAY = 24 * 60;
 export function buildTimelineEntries(
   dayNumber: number,
   merged: DailyPeriod[],
-  labels: { program: string; music: string }
+  labels: { program: string; music: string; oneOff?: string }
 ): TimelineEntry[] {
   const entries: (TimelineEntry & { endMins?: number })[] = [];
   let idx = 0;
@@ -30,11 +30,17 @@ export function buildTimelineEntries(
         endMins: isAllDay ? undefined : slot.endMins,
         name: slot.name,
         // Especiais: "Programa". Rotação: géneros (mais rico) ou "Música".
-        subtitle: isAllDay || isSpecial ? labels.program : slot.genres || labels.music,
+        subtitle:
+          slot.isDated && labels.oneOff
+            ? labels.oneOff
+            : isAllDay || isSpecial
+              ? labels.program
+              : slot.genres || labels.music,
         iconUrl: slot.iconUrl,
         isSpecial,
         isAllDay,
-        showName: isSpecial && !isAllDay ? slot.name : undefined,
+        // Lembretes são semanais: eventos com data não têm sino
+        showName: isSpecial && !isAllDay && !slot.isDated ? slot.name : undefined,
         dayNumber,
       });
     }

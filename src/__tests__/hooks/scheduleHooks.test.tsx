@@ -55,6 +55,9 @@ function mockQuery(results: Record<string, () => Promise<Result>>) {
     const finalOrders = table === 'schedule' ? 2 : 1;
     chain.select = () => chain;
     chain.eq = () => chain;
+    chain.gte = () => chain;
+    // schedule_dates termina em .lte(); sem resultado definido devolve vazio
+    chain.lte = () => (results[table] ?? (() => Promise.resolve({ data: [], error: null })))();
     chain.order = () => {
       orders += 1;
       return orders >= finalOrders ? results[table]() : chain;
@@ -158,6 +161,75 @@ describe('useSchedule', () => {
     });
     expect(result.current.error).toBeNull();
     expect(result.current.schedule.length).toBeGreaterThan(0);
+    unmount();
+  });
+});
+
+describe('useSchedule com eventos com data', () => {
+  it('junta as emissões desta semana no dia certo, sem lembrete, e guarda a cache', async () => {
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Lisbon' }).format(
+      new Date()
+    );
+    const [y, m, d] = today.split('-').map(Number);
+    const inTwoDays = new Date(Date.UTC(y, m - 1, d + 2)).toISOString().slice(0, 10);
+    const inTenDays = new Date(Date.UTC(y, m - 1, d + 10)).toISOString().slice(0, 10);
+    const event = { id: 'e9', name: 'Entrevista Especial', description: null, icon_url: '' };
+    mockQuery({
+      schedule: () => Promise.resolve({ data: scheduleRows, error: null }),
+      schedule_dates: () =>
+        Promise.resolve({
+          data: [
+            {
+              id: 'd1',
+              event_id: 'e9',
+              event_date: inTwoDays,
+              time: '19:00:00',
+              end_time: '20:00:00',
+              is_all_day: false,
+              event,
+            },
+            {
+              id: 'd2',
+              event_id: 'e9',
+              event_date: inTenDays,
+              time: '19:00:00',
+              end_time: null,
+              is_all_day: false,
+              event,
+            },
+          ],
+          error: null,
+        }),
+    });
+    const { result, unmount } = renderHook(() => useSchedule());
+    await flush();
+
+    const dated = result.current.schedule.filter((s) => s.show === 'Entrevista Especial');
+    expect(dated).toHaveLength(1);
+    expect(dated[0]).toMatchObject({
+      isDated: true,
+      date: inTwoDays,
+      times: ['19:00'],
+      endTimes: ['20:00'],
+    });
+    expect(dated[0].dayNumber).toBe(new Date(Date.UTC(y, m - 1, d + 2)).getUTCDay());
+    expect(setItem).toHaveBeenCalledWith(
+      'schedule_dates_cache',
+      expect.stringContaining('Entrevista Especial')
+    );
+    unmount();
+  });
+
+  it('mantém a grelha semanal se a tabela de datas falhar', async () => {
+    mockQuery({
+      schedule: () => Promise.resolve({ data: scheduleRows, error: null }),
+      schedule_dates: () => Promise.resolve({ data: null, error: new Error('relation missing') }),
+    });
+    const { result, unmount } = renderHook(() => useSchedule());
+    await flush();
+    expect(result.current.error).toBeNull();
+    expect(result.current.schedule.map((s) => s.show)).toContain(names.JAZZ);
+    expect(result.current.schedule.some((s) => s.isDated)).toBe(false);
     unmount();
   });
 });

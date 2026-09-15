@@ -111,6 +111,7 @@ jest.mock('../config/constants', () => ({
     SCHEDULED_NOTIFICATIONS: 'scheduled_notifications',
     THEME: 'theme',
     SCHEDULE_CACHE: 'schedule_cache',
+    SCHEDULE_DATES_CACHE: 'schedule_dates_cache',
     DAILY_SCHEDULE_CACHE: 'daily_schedule_cache',
   },
 }));

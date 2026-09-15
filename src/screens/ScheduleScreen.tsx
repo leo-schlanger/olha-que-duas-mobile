@@ -113,7 +113,7 @@ export function ScheduleScreen() {
   const showOccurrences = useMemo(() => {
     const m = new Map<string, { dayNumber: number; times: string[] }[]>();
     for (const item of schedule) {
-      if (item.isAllDay || !item.times || item.times.length === 0) continue;
+      if (item.isAllDay || item.isDated || !item.times || item.times.length === 0) continue;
       const arr = m.get(item.show) ?? [];
       arr.push({ dayNumber: item.dayNumber, times: item.times });
       m.set(item.show, arr);
@@ -134,7 +134,11 @@ export function ScheduleScreen() {
 
   // Timeline pré-calculada por dia (lookup instantâneo ao trocar de chip)
   const entriesByDay = useMemo(() => {
-    const labels = { program: t('schedule.program'), music: t('schedule.music') };
+    const labels = {
+      program: t('schedule.program'),
+      music: t('schedule.music'),
+      oneOff: t('schedule.oneOff'),
+    };
     const defaultSlotName = t('radio.schedule.defaultSlotName');
     const map = new Map<number, TimelineEntry[]>();
 
