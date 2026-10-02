@@ -8,11 +8,22 @@ interface ExpoMediaSessionModuleType {
   startMetadataPolling(pollingUrl: string): void;
   stopMetadataPolling(): void;
   deactivate(): void;
+  attachPlayer(player: object): Promise<boolean>;
+  detachPlayer(): Promise<void>;
+  sleep(ms: number): Promise<void>;
   isIgnoringBatteryOptimizations(): Promise<boolean>;
   requestIgnoreBatteryOptimizations(): void;
   addListener(
     eventName: 'onRemotePlay' | 'onRemotePause' | 'onRemoteStop',
     listener: () => void
+  ): EventSubscription;
+  addListener(
+    eventName: 'onStreamError',
+    listener: (event: { code: string }) => void
+  ): EventSubscription;
+  addListener(
+    eventName: 'onStreamTitle',
+    listener: (event: { title: string }) => void
   ): EventSubscription;
 }
 

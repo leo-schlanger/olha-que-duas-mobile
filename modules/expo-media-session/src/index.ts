@@ -33,10 +33,10 @@ export function updatePlaybackState(isPlaying: boolean): void {
 }
 
 /**
- * Start native-side metadata polling. The MediaService will poll the
- * AzuraCast API directly on its own thread, bypassing the JS thread
- * which Android suspends when the app is backgrounded. This ensures
- * the lock screen / notification stays up-to-date.
+ * Start native now-playing resolution. The MediaService owns the
+ * notification metadata: it reacts to ICY title changes (see attachPlayer)
+ * and polls the AzuraCast API on its own thread, independent of the JS
+ * thread (whose timers are paused in background).
  */
 export function startMetadataPolling(pollingUrl: string): void {
   ExpoMediaSessionModule.startMetadataPolling(pollingUrl);
@@ -55,6 +55,59 @@ export function stopMetadataPolling(): void {
  */
 export function deactivate(): void {
   ExpoMediaSessionModule.deactivate();
+}
+
+/**
+ * Attach to the ExoPlayer behind an expo-audio AudioPlayer to receive the
+ * stream's ICY StreamTitle (in-band, in sync with the audio). Resolves false
+ * when the player can't be attached (e.g. iOS).
+ */
+export async function attachPlayer(player: object): Promise<boolean> {
+  try {
+    return (await ExpoMediaSessionModule.attachPlayer?.(player)) ?? false;
+  } catch {
+    return false;
+  }
+}
+
+/** Stop listening to the previously attached player. */
+export async function detachPlayer(): Promise<void> {
+  try {
+    await ExpoMediaSessionModule.detachPlayer?.();
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Wait `ms` using a native timer. React Native pauses JS timers while the app
+ * is in background, so anything that must happen with the screen off (e.g.
+ * stream reconnect back-off) should wait with this instead of setTimeout.
+ */
+export function sleep(ms: number): Promise<void> {
+  if (typeof ExpoMediaSessionModule.sleep === 'function') {
+    return ExpoMediaSessionModule.sleep(ms).catch(
+      () => new Promise<void>((resolve) => setTimeout(resolve, ms))
+    );
+  }
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** ICY StreamTitle changed — the listener is hearing a new item right now. */
+export function addStreamTitleListener(listener: (title: string) => void): EventSubscription {
+  return ExpoMediaSessionModule.addListener('onStreamTitle', (event: { title: string }) =>
+    listener(event?.title ?? '')
+  );
+}
+
+/**
+ * The attached player failed (network lost, server down...). expo-audio
+ * itself doesn't report this — the player just goes idle.
+ */
+export function addStreamErrorListener(listener: (code: string) => void): EventSubscription {
+  return ExpoMediaSessionModule.addListener('onStreamError', (event: { code: string }) =>
+    listener(event?.code ?? '')
+  );
 }
 
 /** User pressed Play on notification / lock screen / headset button. */

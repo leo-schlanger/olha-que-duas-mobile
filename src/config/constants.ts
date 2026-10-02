@@ -24,6 +24,10 @@ export const TIMING = {
   // de "pause externo" é suprimida. O player nativo pode reportar
   // playing=false brevemente durante a transição do Activity lifecycle.
   RADIO_BG_GRACE_PERIOD: 3000,
+  // Se o sistema retomar a rádio (ex.: fim de uma chamada) depois de uma
+  // pausa maior do que isto, reabre-se o stream para voltar ao direto em vez
+  // de tocar o buffer antigo guardado durante a pausa.
+  RADIO_LIVE_RESYNC_AFTER: 8000,
 
   // Now Playing
   // 3s gives a snappier "the song just changed" feel without thrashing the

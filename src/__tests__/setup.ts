@@ -61,6 +61,11 @@ jest.mock('../../modules/expo-media-session/src', () => ({
   addRemotePlayListener: jest.fn(() => ({ remove: jest.fn() })),
   addRemotePauseListener: jest.fn(() => ({ remove: jest.fn() })),
   addRemoteStopListener: jest.fn(() => ({ remove: jest.fn() })),
+  addStreamTitleListener: jest.fn(() => ({ remove: jest.fn() })),
+  addStreamErrorListener: jest.fn(() => ({ remove: jest.fn() })),
+  attachPlayer: jest.fn(() => Promise.resolve(true)),
+  detachPlayer: jest.fn(() => Promise.resolve()),
+  sleep: jest.fn(() => Promise.resolve()),
   isIgnoringBatteryOptimizations: jest.fn(() => Promise.resolve(true)),
   requestIgnoreBatteryOptimizations: jest.fn(),
 }));

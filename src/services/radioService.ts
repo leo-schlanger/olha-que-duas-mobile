@@ -23,8 +23,16 @@ const STREAM_USER_AGENT = `OlhaQueDuas/${Constants.expoConfig?.version ?? '0'} (
  *   WiFi lock, lock screen controls, media button handling
  *
  * expo-audio's setActiveForLockScreen is NEVER called. Our native
- * MediaService owns the entire notification and MediaSession, eliminating
- * all artwork race conditions from the previous architecture.
+ * MediaService owns the entire notification and MediaSession — including
+ * the now-playing metadata, which it resolves from the stream's ICY title
+ * (in sync with the audio) + the AzuraCast API, even with JS timers paused.
+ *
+ * Live stream rules:
+ * - Resuming always re-opens the stream (never plays the stale buffer kept
+ *   during a pause — the listener would hear old audio, out of sync).
+ * - The server ending the connection reaches us as "ended" (didJustFinish),
+ *   not as an error — it triggers a reconnect.
+ * - Reconnect waits use a native timer: JS timers don't run in background.
  */
 class RadioService {
   private player: AudioPlayer | null = null;
@@ -34,11 +42,10 @@ class RadioService {
   private volume: number = 1.0;
   private onStatusChange: ((_status: RadioStatus) => void) | null = null;
   private isIntentionallyStopped: boolean = true;
-  private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+  private reconnectPending: boolean = false;
   private reconnectAttempts: number = 0;
   private settings: RadioSettings | null = null;
   private settingsUnsubscribe: (() => void) | null = null;
-  private nowPlayingUnsubscribe: (() => void) | null = null;
   private isBuffering: boolean = false;
   private isPlayInProgress: boolean = false;
   private statusPollingInterval: ReturnType<typeof setInterval> | null = null;
@@ -53,11 +60,18 @@ class RadioService {
 
   // MediaSession state — tracks whether our native service is running.
   private mediaSessionActive: boolean = false;
-  private lastNotificationKey: string = '';
   private lastNotifiedPlaying: boolean | null = null;
   private remotePlaySub: { remove: () => void } | null = null;
   private remotePauseSub: { remove: () => void } | null = null;
   private remoteStopSub: { remove: () => void } | null = null;
+  private streamTitleSub: { remove: () => void } | null = null;
+  private streamErrorSub: { remove: () => void } | null = null;
+  // When playback was stopped by the system (audio focus loss, etc.). Used to
+  // re-sync with the live stream if the system later resumes it.
+  private externallyPausedAt: number | null = null;
+  // Incremented on every pause/stop/new play — a pending reconnect wait that
+  // finds a different value was superseded and must not act.
+  private playbackGeneration: number = 0;
 
   // Logo URI getter — always returns the best available URI (file:// after
   // prefetch, remote URL before). NOT cached as a field because prefetchLogo
@@ -74,10 +88,11 @@ class RadioService {
     return `${url.protocol}//${url.host}/api/nowplaying/${shortcode}`;
   }
 
+  /** Cancel a pending reconnect wait (it checks the generation when it wakes). */
   private clearReconnectTimeout() {
-    if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout);
-      this.reconnectTimeout = null;
+    if (this.reconnectPending) {
+      this.reconnectPending = false;
+      this.playbackGeneration++;
     }
   }
 
@@ -88,42 +103,38 @@ class RadioService {
     }
   }
 
-  /**
-   * Update the notification metadata (title, artist, artwork) via our
-   * native MediaService. Deduplicates calls to avoid unnecessary native
-   * bridge traffic.
-   */
-  private updateNotification(title: string, artist: string, artworkUri: string) {
-    if (!this.mediaSessionActive) return;
-    const key = `${title}\x00${artist}\x00${artworkUri}`;
-    if (key === this.lastNotificationKey) return;
-    try {
-      ExpoMediaSession.updateMetadata({ title, artist, artworkUri });
-      this.lastNotificationKey = key;
-    } catch (error) {
-      logger.error('Error updating notification:', error);
-    }
+  private resetNotificationCache() {
+    this.lastNotifiedPlaying = null;
   }
 
-  private resetNotificationCache() {
-    this.lastNotificationKey = '';
-    this.lastNotifiedPlaying = null;
+  private get streamSource() {
+    return { uri: siteConfig.radio.streamUrl, headers: { 'User-Agent': STREAM_USER_AGENT } };
   }
 
   /** Set up listeners for lock screen / notification / headset transport controls. */
   private setupRemoteListeners() {
+    // Decide by what the player is actually doing, not by our flags: after
+    // an audio-focus loss the system pauses the player behind our back and
+    // a "Play" press must still start the radio.
     this.remotePlaySub = ExpoMediaSession.addRemotePlayListener(() => {
       logger.log('Remote play event received');
-      if (this.isIntentionallyStopped) {
+      if (!this.isPlaying || this.isIntentionallyStopped || !(this.player?.playing ?? false)) {
         this.play();
       }
     });
 
     this.remotePauseSub = ExpoMediaSession.addRemotePauseListener(() => {
       logger.log('Remote pause event received');
-      if (!this.isIntentionallyStopped) {
-        this.pause();
-      }
+      this.pause();
+    });
+
+    this.streamErrorSub = ExpoMediaSession.addStreamErrorListener((code) => {
+      this.handleStreamFailure(`Stream error (${code})`);
+    });
+
+    this.streamTitleSub = ExpoMediaSession.addStreamTitleListener((title) => {
+      if (this.isIntentionallyStopped || !title) return;
+      nowPlayingService.onStreamTitle(title);
     });
 
     this.remoteStopSub = ExpoMediaSession.addRemoteStopListener(() => {
@@ -139,6 +150,10 @@ class RadioService {
     this.remotePauseSub = null;
     this.remoteStopSub?.remove();
     this.remoteStopSub = null;
+    this.streamTitleSub?.remove();
+    this.streamTitleSub = null;
+    this.streamErrorSub?.remove();
+    this.streamErrorSub = null;
   }
 
   private stopStatusPolling() {
@@ -155,6 +170,69 @@ class RadioService {
     }, TIMING.RADIO_STATUS_POLL_INTERVAL);
   }
 
+  /** The system (not the user) stopped playback — e.g. audio focus loss. */
+  private markExternallyPaused(reason: string) {
+    logger.log(reason);
+    this.isIntentionallyStopped = true;
+    this.isPlaying = false;
+    this.isBuffering = false;
+    this.bufferingStartedAt = 0;
+    this.externallyPausedAt = Date.now();
+    this.clearReconnectTimeout();
+    this.unsubscribeFromNowPlaying();
+    this.emitStatus(false);
+  }
+
+  /**
+   * The player started again without us asking (audio focus regained after
+   * a call, lock screen of another controller, ...). A short interruption
+   * just continues; a long one re-opens the stream so the listener is back
+   * on the live audio instead of the stale buffer kept during the pause.
+   */
+  private handleExternalResume() {
+    const pausedFor = this.externallyPausedAt != null ? Date.now() - this.externallyPausedAt : 0;
+    this.externallyPausedAt = null;
+    if (pausedFor > TIMING.RADIO_LIVE_RESYNC_AFTER) {
+      logger.log(`External resume after ${pausedFor}ms — re-syncing with the live stream`);
+      this.play();
+      return;
+    }
+    logger.log('External resume detected');
+    this.isIntentionallyStopped = false;
+    this.isPlaying = true;
+    this.isBuffering = false;
+    this.bufferingStartedAt = 0;
+    this.lastPlayingAt = Date.now();
+    this.subscribeToNowPlaying();
+    this.emitStatus(false);
+  }
+
+  /**
+   * The stream stopped without the user asking: server closed it (the
+   * progressive MP3 reaches "ended"), or the connection failed (the player
+   * goes "idle" — expo-audio reports no error for it).
+   */
+  private handleStreamFailure(reason: string) {
+    if (this.isIntentionallyStopped || this.reconnectPending) return;
+    logger.warn(`${reason} — reconnecting`);
+    this.isPlaying = false;
+    this.isBuffering = false;
+    this.bufferingStartedAt = 0;
+    if (this.settings?.autoReconnect ?? true) {
+      this.emitStatus(true);
+      this.reconnect();
+    } else {
+      this.markExternallyPaused(`${reason} and auto-reconnect is off`);
+    }
+  }
+
+  private isInBackgroundGracePeriod(): boolean {
+    return (
+      this.backgroundTransitionAt != null &&
+      Date.now() - this.backgroundTransitionAt < TIMING.RADIO_BG_GRACE_PERIOD
+    );
+  }
+
   private pollPlayerStatus() {
     if (!this.player) return;
 
@@ -164,37 +242,25 @@ class RadioService {
       const wasPlaying = this.isPlaying;
       const wasBuffering = this.isBuffering;
 
-      // Detect external resume (e.g., user pressed play on lock screen)
-      if (this.isIntentionallyStopped && playerPlaying) {
-        logger.log('Polling: External resume detected (lock screen play)');
-        this.isIntentionallyStopped = false;
-        this.isPlaying = true;
-        this.isBuffering = playerBuffering;
-        this.bufferingStartedAt = 0;
-        this.subscribeToNowPlaying();
-        this.emitStatus(false);
+      // Detect external resume (system resumed the player behind our back)
+      if (this.isIntentionallyStopped) {
+        if (playerPlaying && this.externallyPausedAt != null) {
+          this.handleExternalResume();
+        }
         return;
       }
 
-      if (this.isIntentionallyStopped) return;
+      // A reconnect is already scheduled — don't second-guess it.
+      if (this.reconnectPending) return;
 
-      // Detect external pause — suppress in background and debounce brief hiccups.
+      // Detect external pause — debounce brief hiccups and the activity
+      // lifecycle transition right after going to background.
       if (wasPlaying && !playerPlaying && !playerBuffering) {
-        const appInBackground = AppState.currentState !== 'active';
-        const inGracePeriod =
-          this.backgroundTransitionAt != null &&
-          Date.now() - this.backgroundTransitionAt < TIMING.RADIO_BG_GRACE_PERIOD;
         const tooSoon = Date.now() - this.lastPlayingAt < 500;
-        if (appInBackground || inGracePeriod || tooSoon) {
+        if (this.isInBackgroundGracePeriod() || tooSoon) {
           return;
         }
-        logger.log('Polling: External pause detected');
-        this.isIntentionallyStopped = true;
-        this.isPlaying = false;
-        this.isBuffering = false;
-        this.bufferingStartedAt = 0;
-        this.unsubscribeFromNowPlaying();
-        this.emitStatus(false);
+        this.markExternallyPaused('Polling: External pause detected');
         return;
       }
 
@@ -274,15 +340,11 @@ class RadioService {
     if (this.lastAppState.match(/inactive|background/) && nextAppState === 'active') {
       this.backgroundTransitionAt = null;
 
-      if (this.player && !this.isIntentionallyStopped) {
+      if (this.player && !this.isIntentionallyStopped && !this.reconnectPending) {
         const playerPlaying = this.player.playing ?? false;
-        if (!playerPlaying) {
-          logger.log('Player paused during background, marking as stopped');
-          this.isIntentionallyStopped = true;
-          this.isPlaying = false;
-          this.isBuffering = false;
-          this.unsubscribeFromNowPlaying();
-          this.emitStatus(false);
+        const playerBuffering = this.player.isBuffering ?? false;
+        if (!playerPlaying && !playerBuffering) {
+          this.markExternallyPaused('Player paused during background, marking as stopped');
         }
       }
 
@@ -358,6 +420,7 @@ class RadioService {
 
     try {
       this.isIntentionallyStopped = false;
+      this.externallyPausedAt = null;
       this.bufferingStartedAt = 0;
       this.lastPlayingAt = Date.now();
       this.clearReconnectTimeout();
@@ -368,9 +431,14 @@ class RadioService {
         await this.initialize();
       }
 
-      // FAST PATH — reuse existing player
+      // FAST PATH — reuse the existing player, but always re-open the
+      // stream. A paused live stream keeps a stale buffer (and the server
+      // drops the idle connection): plain play() would replay old audio
+      // and then hit "ended" — silence, or the ad cut in half.
       if (this.player) {
         try {
+          this.player.replace(this.streamSource);
+          this.player.volume = this.volume;
           this.player.play();
           // Service is already running (paused state) — update to playing.
           if (this.mediaSessionActive) {
@@ -379,52 +447,55 @@ class RadioService {
           }
           this.subscribeToNowPlaying();
           this.startStatusPolling();
-          this.reconnectAttempts = 0;
           this.emitStatus(true);
-          logger.log('Radio stream resumed (player reused)');
+          logger.log('Radio stream re-opened (player reused)');
           return true;
         } catch (resumeError) {
-          logger.warn('Resume failed, falling back to recreate:', resumeError);
+          logger.warn('Re-open failed, falling back to recreate:', resumeError);
           this.removePlayerListener();
+          ExpoMediaSession.detachPlayer();
           try {
             this.player.release();
           } catch {
             // ignore
           }
           this.player = null;
-          this.resetNotificationCache();
         }
       }
 
       // SLOW PATH — create new player
       logger.log('Creating audio player for:', siteConfig.radio.streamUrl);
 
-      this.player = createAudioPlayer({
-        uri: siteConfig.radio.streamUrl,
-        headers: { 'User-Agent': STREAM_USER_AGENT },
-      });
+      this.player = createAudioPlayer(this.streamSource);
       this.player.volume = this.volume;
 
       this.playerSubscription = this.player.addListener('playbackStatusUpdate', (status) => {
         this.handlePlaybackStatus(status);
       });
 
-      // Start our foreground service FIRST — this keeps the process alive
-      // in background and shows the initial notification with radio name.
-      ExpoMediaSession.activate({
-        title: siteConfig.radio.name,
-        artist: siteConfig.radio.tagline,
-        artworkUri: this.logoUri,
+      // ICY StreamTitle from the stream itself → native notification + UI,
+      // in sync with what is being heard.
+      ExpoMediaSession.attachPlayer(this.player).then((attached) => {
+        if (!attached) logger.warn('ICY metadata unavailable — using API timing only');
       });
-      this.mediaSessionActive = true;
-      // Force fresh metadata/playback state updates — the native service just
-      // started, so cached dedup keys from a previous session must not block.
-      this.resetNotificationCache();
 
-      // Start native-side metadata polling — the JS thread is suspended by
-      // Android when the app is backgrounded, so the native MediaService
-      // polls the AzuraCast API directly to keep the notification current.
-      ExpoMediaSession.startMetadataPolling(this.pollingUrl);
+      if (!this.mediaSessionActive) {
+        // Start our foreground service FIRST — this keeps the process alive
+        // in background and shows the initial notification with radio name.
+        ExpoMediaSession.activate({
+          title: siteConfig.radio.name,
+          artist: siteConfig.radio.tagline,
+          artworkUri: this.logoUri,
+        });
+        this.mediaSessionActive = true;
+        // Force fresh playback state updates — the native service just
+        // started, so cached dedup keys from a previous session must not block.
+        this.resetNotificationCache();
+
+        // Native now-playing resolution (ICY + API) — owns the notification
+        // metadata and keeps working with the JS timers paused in background.
+        ExpoMediaSession.startMetadataPolling(this.pollingUrl);
+      }
 
       this.player.play();
 
@@ -432,7 +503,6 @@ class RadioService {
       this.subscribeToNowPlaying();
       this.startStatusPolling();
 
-      this.reconnectAttempts = 0;
       this.emitStatus(true);
 
       logger.log('Radio stream starting...');
@@ -458,8 +528,18 @@ class RadioService {
     isBuffering?: boolean;
     playing?: boolean;
     buffering?: boolean;
+    didJustFinish?: boolean;
+    playbackState?: string;
   }) {
-    if (this.isIntentionallyStopped) return;
+    const newIsPlaying = status.isPlaying ?? status.playing ?? false;
+    const newIsBuffering = status.isBuffering ?? status.buffering ?? false;
+
+    if (this.isIntentionallyStopped) {
+      if (newIsPlaying && this.externallyPausedAt != null) {
+        this.handleExternalResume();
+      }
+      return;
+    }
 
     if (status.error) {
       logger.error('Playback error:', status.error);
@@ -468,36 +548,36 @@ class RadioService {
       this.bufferingStartedAt = 0;
       this.emitStatus(false);
 
-      if (!this.isIntentionallyStopped && this.settings?.autoReconnect) {
+      if (this.settings?.autoReconnect) {
         this.reconnect();
       }
+      return;
+    }
+
+    if (status.didJustFinish || status.playbackState === 'ended') {
+      this.handleStreamFailure('Stream ended by the server');
+      return;
+    }
+    // "idle" while we want to play = the load failed (network lost, DNS...).
+    // Skip the first instant after play(): the player starts idle.
+    if (status.playbackState === 'idle' && Date.now() - this.lastPlayingAt > 1000) {
+      this.handleStreamFailure('Stream connection failed');
       return;
     }
 
     const wasPlaying = this.isPlaying;
     const wasBuffering = this.isBuffering;
 
-    const newIsPlaying = status.isPlaying ?? status.playing ?? false;
-    const newIsBuffering = status.isBuffering ?? status.buffering ?? false;
-
-    // Detect external pause — suppress in background and debounce brief hiccups.
-    if (wasPlaying && !newIsPlaying && !newIsBuffering) {
-      const appInBackground = AppState.currentState !== 'active';
-      const inGracePeriod =
-        this.backgroundTransitionAt != null &&
-        Date.now() - this.backgroundTransitionAt < TIMING.RADIO_BG_GRACE_PERIOD;
-      // Debounce: ignore if we were playing less than 500ms ago (transient hiccup).
+    // Detect external pause (audio focus loss, other app). Debounce brief
+    // hiccups and the lifecycle transition right after going to background.
+    // Not suppressed in background any more: otherwise the notification kept
+    // saying "playing" while silent, and its Play button did nothing.
+    if (wasPlaying && !newIsPlaying && !newIsBuffering && !this.reconnectPending) {
       const tooSoon = Date.now() - this.lastPlayingAt < 500;
-      if (appInBackground || inGracePeriod || tooSoon) {
+      if (this.isInBackgroundGracePeriod() || tooSoon) {
         return;
       }
-      logger.log('External pause detected (lock screen or system)');
-      this.isIntentionallyStopped = true;
-      this.isPlaying = false;
-      this.isBuffering = false;
-      this.bufferingStartedAt = 0;
-      this.unsubscribeFromNowPlaying();
-      this.emitStatus(false);
+      this.markExternallyPaused('External pause detected (audio focus or system)');
       return;
     }
 
@@ -506,6 +586,7 @@ class RadioService {
     if (newIsPlaying) {
       this.bufferingStartedAt = 0;
       this.lastPlayingAt = Date.now();
+      if (!newIsBuffering) this.reconnectAttempts = 0;
     }
 
     const isLoading = !this.isPlaying && !this.isIntentionallyStopped;
@@ -514,71 +595,27 @@ class RadioService {
     }
   }
 
+  /**
+   * Keep the in-app now-playing service running while the radio plays. The
+   * notification metadata is resolved natively (MediaService), so nothing
+   * here writes to it.
+   */
   private subscribeToNowPlaying() {
-    if (this.nowPlayingUnsubscribe) {
-      this.nowPlayingUnsubscribe();
-    }
-
     try {
       nowPlayingService.start();
     } catch (error) {
       logger.error('Failed to start nowPlayingService:', error);
     }
-
-    this.nowPlayingUnsubscribe = nowPlayingService.subscribe((data) => {
-      if (!this.player || this.isIntentionallyStopped) return;
-
-      let title: string;
-      let artist: string;
-      switch (data.mode) {
-        case 'music':
-          if (data.song) {
-            title = data.song.title;
-            artist = data.song.artist;
-          } else {
-            title = siteConfig.radio.name;
-            artist = siteConfig.radio.tagline;
-          }
-          break;
-        case 'liveShow':
-          title = data.liveShowName || siteConfig.radio.name;
-          artist = siteConfig.radio.name;
-          break;
-        case 'podcast':
-          title = data.podcastName;
-          artist = siteConfig.radio.name;
-          break;
-        case 'announcement':
-          title = data.announcementName;
-          artist = siteConfig.radio.name;
-          break;
-        default:
-          title = siteConfig.radio.name;
-          artist = siteConfig.radio.tagline;
-          break;
-      }
-
-      // Single call updates title, artist, and artwork on the notification.
-      // localArtUri is a file:// path from the covers cache. When null
-      // (download in progress), fall back to the radio logo. When the
-      // download completes, nowPlayingService re-emits with localArtUri set.
-      const artworkUri = data.localArtUri || this.logoUri;
-      this.updateNotification(title, artist, artworkUri);
-    });
   }
 
   private unsubscribeFromNowPlaying() {
-    if (this.nowPlayingUnsubscribe) {
-      this.nowPlayingUnsubscribe();
-      this.nowPlayingUnsubscribe = null;
-    }
     nowPlayingService.stop();
   }
 
   private reconnect() {
     if (this.isIntentionallyStopped) return;
-    // Prevent piling up multiple reconnect timeouts from concurrent stall detections.
-    if (this.reconnectTimeout) return;
+    // Prevent piling up multiple reconnects from concurrent detections.
+    if (this.reconnectPending) return;
     if (this.reconnectAttempts >= LIMITS.MAX_RECONNECT_ATTEMPTS) {
       logger.log('Max reconnect attempts reached, giving up');
       this.reconnectAttempts = 0;
@@ -592,8 +629,6 @@ class RadioService {
       return;
     }
 
-    this.clearReconnectTimeout();
-
     // Exponential backoff with jitter to avoid thundering herd on server recovery.
     const baseDelay = Math.min(
       TIMING.RADIO_RECONNECT_BASE_DELAY * Math.pow(2, this.reconnectAttempts),
@@ -605,15 +640,21 @@ class RadioService {
     logger.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
     this.emitStatus(true);
 
-    this.reconnectTimeout = setTimeout(() => {
+    // Native timer: setTimeout would not fire with the screen off.
+    this.reconnectPending = true;
+    const generation = this.playbackGeneration;
+    ExpoMediaSession.sleep(delay).then(() => {
+      if (generation !== this.playbackGeneration || !this.reconnectPending) return;
+      this.reconnectPending = false;
       if (!this.isIntentionallyStopped) {
         this.play();
       }
-    }, delay);
+    });
   }
 
   async pause(): Promise<void> {
     this.isIntentionallyStopped = true;
+    this.externallyPausedAt = null;
     this.isPlaying = false;
     this.reconnectAttempts = 0;
     this.bufferingStartedAt = 0;
@@ -640,6 +681,7 @@ class RadioService {
 
   async stop(): Promise<void> {
     this.isIntentionallyStopped = true;
+    this.externallyPausedAt = null;
     this.isPlaying = false;
     this.reconnectAttempts = 0;
     this.bufferingStartedAt = 0;
@@ -652,6 +694,7 @@ class RadioService {
         logger.error('Error pausing player:', e);
       }
       this.removePlayerListener();
+      ExpoMediaSession.detachPlayer();
       try {
         this.player.release();
       } catch (releaseError) {

@@ -1,17 +1,13 @@
 /**
  * Artwork pre-download cache.
  *
- * Pre-downloads album artwork to local storage so the lock-screen notification
- * always gets a file:// URI (loaded in <10ms by the native side).
+ * Pre-downloads the radio logo to local storage so the native notification
+ * gets a file:// URI (loaded in <10ms). Track covers are resolved and cached
+ * natively by MediaService (ICY + API), and in-app by expo-image.
  *
  * Directory: `olhaqueduas-covers/` — stable cache keyed by FNV-1a hash of
  * remote URL. Up to MAX_CACHE_FILES entries before oldest are pruned.
  *
- * The lock screen artwork is managed by ExpoMediaSessionModule which reads
- * bitmaps directly from these cached files. No file pool or unique paths
- * are needed — expo-audio always receives the static radio logo URL (which
- * it caches via URL.equals()), and our native module overrides the artwork
- * bitmap independently.
  */
 
 import { Directory, File, Paths } from 'expo-file-system';
@@ -121,22 +117,6 @@ export async function getLocalArtwork(remoteUrl: string): Promise<string | null>
 
   pendingDownloads.set(remoteUrl, promise);
   return promise;
-}
-
-/**
- * Synchronous lookup: returns the cached file URI if present, else null.
- */
-export function getCachedArtwork(remoteUrl: string): string | null {
-  if (!remoteUrl || (!remoteUrl.startsWith('http://') && !remoteUrl.startsWith('https://'))) {
-    return null;
-  }
-  try {
-    const filename = `${hashUrl(remoteUrl)}.${inferExtension(remoteUrl)}`;
-    const file = new File(ensureDir(), filename);
-    return file.exists && (file.size ?? 0) > 0 ? file.uri : null;
-  } catch {
-    return null;
-  }
 }
 
 // Cached logo URI — populated by `prefetchLogo()` at app boot.

@@ -1,18 +1,10 @@
 import { useState, useEffect } from 'react';
 import { AppState } from 'react-native';
-import { nowPlayingService, NowPlayingData } from '../services/nowPlayingService';
-
-const IDLE: NowPlayingData = {
-  mode: 'idle',
-  song: null,
-  liveShowName: '',
-  podcastName: '',
-  podcastArt: '',
-  announcementName: '',
-  announcementArt: '',
-  localArtUri: null,
-  isMusic: false,
-};
+import {
+  nowPlayingService,
+  NowPlayingData,
+  IDLE_DATA as IDLE,
+} from '../services/nowPlayingService';
 
 /**
  * Subscribes to the now-playing service and exposes the current classified
